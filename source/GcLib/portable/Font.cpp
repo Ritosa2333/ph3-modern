@@ -27,6 +27,23 @@ public:
         }
         FT_Select_Charmap(face_, FT_ENCODING_UNICODE);
         AddNames(face_);
+        // msgothic.ttc is a TrueType collection.  Windows can select MS UI
+        // Gothic / MS PGothic from the same file, while opening only face 0
+        // here silently forced every unknown family back to MS Gothic.
+        for (FT_Long index = 1; index < face_->num_faces; ++index) {
+            FT_Face face = nullptr;
+            if (FT_New_Face(library_, "/game/msgothic.ttc", index, &face)) continue;
+            FT_Select_Charmap(face, FT_ENCODING_UNICODE);
+            additional_.push_back({face, {}});
+            AddNames(face);
+        }
+        // The original game requests Meiryo.  On the current Windows oracle
+        // Meiryo is not installed and GDI substitutes MS PGothic.  Match that
+        // fallback when the mounted browser font does not provide Meiryo.
+        const auto meiryo = facesByName_.find(Normalize(L"Meiryo"));
+        const auto pgothic = facesByName_.find(Normalize(L"MS PGothic"));
+        if (meiryo == facesByName_.end() && pgothic != facesByName_.end())
+            facesByName_[Normalize(L"Meiryo")] = pgothic->second;
     }
     ~FontFace() {
         for (const auto& item : additional_) FT_Done_Face(item.face);
