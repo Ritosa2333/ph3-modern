@@ -348,6 +348,9 @@ void StgStageController::_SetupReplayTargetCommonDataArea(_int64 idScript)
 
 void StgStageController::Work()
 {
+#ifdef WOO_REPLAY_VERIFY
+	woo::verify::Step traceStep(this);
+#endif
 	EDirectInput* input = EDirectInput::GetInstance();
 	ref_count_ptr<StgSystemInformation> infoSystem = systemController_->GetSystemInformation();
 	bool bPackageMode = infoSystem->IsPackageMode();

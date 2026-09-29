@@ -54,7 +54,7 @@ def main() -> None:
     parser.add_argument('--prepare-only', action='store_true')
     args = parser.parse_args()
     base = BASE if args.family == 'woo' else ORIGINAL_BASE
-    source_repo = ROOT if args.family == 'woo' else ROOT.parent / 'ph3-original'
+    source_repo = ROOT.parent / 'ph3-woo-web' if args.family == 'woo' else ROOT.parent / 'ph3-original'
     output = (args.out or ROOT / ('build/native-oracle' if args.family == 'woo' else 'build/native-original')).resolve()
     if not output.is_relative_to((ROOT / 'build').resolve()):
         raise ValueError('Oracle artifacts must stay under this repository build/')
@@ -93,12 +93,14 @@ def main() -> None:
             revision = item.get('sourceRevision')
             if revision:
                 generated[item['target']] = subprocess.run(
-                    ['git', 'show', revision + ':' + item['source']], cwd=ROOT,
+                    ['git', 'show', revision + ':' + item['source']], cwd=item.get('sourceRepo', ROOT),
                     capture_output=True, check=True, timeout=30).stdout
             else:
                 generated[item['target']] = origin.read_bytes()
             if item.get('expectedSha256') and hashlib.sha256(generated[item['target']]).hexdigest() != item['expectedSha256']:
                 raise ValueError('Pinned platform dependency changed: ' + item['source'])
+            if item.get('transcodeCp932'):
+                generated[item['target']] = generated[item['target']].decode('utf-8-sig').encode('cp932')
             transforms.append({'path': item['target'], 'purpose': item.get('role', 'Shared read-only diagnostic observer'),
                                'source': item['source'], 'generated': hashlib.sha256(generated[item['target']]).hexdigest(),
                                'sourceRevision': item.get('sourceRevision')})

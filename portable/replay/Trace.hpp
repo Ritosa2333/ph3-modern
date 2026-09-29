@@ -26,6 +26,23 @@ inline std::string realBits(double value) {
 }
 
 struct Access {
+    static std::string commonInteger(StgStageController* stage,const char* area,const char* key) {
+        auto manager=stage->GetSystemController()->GetCommonDataManager();
+        if(manager==NULL||!manager->IsExists(area))return "null";
+        auto data=manager->GetData(area);
+        if(data==NULL||!data->IsExists(key))return "null";
+        return std::to_string((long long)data->GetValue(key).as_real());
+    }
+    static std::string spellIndex(StgStageController* stage) {
+        auto manager=stage->GetSystemController()->GetCommonDataManager();
+        if(manager==NULL||!manager->IsExists("Spell"))return "null";
+        auto data=manager->GetData("Spell");
+        if(data==NULL||!data->IsExists("SPELL_INDEX"))return "null";
+        auto wide=data->GetValue("SPELL_INDEX").as_string();
+        std::ostringstream out;out<<'[';
+        for(std::size_t i=0;i<wide.size();++i){if(i)out<<',';out<<unsigned(wide[i]);}
+        out<<']';return out.str();
+    }
     static int cursor(directx::KeyReplayManager* keys) { return keys->frame_; }
     static std::string inputs(directx::KeyReplayManager* keys) {
         std::ostringstream s;s<<'[';bool comma=false;
@@ -63,6 +80,20 @@ struct Access {
         for(auto& owned:list) { auto* object=owned.GetPointer();common(h,object);
             h.real(object->GetLife());h.real(object->GetShotDamageRate());h.real(object->GetSpellDamageRate()); }
         return h.text();
+    }
+    static std::string enemyDetails(StgEnemyManager* manager) {
+        std::ostringstream out;out<<'[';bool comma=false;
+        for(auto& owned:manager->GetEnemyList()) {
+            if(comma)out<<',';comma=true;auto* object=owned.GetPointer();
+            auto* move=static_cast<StgMoveObject*>(object);auto pattern=move->GetPattern();
+            out<<'['<<object->GetObjectID()<<','<<object->GetObjectType()<<','<<object->IsDeleted()<<','<<object->IsActive()
+               <<",\""<<realBits(move->GetPositionX())<<"\",\""<<realBits(move->GetPositionY())
+               <<"\",\""<<realBits(move->GetSpeed())<<"\",\""<<realBits(move->GetDirectionAngle())
+               <<"\","<<(pattern==NULL?-1:pattern->GetType())<<",\""<<realBits(object->GetLife())
+               <<"\",\""<<realBits(object->GetShotDamageRate())<<"\",\""
+               <<realBits(object->GetSpellDamageRate())<<"\"]";
+        }
+        out<<']';return out.str();
     }
     static std::string shots(StgShotManager* manager) {
         Hash h;h.word(manager->listObj_.size());
@@ -163,11 +194,20 @@ inline void Tick(StgStageController* stage,int inputFrame) {
             <<"\",\""<<realBits(player->GetPower())<<"\","<<player->GetInvincibilityFrame()<<','<<player->GetRebirthFrame()<<']';
     out<<",\"counts\":["<<stage->GetEnemyManager()->GetEnemyCount()<<','<<stage->GetShotManager()->GetShotCountAll()
        <<','<<stage->GetItemManager()->GetItemCount()<<']'
+       <<",\"maxScore\":"<<Access::commonInteger(stage,"System","MAX_SCORE")
+       <<",\"spellBase\":"<<Access::commonInteger(stage,"Spell","SPELL_BONUS")
+       <<",\"spellIndexUnits\":"<<Access::spellIndex(stage)
+       <<",\"chapterAll\":"<<Access::commonInteger(stage,"Stg","STAGE_CHAPTER_ALL")
+       <<",\"chapterSafe\":"<<Access::commonInteger(stage,"Stg","STAGE_CHAPTER_SAFE")
+       <<",\"chapterDeath\":"<<Access::commonInteger(stage,"Stg","ChapterDeathCount")
        <<",\"rng\":\""<<Access::rng(info->GetMersenneTwister().GetPointer())
        <<"\",\"enemies\":\""<<Access::enemies(stage->GetEnemyManager())
        <<"\",\"shots\":\""<<Access::shots(stage->GetShotManager())
        <<"\",\"items\":\""<<Access::items(stage->GetItemManager())<<"\"";
-    if(context.ticks-1==context.detailTick)out<<",\"detailShots\":"<<Access::shotDetails(stage->GetShotManager());
+    if(context.ticks-1==context.detailTick) {
+        out<<",\"detailShots\":"<<Access::shotDetails(stage->GetShotManager());
+        out<<",\"detailEnemies\":"<<Access::enemyDetails(stage->GetEnemyManager());
+    }
     out<<'}';
     context.emit(out.str());
 }

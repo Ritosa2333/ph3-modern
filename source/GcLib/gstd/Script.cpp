@@ -180,7 +180,13 @@ std::wstring value::as_string() const
 		switch (data->type->get_kind()) {
 		case type_data::tk_real: {
 			wchar_t buffer[128];
+			// MSVC's long double is binary64; the portable VM uses double to
+			// preserve that contract. Match the vararg format to its actual type.
+#ifdef __EMSCRIPTEN__
+			std::swprintf(buffer, sizeof(buffer) / sizeof(buffer[0]), L"%f", data->real_value);
+#else
 			std::swprintf(buffer, sizeof(buffer) / sizeof(buffer[0]), L"%Lf", data->real_value);
+#endif
 			return std::wstring(buffer);
 		}
 

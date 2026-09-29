@@ -118,8 +118,15 @@ def main() -> None:
             checkpoint('02-replay-menu')
             press('z', 1000)
             checkpoint('03-replay-selected')
-            if not page.evaluate('!!ph3Diagnostics.stage?.replay'):
+            for _ in range(4):
+                if page.evaluate('!!ph3Diagnostics.stage?.replay'):
+                    break
+                # Slow diagnostic builds can leave the replay selection menu
+                # open after one short key press. Restore canvas focus and
+                # retry the original confirm input without altering game data.
+                page.locator('#canvas').focus()
                 press('z', 1200)
+                page.wait_for_timeout(2000)
             page.wait_for_function("ph3Diagnostics.phase==='error'||ph3Diagnostics.stage?.replay", timeout=180000)
             state = checkpoint('04-playing')
             if not state.get('stage', {}).get('replay'):

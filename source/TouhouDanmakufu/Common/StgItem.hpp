@@ -13,6 +13,9 @@ class StgItemRenderer;
 **********************************************************/
 class StgItemManager
 {
+#ifdef WOO_REPLAY_VERIFY
+		friend struct ::woo::verify::Access;
+#endif
 		StgStageController* stageController_;
 		ref_count_ptr<SpriteList2D>::unsync listSpriteItem_;
 		ref_count_ptr<SpriteList2D>::unsync listSpriteDigit_;

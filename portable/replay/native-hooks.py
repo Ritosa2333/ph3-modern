@@ -8,6 +8,7 @@ import re
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[2]
+WOO_REPO = ROOT.parent / 'ph3-woo-web'
 
 
 def main() -> None:
@@ -147,18 +148,21 @@ def original_hooks(archive_backend: bool = False) -> None:
         # instead of inventing a third decompressor implementation.
         vendor_revision = '900aa3ebeb329187e8c2852b8ad41caa5200ca9e'
         for path in ('source/GcLib/gstd/File.cpp', 'source/GcLib/gstd/File.hpp'):
-            raw = subprocess.run(['git', 'show', vendor_revision + ':' + path], cwd=ROOT,
+            raw = subprocess.run(['git', 'show', vendor_revision + ':' + path], cwd=WOO_REPO,
                                  capture_output=True, check=True).stdout
             copies.append({'source': path, 'target': path, 'expectedSha256': hashlib.sha256(raw).hexdigest(),
-                           'sourceRevision': vendor_revision, 'role': 'Woo DAT/archive mechanism only'})
+                           'sourceRevision': vendor_revision, 'sourceRepo': str(WOO_REPO),
+                           'transcodeCp932': True,
+                           'role': 'Woo DAT/archive mechanism only'})
         listing = subprocess.run(['git', 'ls-tree', '-r', '--name-only', vendor_revision, 'source/GcLib/zlib'],
-                                 cwd=ROOT, capture_output=True, check=True, text=True).stdout.splitlines()
+                                 cwd=WOO_REPO, capture_output=True, check=True, text=True).stdout.splitlines()
         c_files = []
         for path in listing:
-            raw = subprocess.run(['git', 'show', vendor_revision + ':' + path], cwd=ROOT,
+            raw = subprocess.run(['git', 'show', vendor_revision + ':' + path], cwd=WOO_REPO,
                                  capture_output=True, check=True).stdout
             copies.append({'source': path, 'target': path, 'expectedSha256': hashlib.sha256(raw).hexdigest(),
-                           'sourceRevision': vendor_revision, 'role': 'Woo-pinned third-party zlib for DAT support'})
+                           'sourceRevision': vendor_revision, 'sourceRepo': str(WOO_REPO),
+                           'role': 'Woo-pinned third-party zlib for DAT support'})
             if path.endswith('.c'):
                 c_files.append(path.replace('/', '\\\\'))
         anchored(project, r'<ClCompile Include="source\\GcLib\\gstd\\File.cpp"\s*/>',

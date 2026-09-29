@@ -14,6 +14,9 @@ namespace gstd
 	**********************************************************/
 	class MersenneTwister
 	{
+#ifdef WOO_REPLAY_VERIFY
+			friend struct ::woo::verify::Access;
+#endif
 			struct mt_struct;
 			friend struct mt_struct;
 			enum

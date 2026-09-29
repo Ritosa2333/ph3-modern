@@ -13,6 +13,9 @@ class StgShotObject;
 **********************************************************/
 class StgShotManager
 {
+#ifdef WOO_REPLAY_VERIFY
+		friend struct ::woo::verify::Access;
+#endif
 	public:
 		enum
 		{
