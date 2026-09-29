@@ -1,9 +1,13 @@
-#include"DirectGraphics.hpp"
+#include "DirectGraphics.hpp"
+#ifdef __EMSCRIPTEN__
+#include <SDL3/SDL.h>
+#endif
 
-#include"Texture.hpp"
+#include "Texture.hpp"
 
 using namespace gstd;
 using namespace directx;
+
 
 /**********************************************************
 //DirectGraphicsConfig
@@ -22,16 +26,12 @@ DirectGraphicsConfig::DirectGraphicsConfig()
 }
 DirectGraphicsConfig::~DirectGraphicsConfig()
 {
-
 }
 
 /**********************************************************
 //DirectGraphics
 **********************************************************/
-/**********************************************************
-//DirectGraphics
-**********************************************************/
-DirectGraphics* DirectGraphics::thisBase_=NULL;
+DirectGraphics* DirectGraphics::thisBase_ = NULL;
 
 DirectGraphics::DirectGraphics()
 {
@@ -44,14 +44,20 @@ DirectGraphics::DirectGraphics()
 }
 DirectGraphics::~DirectGraphics()
 {
-	Logger::WriteTop(L"DirectGraphicsFI—¹ŠJn");
+	Logger::WriteTop(L"DirectGraphicsï¼šçµ‚äº†é–‹å§‹");
 
-	if(pZBuffer_ != NULL)pZBuffer_->Release();
-	if(pBackSurf_ != NULL)pBackSurf_->Release();
-	if(pDevice_ != NULL)pDevice_->Release();
-	if(pDirect3D_ != NULL)pDirect3D_->Release();
-	thisBase_=NULL;
-	Logger::WriteTop(L"DirectGraphicsFI—¹Š®—¹");
+	if (pZBuffer_ != NULL)
+		pZBuffer_->Release();
+	if (pBackSurf_ != NULL)
+		pBackSurf_->Release();
+	if (pDevice_ != NULL)
+		pDevice_->Release();
+#ifndef __EMSCRIPTEN__
+	if (pDirect3D_ != NULL)
+		pDirect3D_->Release();
+#endif
+	thisBase_ = NULL;
+	Logger::WriteTop(L"DirectGraphicsï¼šçµ‚äº†å®Œäº†");
 }
 bool DirectGraphics::Initialize(HWND hWnd)
 {
@@ -59,53 +65,88 @@ bool DirectGraphics::Initialize(HWND hWnd)
 }
 bool DirectGraphics::Initialize(HWND hWnd, DirectGraphicsConfig& config)
 {
-	if(thisBase_ != NULL)return false;
+#ifdef __EMSCRIPTEN__
+	if (thisBase_ != NULL || pDevice_) return false;
+	if (config.GetScreenWidth() <= 0 || config.GetScreenHeight() <= 0)
+		throw wexception(L"Invalid browser canvas size");
+	config_ = config;
+	modeScreen_ = SCREENMODE_WINDOW;
+	ZeroMemory(&d3dppFull_, sizeof(d3dppFull_));
+	ZeroMemory(&d3dppWin_, sizeof(d3dppWin_));
+	pDevice_ = new IDirect3DDevice9(config.GetScreenWidth(), config.GetScreenHeight(), static_cast<SDL_Window*>(hWnd));
+	hAttachedWindow_ = pDevice_->GetWindow();
+	d3dppWin_.BackBufferWidth = config.GetScreenWidth();
+	d3dppWin_.BackBufferHeight = config.GetScreenHeight();
+	d3dppWin_.BackBufferFormat = D3DFMT_A8R8G8B8;
+	d3dppWin_.hDeviceWindow = hAttachedWindow_;
+	d3dppWin_.Windowed = TRUE;
+	d3dppWin_.EnableAutoDepthStencil = TRUE;
+	d3dppWin_.AutoDepthStencilFormat = D3DFMT_D16;
+	pDevice_->GetRenderTarget(0, &pBackSurf_);
+	pDevice_->GetDepthStencilSurface(&pZBuffer_);
+	thisBase_ = this;
+	if (camera2D_ != NULL) camera2D_->Reset();
+	_InitializeDeviceState();
+	BeginScene();
+	EndScene();
+	Logger::WriteTop(L"SDL3 / WebGL2 graphics initialized");
+	return true;
+#else
+	if (thisBase_ != NULL)
+		return false;
 
-	Logger::WriteTop(L"DirectGraphicsF‰Šú‰»");
+	Logger::WriteTop(L"DirectGraphicsï¼šåˆæœŸåŒ–");
 	pDirect3D_ = Direct3DCreate9(D3D_SDK_VERSION);
-	if(pDirect3D_==NULL)throw gstd::wexception(L"Direct3DCreate9¸”s");
+	if (pDirect3D_ == NULL)
+		throw gstd::wexception(L"Direct3DCreate9å¤±æ•—");
 
 	config_ = config;
 	wndStyleFull_ = WS_POPUP;
-	wndStyleWin_ = WS_OVERLAPPEDWINDOW-WS_SIZEBOX;
+	wndStyleWin_ = WS_OVERLAPPEDWINDOW - WS_SIZEBOX;
 	hAttachedWindow_ = hWnd;
 
-	//FullScreenMode‚Ìİ’è
-	ZeroMemory(&d3dppFull_,sizeof(D3DPRESENT_PARAMETERS));
+	//FullScreenModeã®è¨­å®š
+	ZeroMemory(&d3dppFull_, sizeof(D3DPRESENT_PARAMETERS));
 	d3dppFull_.hDeviceWindow = hWnd;
-	d3dppFull_.BackBufferWidth=config_.GetScreenWidth();
-	d3dppFull_.BackBufferHeight=config_.GetScreenHeight();
-	d3dppFull_.Windowed=FALSE;
-	d3dppFull_.SwapEffect=D3DSWAPEFFECT_DISCARD;
-	if(config_.GetColorMode()==DirectGraphicsConfig::COLOR_MODE_16BIT)d3dppFull_.BackBufferFormat=D3DFMT_R5G6B5;
-	else d3dppFull_.BackBufferFormat=D3DFMT_X8R8G8B8;
-	if(config_.IsTripleBufferEnable())d3dppFull_.BackBufferCount=1;
-	else d3dppFull_.BackBufferCount=2;
-	if(config_.IsWaitTimerEnable()==false)d3dppFull_.FullScreen_RefreshRateInHz=60;
-	d3dppFull_.EnableAutoDepthStencil=TRUE;
-	d3dppFull_.AutoDepthStencilFormat=D3DFMT_D16;
-	d3dppFull_.MultiSampleType=D3DMULTISAMPLE_NONE;
+	d3dppFull_.BackBufferWidth = config_.GetScreenWidth();
+	d3dppFull_.BackBufferHeight = config_.GetScreenHeight();
+	d3dppFull_.Windowed = FALSE;
+	d3dppFull_.SwapEffect = D3DSWAPEFFECT_DISCARD;
+	if (config_.GetColorMode() == DirectGraphicsConfig::COLOR_MODE_16BIT)
+		d3dppFull_.BackBufferFormat = D3DFMT_R5G6B5;
+	else
+		d3dppFull_.BackBufferFormat = D3DFMT_X8R8G8B8;
+	if (config_.IsTripleBufferEnable())
+		d3dppFull_.BackBufferCount = 1;
+	else
+		d3dppFull_.BackBufferCount = 2;
+	if (config_.IsWaitTimerEnable() == false)
+		d3dppFull_.FullScreen_RefreshRateInHz = 60;
+	d3dppFull_.EnableAutoDepthStencil = TRUE;
+	d3dppFull_.AutoDepthStencilFormat = D3DFMT_D16;
+	d3dppFull_.MultiSampleType = D3DMULTISAMPLE_NONE;
 
-	//WindowMode‚Ìİ’è
+	//WindowModeã®è¨­å®š
 	D3DDISPLAYMODE dmode;
 	HRESULT hrAdapt = pDirect3D_->GetAdapterDisplayMode(D3DADAPTER_DEFAULT, &dmode);
-	ZeroMemory(&d3dppWin_,sizeof(D3DPRESENT_PARAMETERS));
-	d3dppWin_.BackBufferWidth=config_.GetScreenWidth();
-	d3dppWin_.BackBufferHeight=config_.GetScreenHeight();
+	ZeroMemory(&d3dppWin_, sizeof(D3DPRESENT_PARAMETERS));
+	d3dppWin_.BackBufferWidth = config_.GetScreenWidth();
+	d3dppWin_.BackBufferHeight = config_.GetScreenHeight();
 	d3dppWin_.Windowed = TRUE;
 	d3dppWin_.SwapEffect = D3DSWAPEFFECT_DISCARD;
 	d3dppWin_.BackBufferFormat = D3DFMT_UNKNOWN;
 	d3dppWin_.hDeviceWindow = hWnd;
 	d3dppWin_.PresentationInterval = D3DPRESENT_INTERVAL_IMMEDIATE;
 
-	if(config_.IsTripleBufferEnable())d3dppWin_.BackBufferCount=1;
-	else d3dppWin_.BackBufferCount=2;
-	d3dppWin_.EnableAutoDepthStencil=TRUE;
-	d3dppWin_.AutoDepthStencilFormat=D3DFMT_D16;
-	d3dppWin_.MultiSampleType=D3DMULTISAMPLE_NONE;
+	if (config_.IsTripleBufferEnable())
+		d3dppWin_.BackBufferCount = 1;
+	else
+		d3dppWin_.BackBufferCount = 2;
+	d3dppWin_.EnableAutoDepthStencil = TRUE;
+	d3dppWin_.AutoDepthStencilFormat = D3DFMT_D16;
+	d3dppWin_.MultiSampleType = D3DMULTISAMPLE_NONE;
 
-	if(!config_.IsWindowed())
-	{//FullScreenMode
+	if (!config_.IsWindowed()) { //FullScreenMode
 		::SetWindowLong(hWnd, GWL_STYLE, wndStyleFull_);
 		::ShowWindow(hWnd, SW_SHOW);
 	}
@@ -115,69 +156,64 @@ bool DirectGraphics::Initialize(HWND hWnd, DirectGraphicsConfig& config)
 	D3DPRESENT_PARAMETERS d3dpp = config_.IsWindowed() ? d3dppWin_ : d3dppFull_;
 	modeScreen_ = config_.IsWindowed() ? SCREENMODE_WINDOW : SCREENMODE_FULLSCREEN;
 	HRESULT hrDevice = -1;
-	if(config_.IsReferenceEnable())
-	{
-		hrDevice = pDirect3D_->CreateDevice( D3DADAPTER_DEFAULT, D3DDEVTYPE_REF, hWnd, D3DCREATE_SOFTWARE_VERTEXPROCESSING| D3DCREATE_MULTITHREADED | D3DCREATE_FPU_PRESERVE, &d3dpp, &pDevice_ );
-	}
-	else
-	{
+	if (config_.IsReferenceEnable()) {
+		hrDevice = pDirect3D_->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_REF, hWnd, D3DCREATE_SOFTWARE_VERTEXPROCESSING | D3DCREATE_MULTITHREADED | D3DCREATE_FPU_PRESERVE, &d3dpp, &pDevice_);
+	} else {
 		D3DCAPS9 caps;
 		pDirect3D_->GetDeviceCaps(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, &caps);
-		if(caps.VertexShaderVersion >= D3DVS_VERSION(2,0))
-		{
-			hrDevice = pDirect3D_->CreateDevice( D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, hWnd, D3DCREATE_HARDWARE_VERTEXPROCESSING | D3DCREATE_MULTITHREADED | D3DCREATE_FPU_PRESERVE, &d3dpp, &pDevice_ );
-			if(!FAILED(hrDevice))Logger::WriteTop(L"DirectGraphicsFƒfƒoƒCƒX‰Šú‰»Š®—¹->D3DCREATE_HARDWARE_VERTEXPROCESSING");
-			if(FAILED(hrDevice))
-			{
-				hrDevice = pDirect3D_->CreateDevice( D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, hWnd, D3DCREATE_SOFTWARE_VERTEXPROCESSING| D3DCREATE_MULTITHREADED | D3DCREATE_FPU_PRESERVE, &d3dpp, &pDevice_ );
-				if(!FAILED(hrDevice))Logger::WriteTop(L"DirectGraphicsFƒfƒoƒCƒX‰Šú‰»Š®—¹->D3DCREATE_SOFTWARE_VERTEXPROCESSING");
+		if (caps.VertexShaderVersion >= D3DVS_VERSION(2, 0)) {
+			hrDevice = pDirect3D_->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, hWnd, D3DCREATE_HARDWARE_VERTEXPROCESSING | D3DCREATE_MULTITHREADED | D3DCREATE_FPU_PRESERVE, &d3dpp, &pDevice_);
+			if (!FAILED(hrDevice))
+				Logger::WriteTop(L"DirectGraphicsï¼šãƒ‡ãƒã‚¤ã‚¹åˆæœŸåŒ–å®Œäº†->D3DCREATE_HARDWARE_VERTEXPROCESSING");
+			if (FAILED(hrDevice)) {
+				hrDevice = pDirect3D_->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, hWnd, D3DCREATE_SOFTWARE_VERTEXPROCESSING | D3DCREATE_MULTITHREADED | D3DCREATE_FPU_PRESERVE, &d3dpp, &pDevice_);
+				if (!FAILED(hrDevice))
+					Logger::WriteTop(L"DirectGraphicsï¼šãƒ‡ãƒã‚¤ã‚¹åˆæœŸåŒ–å®Œäº†->D3DCREATE_SOFTWARE_VERTEXPROCESSING");
 			}
-		}
-		else
-		{
-			hrDevice = pDirect3D_->CreateDevice( D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, hWnd, D3DCREATE_SOFTWARE_VERTEXPROCESSING| D3DCREATE_MULTITHREADED | D3DCREATE_FPU_PRESERVE, &d3dpp, &pDevice_ );
-			if(!FAILED(hrDevice))Logger::WriteTop(L"DirectGraphicsFƒfƒoƒCƒX‰Šú‰»Š®—¹->D3DCREATE_SOFTWARE_VERTEXPROCESSING");
-		}
-
-		if(FAILED(hrDevice))
-		{
-			Logger::WriteTop(L"DirectGraphicsFHEL“®ì‚µ‚Ü‚·B‚¨‚»‚ç‚­³í“®ì‚µ‚Ü‚¹‚ñB");
-			hrDevice = pDirect3D_->CreateDevice( D3DADAPTER_DEFAULT, D3DDEVTYPE_REF, hWnd, D3DCREATE_SOFTWARE_VERTEXPROCESSING| D3DCREATE_MULTITHREADED | D3DCREATE_FPU_PRESERVE, &d3dpp, &pDevice_ );
+		} else {
+			hrDevice = pDirect3D_->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, hWnd, D3DCREATE_SOFTWARE_VERTEXPROCESSING | D3DCREATE_MULTITHREADED | D3DCREATE_FPU_PRESERVE, &d3dpp, &pDevice_);
+			if (!FAILED(hrDevice))
+				Logger::WriteTop(L"DirectGraphicsï¼šãƒ‡ãƒã‚¤ã‚¹åˆæœŸåŒ–å®Œäº†->D3DCREATE_SOFTWARE_VERTEXPROCESSING");
 		}
 
+		if (FAILED(hrDevice)) {
+			Logger::WriteTop(L"DirectGraphicsï¼šHELå‹•ä½œã—ã¾ã™ã€‚ãŠãã‚‰ãæ­£å¸¸å‹•ä½œã—ã¾ã›ã‚“ã€‚");
+			hrDevice = pDirect3D_->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_REF, hWnd, D3DCREATE_SOFTWARE_VERTEXPROCESSING | D3DCREATE_MULTITHREADED | D3DCREATE_FPU_PRESERVE, &d3dpp, &pDevice_);
+		}
 	}
 
-	if(FAILED(hrDevice))
-	{
-		throw gstd::wexception(L"IDirect3DDevice9::CreateDevice¸”s");
+	if (FAILED(hrDevice)) {
+		throw gstd::wexception(L"IDirect3DDevice9::CreateDeviceå¤±æ•—");
 	}
 
-// BackSurfaceæ“¾
+	// BackSurfaceå–å¾—
 	pDevice_->GetRenderTarget(0, &pBackSurf_);
 
-// Zƒoƒbƒtƒ@æ“¾
+	// Zãƒãƒƒãƒ•ã‚¡å–å¾—
 	pDevice_->GetDepthStencilSurface(&pZBuffer_);
 
 	thisBase_ = this;
 
-	if(camera2D_ != NULL)
+	if (camera2D_ != NULL)
 		camera2D_->Reset();
 	_InitializeDeviceState();
 
 	BeginScene();
 	EndScene();
 
-	Logger::WriteTop(L"DirectGraphicsF‰Šú‰»Š®—¹");
+	Logger::WriteTop(L"DirectGraphicsï¼šåˆæœŸåŒ–å®Œäº†");
 	return true;
+#endif
 }
 
 void DirectGraphics::_ReleaseDxResource()
 {
-	if(pZBuffer_ != NULL)pZBuffer_->Release();
-	if(pBackSurf_ != NULL)pBackSurf_->Release();
+	if (pZBuffer_ != NULL)
+		pZBuffer_->Release();
+	if (pBackSurf_ != NULL)
+		pBackSurf_->Release();
 	std::list<DirectGraphicsListener*>::iterator itr;
-	for(itr=listListener_.begin(); itr!=listListener_.end();itr++)
-	{
+	for (itr = listListener_.begin(); itr != listListener_.end(); itr++) {
 		(*itr)->ReleaseDirectGraphics();
 	}
 }
@@ -186,60 +222,60 @@ void DirectGraphics::_RestoreDxResource()
 	pDevice_->GetRenderTarget(0, &pBackSurf_);
 	pDevice_->GetDepthStencilSurface(&pZBuffer_);
 	std::list<DirectGraphicsListener*>::iterator itr;
-	for(itr=listListener_.begin(); itr!=listListener_.end();itr++)
-	{
+	for (itr = listListener_.begin(); itr != listListener_.end(); itr++) {
 		(*itr)->RestoreDirectGraphics();
 	}
 	_InitializeDeviceState();
 }
 void DirectGraphics::_Restore()
 {
-	Logger::WriteTop(L"DirectGraphicsF_RestoreŠJn");
-	// ƒfƒBƒXƒvƒŒƒC‚Ì‹¦’²ƒŒƒxƒ‹‚ğ’²¸
-	HRESULT hr=pDevice_->TestCooperativeLevel();
-	if(hr==D3DERR_DEVICELOST)
-	{
-		int count=0;
-		do
-		{
-			Sleep(500);	// 0.5•b‘Ò‚Â
-			count+=500;
+#ifdef __EMSCRIPTEN__
+	throw wexception(L"The WebGL context was lost. Reload the page to recreate the runtime.");
+#else
+	Logger::WriteTop(L"DirectGraphicsï¼š_Restoreé–‹å§‹");
+	// ãƒ‡ã‚£ã‚¹ãƒ—ãƒ¬ã‚¤ã®å”èª¿ãƒ¬ãƒ™ãƒ«ã‚’èª¿æŸ»
+	HRESULT hr = pDevice_->TestCooperativeLevel();
+	if (hr == D3DERR_DEVICELOST) {
+		int count = 0;
+		do {
+			Sleep(500); // 0.5ç§’å¾…ã¤
+			count += 500;
 			hr = pDevice_->TestCooperativeLevel();
-			if(hr==D3DERR_DEVICENOTRESET)break;
-		}while(count<6000);
+			if (hr == D3DERR_DEVICENOTRESET)
+				break;
+		} while (count < 6000);
 	}
 
-	// ƒŠƒXƒgƒA
+	// ãƒªã‚¹ãƒˆã‚¢
 	_ReleaseDxResource();
 
-	//ƒfƒoƒCƒXƒŠƒZƒbƒg
-	if(modeScreen_==SCREENMODE_FULLSCREEN)
+	//ãƒ‡ãƒã‚¤ã‚¹ãƒªã‚»ãƒƒãƒˆ
+	if (modeScreen_ == SCREENMODE_FULLSCREEN)
 		pDevice_->Reset(&d3dppFull_);
-	else 
+	else
 		pDevice_->Reset(&d3dppWin_);
 
 	_RestoreDxResource();
 
-	Logger::WriteTop(L"DirectGraphicsF_RestoreŠ®—¹");
+	Logger::WriteTop(L"DirectGraphicsï¼š_Restoreå®Œäº†");
+#endif
 }
 void DirectGraphics::_InitializeDeviceState()
-{	
+{
 	D3DXMATRIX viewMat;
 	D3DXMATRIX persMat;
-	if(camera_ != NULL)
-	{
-		camera_->UpdateDeviceWorldViewMatrix();
+	if (camera_ != NULL) {
+		viewMat = camera_->GetMatrixLookAtLH();
+	} else {
+		D3DVECTOR viewFrom = D3DXVECTOR3(100, 300, -500);
+		D3DXVECTOR3 viewAt(0, 0, 0), viewUp(0, 1, 0);
+		D3DXMatrixLookAtLH(&viewMat, (D3DXVECTOR3*)&viewFrom, &viewAt, &viewUp);
 	}
-	else
-	{
-		D3DVECTOR viewFrom = D3DXVECTOR3(100,300,-500);
-		D3DXMatrixLookAtLH(&viewMat,(D3DXVECTOR3*)&viewFrom,&D3DXVECTOR3(0,0,0),&D3DXVECTOR3(0,1,0));
-	}
-	D3DXMatrixPerspectiveFovLH(&persMat, D3DXToRadian(45.0), 
-		(float)config_.GetScreenWidth()/(float)config_.GetScreenHeight(),10, 2000);
+	D3DXMatrixPerspectiveFovLH(&persMat, D3DXToRadian(45.0),
+		(float)config_.GetScreenWidth() / (float)config_.GetScreenHeight(), 10, 2000);
 
-	pDevice_->SetTransform(D3DTS_VIEW,&viewMat);
-	pDevice_->SetTransform(D3DTS_PROJECTION,&persMat);
+	pDevice_->SetTransform(D3DTS_VIEW, &viewMat);
+	pDevice_->SetTransform(D3DTS_PROJECTION, &persMat);
 
 	SetCullingMode(D3DCULL_NONE);
 	pDevice_->SetRenderState(D3DRS_SHADEMODE, D3DSHADE_GOURAUD);
@@ -254,42 +290,41 @@ void DirectGraphics::_InitializeDeviceState()
 
 	SetBlendMode(MODE_BLEND_ALPHA);
 
-
-//ƒ¿ƒeƒXƒg
+	//Î±ãƒ†ã‚¹ãƒˆ
 	SetAlphaTest(true, 0, D3DCMP_GREATER);
 
-//ZƒeƒXƒg
+	//Zãƒ†ã‚¹ãƒˆ
 	SetZBufferEnable(false);
 	SetZWriteEnalbe(false);
 
-//Filter
+	//Filter
 	SetTextureFilter(MODE_TEXTURE_FILTER_LINEAR);
 
-//ViewPort
+	//ViewPort
 	ResetViewPort();
 }
 void DirectGraphics::AddDirectGraphicsListener(DirectGraphicsListener* listener)
 {
 	std::list<DirectGraphicsListener*>::iterator itr;
-	for(itr=listListener_.begin(); itr!=listListener_.end();itr++)
-	{
-		if((*itr) == listener)return;
-	}	
+	for (itr = listListener_.begin(); itr != listListener_.end(); itr++) {
+		if ((*itr) == listener)
+			return;
+	}
 	listListener_.push_back(listener);
 }
 void DirectGraphics::RemoveDirectGraphicsListener(DirectGraphicsListener* listener)
 {
 	std::list<DirectGraphicsListener*>::iterator itr;
-	for(itr=listListener_.begin(); itr!=listListener_.end();itr++)
-	{
-		if((*itr) != listener)continue;
+	for (itr = listListener_.begin(); itr != listListener_.end(); itr++) {
+		if ((*itr) != listener)
+			continue;
 		listListener_.erase(itr);
 		break;
-	}	
+	}
 }
 void DirectGraphics::BeginScene(bool bClear)
 {
-	if(bClear)
+	if (bClear)
 		ClearRenderTarget();
 	pDevice_->BeginScene();
 	camera_->UpdateDeviceWorldViewMatrix();
@@ -297,52 +332,47 @@ void DirectGraphics::BeginScene(bool bClear)
 void DirectGraphics::EndScene()
 {
 	pDevice_->EndScene();
-
-	HRESULT hr=pDevice_->Present(NULL,NULL,NULL,NULL);
-	if(FAILED(hr))
-	{
+#ifdef __EMSCRIPTEN__
+	// Script render-to-texture passes also call EndScene. They do not own the
+	// browser display; BrowserMain presents once after the complete rAF update.
+	return;
+#else
+	HRESULT hr = pDevice_->Present(NULL, NULL, NULL, NULL);
+	if (FAILED(hr)) {
 		_Restore();
 		_InitializeDeviceState();
 	}
+#endif
 }
 void DirectGraphics::ClearRenderTarget()
 {
 	int width = GetScreenWidth();
 	int height = GetScreenWidth();
-	D3DRECT rcDest={0, 0, width, height};
-	if(textureTarget_ == NULL)
-	{
-		pDevice_->Clear(0, NULL, D3DCLEAR_TARGET|D3DCLEAR_ZBUFFER, D3DCOLOR_XRGB(0,0,0), 1.0,0);
-	}
-	else
-	{
-		pDevice_->Clear(0, NULL, D3DCLEAR_TARGET|D3DCLEAR_ZBUFFER, D3DCOLOR_ARGB(0,0,0,0), 1.0,0);
+	D3DRECT rcDest = { 0, 0, width, height };
+	if (textureTarget_ == NULL) {
+		pDevice_->Clear(0, NULL, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER, D3DCOLOR_XRGB(0, 0, 0), 1.0, 0);
+	} else {
+		pDevice_->Clear(0, NULL, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER, D3DCOLOR_ARGB(0, 0, 0, 0), 1.0, 0);
 	}
 }
 void DirectGraphics::ClearRenderTarget(RECT rect)
 {
-	D3DRECT rcDest={rect.left, rect.top, rect.right, rect.bottom};
-	if(textureTarget_ == NULL)
-	{
-		pDevice_->Clear(1, &rcDest, D3DCLEAR_TARGET|D3DCLEAR_ZBUFFER, D3DCOLOR_XRGB(0,0,0), 1.0,0);
-	}
-	else
-	{
-		pDevice_->Clear(1, &rcDest, D3DCLEAR_TARGET|D3DCLEAR_ZBUFFER, D3DCOLOR_ARGB(0,0,0,0), 1.0,0);
+	D3DRECT rcDest = { rect.left, rect.top, rect.right, rect.bottom };
+	if (textureTarget_ == NULL) {
+		pDevice_->Clear(1, &rcDest, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER, D3DCOLOR_XRGB(0, 0, 0), 1.0, 0);
+	} else {
+		pDevice_->Clear(1, &rcDest, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER, D3DCOLOR_ARGB(0, 0, 0, 0), 1.0, 0);
 	}
 }
 void DirectGraphics::SetRenderTarget(gstd::ref_count_ptr<Texture> texture)
 {
 	textureTarget_ = texture;
-	if(texture == NULL)
-	{
+	if (texture == NULL) {
 		pDevice_->SetRenderTarget(0, pBackSurf_);
-		pDevice_->SetDepthStencilSurface(pZBuffer_); 
-	}
-	else
-	{
+		pDevice_->SetDepthStencilSurface(pZBuffer_);
+	} else {
 		pDevice_->SetRenderTarget(0, texture->GetD3DSurface());
-		pDevice_->SetDepthStencilSurface(texture->GetD3DZBuffer()); 
+		pDevice_->SetDepthStencilSurface(texture->GetD3DZBuffer());
 	}
 	_InitializeDeviceState();
 }
@@ -373,137 +403,133 @@ void DirectGraphics::SetZWriteEnalbe(bool bEnable)
 void DirectGraphics::SetAlphaTest(bool bEnable, DWORD ref, D3DCMPFUNC func)
 {
 	pDevice_->SetRenderState(D3DRS_ALPHATESTENABLE, bEnable);
-	if(bEnable)
-	{
+	if (bEnable) {
 		pDevice_->SetRenderState(D3DRS_ALPHAFUNC, func);
 		pDevice_->SetRenderState(D3DRS_ALPHAREF, ref);
 	}
 }
 void DirectGraphics::SetBlendMode(DWORD mode, int stage)
 {
-	switch(mode)
-	{
-		case MODE_BLEND_NONE://‚È‚µ
+	switch (mode) {
+	case MODE_BLEND_NONE: //ãªã—
+		pDevice_->SetTextureStageState(stage, D3DTSS_COLOROP, D3DTOP_MODULATE);
+		pDevice_->SetTextureStageState(stage, D3DTSS_ALPHAARG2, D3DTA_CURRENT);
+		pDevice_->SetTextureStageState(stage, D3DTSS_ALPHAOP, D3DTOP_SELECTARG1);
+		pDevice_->SetRenderState(D3DRS_ALPHABLENDENABLE, FALSE);
+		pDevice_->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_ADD);
+		break;
+	case MODE_BLEND_ALPHA: //Î±ã§åŠé€æ˜åˆæˆ
+		pDevice_->SetTextureStageState(stage, D3DTSS_COLOROP, D3DTOP_MODULATE);
+		pDevice_->SetTextureStageState(stage, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
+		pDevice_->SetTextureStageState(stage, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
+		pDevice_->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE);
+		pDevice_->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_ADD);
+		pDevice_->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
+		pDevice_->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
+		break;
+	case MODE_BLEND_ADD_RGB: //RGBã§åŠ ç®—åˆæˆ
+		pDevice_->SetTextureStageState(stage, D3DTSS_COLOROP, D3DTOP_MODULATE);
+		pDevice_->SetTextureStageState(stage, D3DTSS_ALPHAARG2, D3DTA_CURRENT);
+		pDevice_->SetTextureStageState(stage, D3DTSS_ALPHAOP, D3DTOP_SELECTARG1);
+		pDevice_->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE);
+		pDevice_->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_ADD);
+		pDevice_->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_ONE);
+		pDevice_->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_ONE);
+		break;
+	case MODE_BLEND_ADD_ARGB: //Î±ã§åŠ ç®—åˆæˆ
+		pDevice_->SetTextureStageState(stage, D3DTSS_ALPHAOP, D3DTOP_MODULATE); //ARG1ã¨ARG2ã®Î±å€¤ã‚’ä¹—ç®—ã—ã¦Î±å€¤ã‚’å–å¾—ã—ã¾ã™ã€‚
+		pDevice_->SetTextureStageState(stage, D3DTSS_ALPHAARG1, D3DTA_TEXTURE); //ãƒ†ã‚¯ã‚¹ãƒãƒ£ã®Î±å€¤
+		pDevice_->SetTextureStageState(stage, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE); //é ‚ç‚¹ã®Î±å€¤
+		pDevice_->SetTextureStageState(stage, D3DTSS_COLOROP, D3DTOP_MODULATE); //ARG1ã¨ARG2ã®ã‚«ãƒ©ãƒ¼ã®å€¤ã‚’ä¹—ç®—ã—ã¾ã™ã€‚
+		pDevice_->SetTextureStageState(stage, D3DTSS_COLORARG1, D3DTA_TEXTURE); //ãƒ†ã‚¯ã‚¹ãƒãƒ£ã®ã‚«ãƒ©ãƒ¼
+		pDevice_->SetTextureStageState(stage, D3DTSS_COLORARG2, D3DTA_DIFFUSE); //é ‚ç‚¹ã®ã‚«ãƒ©ãƒ¼
+		pDevice_->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE);
+		pDevice_->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_ADD);
+		pDevice_->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
+		pDevice_->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_ONE);
+		break;
+	case MODE_BLEND_MULTIPLY: //ä¹—ç®—åˆæˆ
+		pDevice_->SetTextureStageState(stage, D3DTSS_COLOROP, D3DTOP_MODULATE);
+		pDevice_->SetTextureStageState(stage, D3DTSS_ALPHAARG2, D3DTA_CURRENT);
+		pDevice_->SetTextureStageState(stage, D3DTSS_ALPHAOP, D3DTOP_SELECTARG1);
+		pDevice_->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE);
+		pDevice_->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_ADD);
+		pDevice_->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_ZERO);
+		pDevice_->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_SRCCOLOR);
+		// pDevice_->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_DESTCOLOR);
+		// pDevice_->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_ZERO);
+		/*
+			pDevice_->SetTextureStageState(stage,D3DTSS_COLOROP, D3DTOP_MODULATE);
+			pDevice_->SetTextureStageState(stage,D3DTSS_ALPHAARG2, D3DTA_CURRENT);
+			pDevice_->SetTextureStageState(stage,D3DTSS_ALPHAOP, D3DTOP_SELECTARG1);
+			pDevice_->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE);
+			pDevice_->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_ZERO);
+			pDevice_->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_SRCCOLOR);
+		*/
+		break;
+		/*
+		case MODE_BLEND_SUBTRACT://æ¸›ç®—åˆæˆ
 			pDevice_->SetTextureStageState(stage, D3DTSS_COLOROP,D3DTOP_MODULATE);
 			pDevice_->SetTextureStageState(stage, D3DTSS_ALPHAARG2,D3DTA_CURRENT);
 			pDevice_->SetTextureStageState(stage, D3DTSS_ALPHAOP,D3DTOP_SELECTARG1);
-			pDevice_->SetRenderState(D3DRS_ALPHABLENDENABLE,FALSE);
-			pDevice_->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_ADD);
-			break;
-		case MODE_BLEND_ALPHA://ƒ¿‚Å”¼“§–¾‡¬
-			pDevice_->SetTextureStageState(stage, D3DTSS_COLOROP,D3DTOP_MODULATE);
-			pDevice_->SetTextureStageState(stage, D3DTSS_ALPHAARG2,D3DTA_DIFFUSE);
-			pDevice_->SetTextureStageState(stage, D3DTSS_ALPHAOP,D3DTOP_MODULATE);
-			pDevice_->SetRenderState(D3DRS_ALPHABLENDENABLE,TRUE);
-			pDevice_->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_ADD);
-			pDevice_->SetRenderState(D3DRS_SRCBLEND,D3DBLEND_SRCALPHA);
-			pDevice_->SetRenderState(D3DRS_DESTBLEND,D3DBLEND_INVSRCALPHA);
-			break;
-		case MODE_BLEND_ADD_RGB://RGB‚Å‰ÁZ‡¬
-			pDevice_->SetTextureStageState(stage, D3DTSS_COLOROP,D3DTOP_MODULATE);
-			pDevice_->SetTextureStageState(stage, D3DTSS_ALPHAARG2,D3DTA_CURRENT);
-			pDevice_->SetTextureStageState(stage, D3DTSS_ALPHAOP,D3DTOP_SELECTARG1);
-			pDevice_->SetRenderState(D3DRS_ALPHABLENDENABLE,TRUE);
-			pDevice_->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_ADD);
-			pDevice_->SetRenderState(D3DRS_SRCBLEND,D3DBLEND_ONE);
-			pDevice_->SetRenderState(D3DRS_DESTBLEND,D3DBLEND_ONE);
-			break;
-		case MODE_BLEND_ADD_ARGB://ƒ¿‚Å‰ÁZ‡¬
-			pDevice_->SetTextureStageState(stage, D3DTSS_ALPHAOP,D3DTOP_MODULATE); //ARG1‚ÆARG2‚Ìƒ¿’l‚ğæZ‚µ‚Äƒ¿’l‚ğæ“¾‚µ‚Ü‚·B
-			pDevice_->SetTextureStageState(stage, D3DTSS_ALPHAARG1,D3DTA_TEXTURE); //ƒeƒNƒXƒ`ƒƒ‚Ìƒ¿’l
-			pDevice_->SetTextureStageState(stage, D3DTSS_ALPHAARG2,D3DTA_DIFFUSE); //’¸“_‚Ìƒ¿’l
-			pDevice_->SetTextureStageState(stage, D3DTSS_COLOROP,D3DTOP_MODULATE); //ARG1‚ÆARG2‚ÌƒJƒ‰[‚Ì’l‚ğæZ‚µ‚Ü‚·B
-			pDevice_->SetTextureStageState(stage, D3DTSS_COLORARG1,D3DTA_TEXTURE); //ƒeƒNƒXƒ`ƒƒ‚ÌƒJƒ‰[
-			pDevice_->SetTextureStageState(stage, D3DTSS_COLORARG2,D3DTA_DIFFUSE); //’¸“_‚ÌƒJƒ‰[
-			pDevice_->SetRenderState(D3DRS_ALPHABLENDENABLE,TRUE);
-			pDevice_->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_ADD);
-			pDevice_->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
+			pDevice_->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE);
+			pDevice_->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_REVSUBTRACT);
+			pDevice_->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_ONE);
 			pDevice_->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_ONE);
 			break;
-		case MODE_BLEND_MULTIPLY://æZ‡¬
-
-			pDevice_->SetTextureStageState(stage, D3DTSS_COLOROP,D3DTOP_MODULATE);
-			pDevice_->SetTextureStageState(stage, D3DTSS_ALPHAARG2,D3DTA_CURRENT);
-			pDevice_->SetTextureStageState(stage, D3DTSS_ALPHAOP,D3DTOP_SELECTARG1);
-			pDevice_->SetRenderState(D3DRS_ALPHABLENDENABLE,TRUE);
-			pDevice_->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_ADD);
-			pDevice_->SetRenderState(D3DRS_SRCBLEND,D3DBLEND_ZERO);
-			pDevice_->SetRenderState(D3DRS_DESTBLEND,D3DBLEND_SRCCOLOR);
-//			pDevice_->SetRenderState(D3DRS_SRCBLEND,D3DBLEND_DESTCOLOR);
-//			pDevice_->SetRenderState(D3DRS_DESTBLEND,D3DBLEND_ZERO);
-/*
-			pDevice_->SetTextureStageState(stage,D3DTSS_COLOROP,D3DTOP_MODULATE);
-			pDevice_->SetTextureStageState(stage,D3DTSS_ALPHAARG2,D3DTA_CURRENT);
-			pDevice_->SetTextureStageState(stage,D3DTSS_ALPHAOP,D3DTOP_SELECTARG1);
-			pDevice_->SetRenderState(D3DRS_ALPHABLENDENABLE,TRUE);
-			pDevice_->SetRenderState(D3DRS_SRCBLEND,D3DBLEND_ZERO);
-			pDevice_->SetRenderState(D3DRS_DESTBLEND,D3DBLEND_SRCCOLOR);
-*/
-			break;
-/*
-		case MODE_BLEND_SUBTRACT://Œ¸Z‡¬
-			pDevice_->SetTextureStageState(stage, D3DTSS_COLOROP,D3DTOP_MODULATE);
-			pDevice_->SetTextureStageState(stage, D3DTSS_ALPHAARG2,D3DTA_CURRENT);
-			pDevice_->SetTextureStageState(stage, D3DTSS_ALPHAOP,D3DTOP_SELECTARG1);
-			pDevice_->SetRenderState(D3DRS_ALPHABLENDENABLE,TRUE);
-			pDevice_->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_REVSUBTRACT);
-			pDevice_->SetRenderState(D3DRS_SRCBLEND,D3DBLEND_ONE);
-			pDevice_->SetRenderState(D3DRS_DESTBLEND,D3DBLEND_ONE);
-			break;
-*/
-		case MODE_BLEND_SUBTRACT://Œ¸Z‡¬
-			pDevice_->SetTextureStageState(stage, D3DTSS_ALPHAOP,D3DTOP_MODULATE); //ARG1‚ÆARG2‚Ìƒ¿’l‚ğæZ‚µ‚Äƒ¿’l‚ğæ“¾‚µ‚Ü‚·B
-			pDevice_->SetTextureStageState(stage, D3DTSS_ALPHAARG1,D3DTA_TEXTURE); //ƒeƒNƒXƒ`ƒƒ‚Ìƒ¿’l
-			pDevice_->SetTextureStageState(stage, D3DTSS_ALPHAARG2,D3DTA_DIFFUSE); //’¸“_‚Ìƒ¿’l
-			pDevice_->SetTextureStageState(stage, D3DTSS_COLOROP,D3DTOP_MODULATE); //ARG1‚ÆARG2‚ÌƒJƒ‰[‚Ì’l‚ğæZ‚µ‚Ü‚·B
-			pDevice_->SetTextureStageState(stage, D3DTSS_COLORARG1,D3DTA_TEXTURE); //ƒeƒNƒXƒ`ƒƒ‚ÌƒJƒ‰[
-			pDevice_->SetTextureStageState(stage, D3DTSS_COLORARG2,D3DTA_DIFFUSE); //’¸“_‚ÌƒJƒ‰[
-			pDevice_->SetRenderState(D3DRS_ALPHABLENDENABLE,TRUE);
-			pDevice_->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_REVSUBTRACT);
-			pDevice_->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
-			pDevice_->SetRenderState(D3DRS_DESTBLEND,D3DBLEND_ONE);
-			break;
-
-		case MODE_BLEND_SHADOW://‰e•`‰æ—p
-			pDevice_->SetTextureStageState(stage, D3DTSS_COLOROP,D3DTOP_MODULATE);
-			pDevice_->SetTextureStageState(stage, D3DTSS_ALPHAARG2,D3DTA_CURRENT);
-			pDevice_->SetTextureStageState(stage, D3DTSS_ALPHAOP,D3DTOP_SELECTARG1);
-			pDevice_->SetRenderState(D3DRS_ALPHABLENDENABLE,TRUE);
-			pDevice_->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_ADD);
-			pDevice_->SetRenderState(D3DRS_SRCBLEND,D3DBLEND_ZERO);
-			pDevice_->SetRenderState(D3DRS_DESTBLEND,D3DBLEND_INVSRCCOLOR);
-			break;
-		case MODE_BLEND_INV_DESTRGB://•`‰ææF”½“]‡¬
-			pDevice_->SetTextureStageState(stage, D3DTSS_ALPHAOP,D3DTOP_MODULATE); //ARG1‚ÆARG2‚Ìƒ¿’l‚ğæZ‚µ‚Äƒ¿’l‚ğæ“¾‚µ‚Ü‚·B
-			pDevice_->SetTextureStageState(stage, D3DTSS_ALPHAARG1,D3DTA_TEXTURE); //ƒeƒNƒXƒ`ƒƒ‚Ìƒ¿’l
-			pDevice_->SetTextureStageState(stage, D3DTSS_ALPHAARG2,D3DTA_DIFFUSE); //’¸“_‚Ìƒ¿’l
-			pDevice_->SetTextureStageState(stage, D3DTSS_COLOROP,D3DTOP_MODULATE); //ARG1‚ÆARG2‚ÌƒJƒ‰[‚Ì’l‚ğæZ‚µ‚Ü‚·B
-			pDevice_->SetTextureStageState(stage, D3DTSS_COLORARG1,D3DTA_TEXTURE); //ƒeƒNƒXƒ`ƒƒ‚ÌƒJƒ‰[
-			pDevice_->SetTextureStageState(stage, D3DTSS_COLORARG2,D3DTA_DIFFUSE); //’¸“_‚ÌƒJƒ‰[
-			pDevice_->SetRenderState(D3DRS_ALPHABLENDENABLE,TRUE);
-			pDevice_->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_ADD);
-			pDevice_->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_INVDESTCOLOR);
-			pDevice_->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCCOLOR);
-			break;
+		*/
+	case MODE_BLEND_SUBTRACT: //æ¸›ç®—åˆæˆ
+		pDevice_->SetTextureStageState(stage, D3DTSS_ALPHAOP, D3DTOP_MODULATE); //ARG1ã¨ARG2ã®Î±å€¤ã‚’ä¹—ç®—ã—ã¦Î±å€¤ã‚’å–å¾—ã—ã¾ã™ã€‚
+		pDevice_->SetTextureStageState(stage, D3DTSS_ALPHAARG1, D3DTA_TEXTURE); //ãƒ†ã‚¯ã‚¹ãƒãƒ£ã®Î±å€¤
+		pDevice_->SetTextureStageState(stage, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE); //é ‚ç‚¹ã®Î±å€¤
+		pDevice_->SetTextureStageState(stage, D3DTSS_COLOROP, D3DTOP_MODULATE); //ARG1ã¨ARG2ã®ã‚«ãƒ©ãƒ¼ã®å€¤ã‚’ä¹—ç®—ã—ã¾ã™ã€‚
+		pDevice_->SetTextureStageState(stage, D3DTSS_COLORARG1, D3DTA_TEXTURE); //ãƒ†ã‚¯ã‚¹ãƒãƒ£ã®ã‚«ãƒ©ãƒ¼
+		pDevice_->SetTextureStageState(stage, D3DTSS_COLORARG2, D3DTA_DIFFUSE); //é ‚ç‚¹ã®ã‚«ãƒ©ãƒ¼
+		pDevice_->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE);
+		pDevice_->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_REVSUBTRACT);
+		pDevice_->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
+		pDevice_->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_ONE);
+		break;
+	case MODE_BLEND_SHADOW: //å½±æç”»ç”¨
+		pDevice_->SetTextureStageState(stage, D3DTSS_COLOROP, D3DTOP_MODULATE);
+		pDevice_->SetTextureStageState(stage, D3DTSS_ALPHAARG2, D3DTA_CURRENT);
+		pDevice_->SetTextureStageState(stage, D3DTSS_ALPHAOP, D3DTOP_SELECTARG1);
+		pDevice_->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE);
+		pDevice_->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_ADD);
+		pDevice_->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_ZERO);
+		pDevice_->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCCOLOR);
+		break;
+	case MODE_BLEND_INV_DESTRGB: //æç”»å…ˆè‰²åè»¢åˆæˆ
+		pDevice_->SetTextureStageState(stage, D3DTSS_ALPHAOP, D3DTOP_MODULATE); //ARG1ã¨ARG2ã®Î±å€¤ã‚’ä¹—ç®—ã—ã¦Î±å€¤ã‚’å–å¾—ã—ã¾ã™ã€‚
+		pDevice_->SetTextureStageState(stage, D3DTSS_ALPHAARG1, D3DTA_TEXTURE); //ãƒ†ã‚¯ã‚¹ãƒãƒ£ã®Î±å€¤
+		pDevice_->SetTextureStageState(stage, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE); //é ‚ç‚¹ã®Î±å€¤
+		pDevice_->SetTextureStageState(stage, D3DTSS_COLOROP, D3DTOP_MODULATE); //ARG1ã¨ARG2ã®ã‚«ãƒ©ãƒ¼ã®å€¤ã‚’ä¹—ç®—ã—ã¾ã™ã€‚
+		pDevice_->SetTextureStageState(stage, D3DTSS_COLORARG1, D3DTA_TEXTURE); //ãƒ†ã‚¯ã‚¹ãƒãƒ£ã®ã‚«ãƒ©ãƒ¼
+		pDevice_->SetTextureStageState(stage, D3DTSS_COLORARG2, D3DTA_DIFFUSE); //é ‚ç‚¹ã®ã‚«ãƒ©ãƒ¼
+		pDevice_->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE);
+		pDevice_->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_ADD);
+		pDevice_->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_INVDESTCOLOR);
+		pDevice_->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCCOLOR);
+		break;
 	}
-	// Œ¸Z”¼“§–¾‡¬
-	//pDevice_->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_REVSUBTRACT);
-	//pDevice_->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
-	//pDevice_->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_ONE);
+	// æ¸›ç®—åŠé€æ˜åˆæˆ
+	// pDevice_->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_REVSUBTRACT);
+	// pDevice_->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
+	// pDevice_->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_ONE);
 
-	// ƒnƒCƒ‰ƒCƒg(•¢‚¢Ä‚«)
-	//pDevice_->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_ADD);
-	//pDevice_->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_DESTCOLOR);
-	//pDevice_->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_ONE); 
-	
-	// ƒŠƒo[ƒX(”½“])
-	//pDevice_->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_ADD);
-	//pDevice_->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_INVDESTCOLOR);
-	//pDevice_->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_ZERO);
+	// ãƒã‚¤ãƒ©ã‚¤ãƒˆ(è¦†ã„ç„¼ã)
+	// pDevice_->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_ADD);
+	// pDevice_->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_DESTCOLOR);
+	// pDevice_->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_ONE);
+
+	// ãƒªãƒãƒ¼ã‚¹(åè»¢)
+	// pDevice_->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_ADD);
+	// pDevice_->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_INVDESTCOLOR);
+	// pDevice_->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_ZERO);
 }
 void DirectGraphics::SetFillMode(DWORD mode)
 {
-	pDevice_->SetRenderState(D3DRS_FILLMODE, mode); 
+	pDevice_->SetRenderState(D3DRS_FILLMODE, mode);
 }
 void DirectGraphics::SetFogEnable(bool bEnable)
 {
@@ -519,30 +545,29 @@ bool DirectGraphics::IsFogEnable()
 void DirectGraphics::SetVertexFog(bool bEnable, D3DCOLOR color, float start, float end)
 {
 	SetFogEnable(bEnable);
-	pDevice_->SetRenderState(D3DRS_FOGCOLOR,color);
-	pDevice_->SetRenderState(D3DRS_FOGVERTEXMODE,D3DFOG_LINEAR);
-	pDevice_->SetRenderState(D3DRS_FOGSTART,*(DWORD*)(&start));
-	pDevice_->SetRenderState(D3DRS_FOGEND,*(DWORD*)(&end));
+	pDevice_->SetRenderState(D3DRS_FOGCOLOR, color);
+	pDevice_->SetRenderState(D3DRS_FOGVERTEXMODE, D3DFOG_LINEAR);
+	pDevice_->SetRenderState(D3DRS_FOGSTART, *(DWORD*)(&start));
+	pDevice_->SetRenderState(D3DRS_FOGEND, *(DWORD*)(&end));
 }
 void DirectGraphics::SetPixelFog(bool bEnable, D3DCOLOR color, float start, float end)
 {
 }
 void DirectGraphics::SetTextureFilter(DWORD mode, int stage)
 {
-	switch(mode)
-	{
-		case MODE_TEXTURE_FILTER_NONE:
-			pDevice_->SetSamplerState(stage, D3DSAMP_MINFILTER, D3DTEXF_NONE);
-			pDevice_->SetSamplerState(stage, D3DSAMP_MAGFILTER, D3DTEXF_NONE);
-			break;
-		case MODE_TEXTURE_FILTER_POINT:
-			pDevice_->SetSamplerState(stage, D3DSAMP_MINFILTER, D3DTEXF_POINT);
-			pDevice_->SetSamplerState(stage, D3DSAMP_MAGFILTER, D3DTEXF_POINT);
-			break;
-		case MODE_TEXTURE_FILTER_LINEAR:
-			pDevice_->SetSamplerState(stage, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
-			pDevice_->SetSamplerState(stage, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
-			break;
+	switch (mode) {
+	case MODE_TEXTURE_FILTER_NONE:
+		pDevice_->SetSamplerState(stage, D3DSAMP_MINFILTER, D3DTEXF_NONE);
+		pDevice_->SetSamplerState(stage, D3DSAMP_MAGFILTER, D3DTEXF_NONE);
+		break;
+	case MODE_TEXTURE_FILTER_POINT:
+		pDevice_->SetSamplerState(stage, D3DSAMP_MINFILTER, D3DTEXF_POINT);
+		pDevice_->SetSamplerState(stage, D3DSAMP_MAGFILTER, D3DTEXF_POINT);
+		break;
+	case MODE_TEXTURE_FILTER_LINEAR:
+		pDevice_->SetSamplerState(stage, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
+		pDevice_->SetSamplerState(stage, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
+		break;
 	}
 }
 DWORD DirectGraphics::GetTextureFilter(int stage)
@@ -550,11 +575,16 @@ DWORD DirectGraphics::GetTextureFilter(int stage)
 	int res = MODE_TEXTURE_FILTER_NONE;
 	DWORD mode;
 	pDevice_->GetSamplerState(stage, D3DSAMP_MINFILTER, &mode);
-	switch(mode)
-	{
-		case D3DTEXF_NONE:res = MODE_TEXTURE_FILTER_NONE;break;
-		case D3DTEXF_POINT:res = MODE_TEXTURE_FILTER_POINT;break;
-		case D3DTEXF_LINEAR:res = MODE_TEXTURE_FILTER_LINEAR;break;
+	switch (mode) {
+	case D3DTEXF_NONE:
+		res = MODE_TEXTURE_FILTER_NONE;
+		break;
+	case D3DTEXF_POINT:
+		res = MODE_TEXTURE_FILTER_POINT;
+		break;
+	case D3DTEXF_LINEAR:
+		res = MODE_TEXTURE_FILTER_LINEAR;
+		break;
 	}
 	return res;
 }
@@ -576,7 +606,7 @@ void DirectGraphics::SetDirectionalLight(D3DVECTOR& dir)
 void DirectGraphics::SetViewPort(int x, int y, int width, int height)
 {
 	D3DVIEWPORT9 viewPort;
-	ZeroMemory(&viewPort,sizeof(D3DVIEWPORT9));
+	ZeroMemory(&viewPort, sizeof(D3DVIEWPORT9));
 	viewPort.X = x;
 	viewPort.Y = y;
 	viewPort.Width = width;
@@ -599,63 +629,74 @@ int DirectGraphics::GetScreenHeight()
 }
 double DirectGraphics::GetScreenWidthRatio()
 {
+#ifdef __EMSCRIPTEN__
+	int width = 0, height = 0;
+	if (!SDL_GetWindowSize(static_cast<SDL_Window*>(hAttachedWindow_), &width, &height)) return 1;
+	return double(width) / config_.GetScreenWidth();
+#else
 	RECT rect;
 	::GetWindowRect(hAttachedWindow_, &rect);
-	double widthWindow = rect.right-rect.left;
+	double widthWindow = rect.right - rect.left;
 	double widthView = config_.GetScreenWidth();
 
 	DWORD style = ::GetWindowLong(hAttachedWindow_, GWL_STYLE);
-	if(modeScreen_ == SCREENMODE_WINDOW &&
-		(style & (WS_OVERLAPPEDWINDOW-WS_SIZEBOX)) > 0)
-	{
-		widthWindow -= GetSystemMetrics(SM_CXEDGE)+GetSystemMetrics(SM_CXBORDER)+GetSystemMetrics(SM_CXDLGFRAME);
+	if (modeScreen_ == SCREENMODE_WINDOW && (style & (WS_OVERLAPPEDWINDOW - WS_SIZEBOX)) > 0) {
+		widthWindow -= GetSystemMetrics(SM_CXEDGE) + 10 + GetSystemMetrics(SM_CXBORDER) + GetSystemMetrics(SM_CXDLGFRAME);
 	}
 
 	return widthWindow / widthView;
+#endif
 }
 double DirectGraphics::GetScreenHeightRatio()
 {
+#ifdef __EMSCRIPTEN__
+	int width = 0, height = 0;
+	if (!SDL_GetWindowSize(static_cast<SDL_Window*>(hAttachedWindow_), &width, &height)) return 1;
+	return double(height) / config_.GetScreenHeight();
+#else
 	RECT rect;
 	::GetWindowRect(hAttachedWindow_, &rect);
-	double heightWindow = rect.bottom-rect.top;
+	double heightWindow = rect.bottom - rect.top;
 	double heightView = config_.GetScreenHeight();
 
 	DWORD style = ::GetWindowLong(hAttachedWindow_, GWL_STYLE);
-	if(modeScreen_ == SCREENMODE_WINDOW &&
-		(style & (WS_OVERLAPPEDWINDOW-WS_SIZEBOX)) > 0)
-	{
-		heightWindow -= 
-			GetSystemMetrics(SM_CYEDGE)+GetSystemMetrics(SM_CYBORDER)+GetSystemMetrics(SM_CYDLGFRAME)+GetSystemMetrics(SM_CYCAPTION);
+	if (modeScreen_ == SCREENMODE_WINDOW && (style & (WS_OVERLAPPEDWINDOW - WS_SIZEBOX)) > 0) {
+		heightWindow -= GetSystemMetrics(SM_CYEDGE) + 10 + GetSystemMetrics(SM_CYBORDER) + GetSystemMetrics(SM_CYDLGFRAME) + GetSystemMetrics(SM_CYCAPTION);
 	}
 
 	return heightWindow / heightView;
+#endif
 }
 POINT DirectGraphics::GetMousePosition()
 {
-	POINT res = {0, 0};
+	POINT res = { 0, 0 };
+#ifdef __EMSCRIPTEN__
+	float x = 0, y = 0;
+	SDL_GetMouseState(&x, &y);
+	res = {static_cast<LONG>(x), static_cast<LONG>(y)};
+#else
 	GetCursorPos(&res);
 	ScreenToClient(hAttachedWindow_, &res);
+#endif
 
 	double ratioWidth = GetScreenWidthRatio();
 	double ratioHeight = GetScreenHeightRatio();
-	if(ratioWidth != 0)
-	{
+	if (ratioWidth != 0) {
 		res.x = (int)(res.x / ratioWidth);
 	}
-	if(ratioHeight != 0)
-	{
+	if (ratioHeight != 0) {
 		res.y = (int)(res.y / ratioHeight);
 	}
-	
+
 	return res;
 }
 void DirectGraphics::SaveBackSurfaceToFile(std::wstring path)
 {
-	RECT rect = {0, 0, config_.GetScreenWidth(), config_.GetScreenHeight()};
-	LPDIRECT3DSURFACE9 pBackSurface = NULL;
+	RECT rect = { 0, 0, config_.GetScreenWidth(), config_.GetScreenHeight() };
+	IDirect3DSurface9* pBackSurface = NULL;
 	pDevice_->GetRenderTarget(0, &pBackSurface);
-	D3DXSaveSurfaceToFile(path.c_str(), D3DXIFF_BMP, 
-							pBackSurface, NULL, &rect );
+	D3DXSaveSurfaceToFile(path.c_str(), D3DXIFF_BMP,
+		pBackSurface, NULL, &rect);
 	pBackSurface->Release();
 }
 bool DirectGraphics::IsPixelShaderSupported(int major, int minor)
@@ -669,20 +710,37 @@ bool DirectGraphics::IsPixelShaderSupported(int major, int minor)
 /**********************************************************
 //DirectGraphicsPrimaryWindow
 **********************************************************/
+#ifdef __EMSCRIPTEN__
+DirectGraphicsPrimaryWindow::DirectGraphicsPrimaryWindow() {}
+DirectGraphicsPrimaryWindow::~DirectGraphicsPrimaryWindow() { Detach(); }
+void DirectGraphicsPrimaryWindow::_PauseDrawing() { Application::GetBase()->SetActive(false); }
+void DirectGraphicsPrimaryWindow::_RestartDrawing() { Application::GetBase()->SetActive(true); }
+bool DirectGraphicsPrimaryWindow::Initialize() { return Initialize(config_); }
+bool DirectGraphicsPrimaryWindow::Initialize(DirectGraphicsConfig& configuration) {
+	if (!DirectGraphics::Initialize(NULL, configuration)) return false;
+	Attach(hAttachedWindow_);
+	return true;
+}
+LRESULT DirectGraphicsPrimaryWindow::_WindowProcedure(HWND, UINT, WPARAM, LPARAM) { return 0; }
+void DirectGraphicsPrimaryWindow::ChangeScreenMode() {
+	const bool fullscreen = modeScreen_ != SCREENMODE_FULLSCREEN;
+	if (!SDL_SetWindowFullscreen(static_cast<SDL_Window*>(hAttachedWindow_), fullscreen))
+		throw std::runtime_error(SDL_GetError());
+	modeScreen_ = fullscreen ? SCREENMODE_FULLSCREEN : SCREENMODE_WINDOW;
+}
+#else
 DirectGraphicsPrimaryWindow::DirectGraphicsPrimaryWindow()
 {
-
 }
 DirectGraphicsPrimaryWindow::~DirectGraphicsPrimaryWindow()
 {
-
 }
 void DirectGraphicsPrimaryWindow::_PauseDrawing()
 {
-//	gstd::Application::GetBase()->SetActive(false);
-	// ƒEƒCƒ“ƒhƒE‚Ìƒƒjƒ…[ƒo[‚ğ•`‰æ‚·‚é
+	//	gstd::Application::GetBase()->SetActive(false);
+	// ã‚¦ã‚¤ãƒ³ãƒ‰ã‚¦ã®ãƒ¡ãƒ‹ãƒ¥ãƒ¼ãƒãƒ¼ã‚’æç”»ã™ã‚‹
 	::DrawMenuBar(hWnd_);
-	// ƒEƒCƒ“ƒhƒE‚ÌƒtƒŒ[ƒ€‚ğ•`‰æ‚·‚é
+	// ã‚¦ã‚¤ãƒ³ãƒ‰ã‚¦ã®ãƒ•ãƒ¬ãƒ¼ãƒ ã‚’æç”»ã™ã‚‹
 	::RedrawWindow(hWnd_, NULL, NULL, RDW_FRAME);
 }
 void DirectGraphicsPrimaryWindow::_RestartDrawing()
@@ -700,204 +758,188 @@ bool DirectGraphicsPrimaryWindow::Initialize(DirectGraphicsConfig& config)
 	{
 		std::wstring nameClass = L"DirectGraphicsPrimaryWindow";
 		WNDCLASSEX wcex;
-		ZeroMemory(&wcex,sizeof(wcex));
-		wcex.cbSize=sizeof(WNDCLASSEX); 
-//		wcex.style=CS_HREDRAW|CS_VREDRAW;
-		wcex.lpfnWndProc=(WNDPROC)WindowBase::_StaticWindowProcedure;
-		wcex.hInstance=hInst;
-		wcex.hIcon=NULL;
-		wcex.hCursor=LoadCursor(NULL, IDC_ARROW);
-		wcex.hbrBackground=(HBRUSH)(COLOR_WINDOW+2);
-		wcex.lpszMenuName=NULL;
-		wcex.lpszClassName=nameClass.c_str();
-		wcex.hIconSm=NULL;
+		ZeroMemory(&wcex, sizeof(wcex));
+		wcex.cbSize = sizeof(WNDCLASSEX);
+		// wcex.style=CS_HREDRAW|CS_VREDRAW;
+		wcex.lpfnWndProc = (WNDPROC)WindowBase::_StaticWindowProcedure;
+		wcex.hInstance = hInst;
+		wcex.hIcon = NULL;
+		wcex.hCursor = LoadCursor(NULL, IDC_ARROW);
+		wcex.hbrBackground = (HBRUSH)(COLOR_WINDOW + 5);
+		wcex.lpszMenuName = NULL;
+		wcex.lpszClassName = nameClass.c_str();
+		wcex.hIconSm = NULL;
 		::RegisterClassEx(&wcex);
 
 		int wWidth = config.GetScreenWidth();
 		int wHeight = config.GetScreenHeight();
-		int tw=::GetSystemMetrics(SM_CXEDGE)+GetSystemMetrics(SM_CXBORDER)+GetSystemMetrics(SM_CXDLGFRAME);
-		int th=::GetSystemMetrics(SM_CYEDGE)+GetSystemMetrics(SM_CYBORDER)+GetSystemMetrics(SM_CYDLGFRAME)+GetSystemMetrics(SM_CYCAPTION);
+		int tw = ::GetSystemMetrics(SM_CXEDGE) + 10 + GetSystemMetrics(SM_CXBORDER) + GetSystemMetrics(SM_CXDLGFRAME);
+		int th = ::GetSystemMetrics(SM_CYEDGE) + 10 + GetSystemMetrics(SM_CYBORDER) + GetSystemMetrics(SM_CYDLGFRAME) + GetSystemMetrics(SM_CYCAPTION);
 		wWidth += tw;
 		wHeight += th;
 
-   		hWnd_=::CreateWindow(wcex.lpszClassName,
+		hWnd_ = ::CreateWindow(wcex.lpszClassName,
 			L"",
-			WS_OVERLAPPEDWINDOW-WS_SIZEBOX,
-			0,0,wWidth,wHeight,NULL,NULL,hInst,NULL);
+			WS_OVERLAPPEDWINDOW - WS_SIZEBOX,
+			0, 0, wWidth, wHeight, NULL, NULL, hInst, NULL);
 	}
 
-
 	HWND hWndGraphics = NULL;
-	if(config.IsPseudoFullScreen())
-	{
-		//‹[—ƒtƒ‹ƒXƒNƒŠ[ƒ“‚Ìê‡‚ÍAqƒEƒBƒ“ƒhƒE‚ÉDirectGraphics‚ğ”z’u‚·‚é
+	if (config.IsPseudoFullScreen()) {
+		//æ“¬ä¼¼ãƒ•ãƒ«ã‚¹ã‚¯ãƒªãƒ¼ãƒ³ã®å ´åˆã¯ã€å­ã‚¦ã‚£ãƒ³ãƒ‰ã‚¦ã«DirectGraphicsã‚’é…ç½®ã™ã‚‹
 		std::wstring nameClass = L"DirectGraphicsPrimaryWindow.Child";
 		WNDCLASSEX wcex;
-		ZeroMemory(&wcex,sizeof(wcex));
-		wcex.cbSize=sizeof(WNDCLASSEX); 
-		wcex.style=CS_HREDRAW|CS_VREDRAW;
-		wcex.lpfnWndProc=(WNDPROC)WindowBase::_StaticWindowProcedure;
-		wcex.hInstance=hInst;
-		wcex.hCursor=LoadCursor(NULL, IDC_ARROW);
-		wcex.hbrBackground=(HBRUSH)(COLOR_WINDOW+2);
-		wcex.lpszClassName=nameClass.c_str();
+		ZeroMemory(&wcex, sizeof(wcex));
+		wcex.cbSize = sizeof(WNDCLASSEX);
+		wcex.style = CS_HREDRAW | CS_VREDRAW;
+		wcex.lpfnWndProc = (WNDPROC)WindowBase::_StaticWindowProcedure;
+		wcex.hInstance = hInst;
+		wcex.hCursor = LoadCursor(NULL, IDC_ARROW);
+		wcex.hbrBackground = (HBRUSH)(COLOR_WINDOW + 5);
+		wcex.lpszClassName = nameClass.c_str();
 		::RegisterClassEx(&wcex);
 
-		int screenWidth = config_.GetScreenWidth();
-		int screenHeight = config_.GetScreenHeight();
-   		HWND hWnd = ::CreateWindow(wcex.lpszClassName,
+		int screenWidth = config_.GetScreenWidth() + ::GetSystemMetrics(SM_CXEDGE) + 10;
+		int screenHeight = config_.GetScreenHeight() + ::GetSystemMetrics(SM_CYEDGE) + 10;
+		HWND hWnd = ::CreateWindow(wcex.lpszClassName,
 			L"",
 			WS_CHILD | WS_VISIBLE,
-			0,0,screenWidth,screenHeight,hWnd_,NULL,hInst,NULL);
+			0, 0, screenWidth, screenHeight, hWnd_, NULL, hInst, NULL);
 		wndGraphics_.Attach(hWnd);
 
 		hWndGraphics = hWnd;
-	}
-	else
-	{
-		if(config.IsShowWindow())
+	} else {
+		if (config.IsShowWindow())
 			::ShowWindow(hWnd_, SW_SHOW);
 		hWndGraphics = hWnd_;
 	}
 	::UpdateWindow(hWnd_);
 	this->Attach(hWnd_);
 
-//Window‚ğ‰æ–Ê‚Ì’†‰›‚ÉˆÚ“®
-	RECT drect,mrect;
-	HWND hDesk=::GetDesktopWindow();
+	//Windowã‚’ç”»é¢ã®ä¸­å¤®ã«ç§»å‹•
+	RECT drect, mrect;
+	HWND hDesk = ::GetDesktopWindow();
 	::GetWindowRect(hDesk, &drect);
 	::GetWindowRect(hWnd_, &mrect);
-	int tWidth=mrect.right-mrect.left;
-	int tHeight=mrect.bottom-mrect.top;
-	int left=drect.right/2-tWidth/2;
-	int top=drect.bottom/2-tHeight/2;
-	::MoveWindow(hWnd_,left,top,tWidth,tHeight,TRUE);
+	int tWidth = mrect.right - mrect.left;
+	int tHeight = mrect.bottom - mrect.top;
+	int left = drect.right / 2 - tWidth / 2;
+	int top = drect.bottom / 2 - tHeight / 2;
+	::MoveWindow(hWnd_, left, top, tWidth, tHeight, TRUE);
 
 	DirectGraphics::Initialize(hWndGraphics, config);
 
 	return true;
 }
 
-LRESULT DirectGraphicsPrimaryWindow::_WindowProcedure(HWND hWnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
+LRESULT DirectGraphicsPrimaryWindow::_WindowProcedure(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-	switch (uMsg)
-	{
-		case WM_CLOSE:
-		{
-			::DestroyWindow(hWnd);
-			return FALSE;
-		}
-		case WM_DESTROY:
-		{
-			::PostQuitMessage(0);
-			return FALSE;
-		}
-		case WM_ACTIVATEAPP:
-		{
-			if((BOOL)wParam)
-				_RestartDrawing();
-			else
-				_PauseDrawing();
-			return FALSE;
-		}
-		case WM_ENTERMENULOOP:
-		{
-			//ƒƒjƒ…[‚ª‘I‘ğ‚³‚ê‚½‚ç“®ì‚ğ’â~‚·‚é
-			_PauseDrawing();
-			return FALSE;
-		}
-		case WM_EXITMENULOOP:
-		{
-			//ƒƒjƒ…[‚Ì‘I‘ğ‚ª‰ğœ‚³‚ê‚½‚ç“®ì‚ğÄŠJ‚·‚é
+	switch (uMsg) {
+	case WM_CLOSE: {
+		::DestroyWindow(hWnd);
+		return FALSE;
+	}
+	case WM_DESTROY: {
+		::PostQuitMessage(0);
+		return FALSE;
+	}
+	case WM_ACTIVATEAPP: {
+		if ((BOOL)wParam)
 			_RestartDrawing();
-			return FALSE;
-		}
-		case WM_SIZE:
-		{
-			if(wndGraphics_.GetWindowHandle() != NULL)
-			{
-				RECT rect;
-				::GetClientRect(hWnd, &rect);
-				int width = rect.right;
-				int height = rect.bottom ;
-
-				int screenWidth = config_.GetScreenWidth();
-				int screenHeight = config_.GetScreenHeight();
-
-				double ratioWH = (double)screenWidth / (double)screenHeight;
-				if(width > rect.right)width = rect.right;
-				height = (double)width / ratioWH;
-
-				double ratioHW = (double)screenHeight / (double)screenWidth;
-				if(height > rect.bottom) height = rect.bottom;
-				width = (double)height / ratioHW;		
-
-				int wX = (rect.right - width) / 2;
-				int wY = (rect.bottom - height) / 2;
-				wndGraphics_.SetBounds(wX, wY, width, height);
-			}
-
-			return FALSE;
-		}
-		case WM_GETMINMAXINFO:
-		{
-			int tw=::GetSystemMetrics(SM_CXEDGE)+GetSystemMetrics(SM_CXBORDER)+GetSystemMetrics(SM_CXDLGFRAME);
-			int th=::GetSystemMetrics(SM_CYEDGE)+GetSystemMetrics(SM_CYBORDER)+GetSystemMetrics(SM_CYDLGFRAME)+GetSystemMetrics(SM_CYCAPTION);
-
-			MINMAXINFO* info = (MINMAXINFO*)lParam;
-			int wWidth = ::GetSystemMetrics( SM_CXFULLSCREEN );
-			int wHeight = ::GetSystemMetrics( SM_CYFULLSCREEN );
+		else
+			_PauseDrawing();
+		return FALSE;
+	}
+	case WM_ENTERMENULOOP: {
+		//ãƒ¡ãƒ‹ãƒ¥ãƒ¼ãŒé¸æŠã•ã‚ŒãŸã‚‰å‹•ä½œã‚’åœæ­¢ã™ã‚‹
+		_PauseDrawing();
+		return FALSE;
+	}
+	case WM_EXITMENULOOP: {
+		//ãƒ¡ãƒ‹ãƒ¥ãƒ¼ã®é¸æŠãŒè§£é™¤ã•ã‚ŒãŸã‚‰å‹•ä½œã‚’å†é–‹ã™ã‚‹
+		_RestartDrawing();
+		return FALSE;
+	}
+	case WM_SIZE: {
+		if (wndGraphics_.GetWindowHandle() != NULL) {
+			RECT rect;
+			::GetClientRect(hWnd, &rect);
+			int width = rect.right;
+			int height = rect.bottom;
 
 			int screenWidth = config_.GetScreenWidth();
 			int screenHeight = config_.GetScreenHeight();
-			int width = wWidth;
-			int height = wHeight;
 
 			double ratioWH = (double)screenWidth / (double)screenHeight;
-			if(width > wWidth)width = wWidth;
+			if (width > rect.right)
+				width = rect.right;
 			height = (double)width / ratioWH;
 
 			double ratioHW = (double)screenHeight / (double)screenWidth;
-			if(height > wHeight) height = wHeight;
-			width = (double)height / ratioHW;			
+			if (height > rect.bottom)
+				height = rect.bottom;
+			width = (double)height / ratioHW;
 
-			info->ptMaxSize.x=width + tw;
-			info->ptMaxSize.y=height + th;
-			return FALSE;
+			int wX = (rect.right - width) / 2;
+			int wY = (rect.bottom - height) / 2;
+			wndGraphics_.SetBounds(wX, wY, width, height);
 		}
-		case WM_KEYDOWN:
-		{
-			switch(wParam)
-			{
-				case VK_F12:
-					::PostMessage(hWnd,WM_CLOSE,0,0);
-					break;
-			}
-			return FALSE;
+		return FALSE;
+	}
+	case WM_GETMINMAXINFO: {
+		int tw = ::GetSystemMetrics(SM_CXEDGE) + 10 + GetSystemMetrics(SM_CXBORDER) + GetSystemMetrics(SM_CXDLGFRAME);
+		int th = ::GetSystemMetrics(SM_CYEDGE) + 10 + GetSystemMetrics(SM_CYBORDER) + GetSystemMetrics(SM_CYDLGFRAME) + GetSystemMetrics(SM_CYCAPTION);
+
+		MINMAXINFO* info = (MINMAXINFO*)lParam;
+		int wWidth = ::GetSystemMetrics(SM_CXFULLSCREEN);
+		int wHeight = ::GetSystemMetrics(SM_CYFULLSCREEN);
+
+		int screenWidth = config_.GetScreenWidth();
+		int screenHeight = config_.GetScreenHeight();
+		int width = wWidth;
+		int height = wHeight;
+
+		double ratioWH = (double)screenWidth / (double)screenHeight;
+		if (width > wWidth)
+			width = wWidth;
+		height = (double)width / ratioWH;
+
+		double ratioHW = (double)screenHeight / (double)screenWidth;
+		if (height > wHeight)
+			height = wHeight;
+		width = (double)height / ratioHW;
+
+		info->ptMaxSize.x = width + tw;
+		info->ptMaxSize.y = height + th;
+		return FALSE;
+	}
+	case WM_KEYDOWN: {
+		switch (wParam) {
+		case VK_F12:
+			::PostMessage(hWnd, WM_CLOSE, 0, 0);
+			break;
 		}
-		case WM_SYSCHAR:
-		{
-			if(wParam==VK_RETURN)
-				this->ChangeScreenMode();
-			return FALSE;
-		}
+		return FALSE;
+	}
+	case WM_SYSCHAR: {
+		if (wParam == VK_RETURN)
+			this->ChangeScreenMode();
+		return FALSE;
+	}
 	}
 	return _CallPreviousWindowProcedure(hWnd, uMsg, wParam, lParam);
 }
 
 void DirectGraphicsPrimaryWindow::ChangeScreenMode()
 {
-	if(!config_.IsPseudoFullScreen())
-	{
-		if(modeScreen_ == SCREENMODE_WINDOW)
-		{
-			int screenWidth = config_.GetScreenWidth();
-			int screenHeight = config_.GetScreenHeight();
+	if (!config_.IsPseudoFullScreen()) {
+		if (modeScreen_ == SCREENMODE_WINDOW) {
+			int screenWidth = config_.GetScreenWidth() + ::GetSystemMetrics(SM_CXEDGE) + 10;
+			int screenHeight = config_.GetScreenHeight() + ::GetSystemMetrics(SM_CYEDGE) + 10;
 			int wWidth = ::GetSystemMetrics(SM_CXFULLSCREEN);
 			int wHeight = ::GetSystemMetrics(SM_CYFULLSCREEN);
 			bool bFullScreenEnable = screenWidth <= wWidth && screenHeight <= wHeight;
-			if(!bFullScreenEnable)
-			{
+			if (!bFullScreenEnable) {
 				std::wstring log = StringUtility::Format(
 					L"this display cannot change full screen : display[%d-%d] screen[%d-%d]", wWidth, wHeight, screenWidth, screenHeight);
 				Logger::WriteTop(log);
@@ -907,70 +949,67 @@ void DirectGraphicsPrimaryWindow::ChangeScreenMode()
 
 		Application::GetBase()->SetActive(true);
 
-		//ƒeƒNƒXƒ`ƒƒ‰ğ•ú
+		//ãƒ†ã‚¯ã‚¹ãƒãƒ£è§£æ”¾
 		_ReleaseDxResource();
 
-		if(modeScreen_ == SCREENMODE_FULLSCREEN)
-		{
+		if (modeScreen_ == SCREENMODE_FULLSCREEN) {
 			pDevice_->Reset(&d3dppWin_);
 			::SetWindowLong(hAttachedWindow_, GWL_STYLE, wndStyleWin_);
 			::ShowWindow(hAttachedWindow_, SW_SHOW);
 
-			//Window‚ğ‰æ–Ê‚Ì’†‰›‚ÉˆÚ“®
-			int tw=::GetSystemMetrics(SM_CXEDGE)+GetSystemMetrics(SM_CXBORDER)+GetSystemMetrics(SM_CXDLGFRAME);
-			int th=::GetSystemMetrics(SM_CYEDGE)+GetSystemMetrics(SM_CYBORDER)+GetSystemMetrics(SM_CYDLGFRAME)+GetSystemMetrics(SM_CYCAPTION);
-			RECT drect,mrect;
-			HWND hDesk=::GetDesktopWindow();
+			//Windowã‚’ç”»é¢ã®ä¸­å¤®ã«ç§»å‹•
+			int tw = ::GetSystemMetrics(SM_CXEDGE) + 10 + GetSystemMetrics(SM_CXBORDER) + GetSystemMetrics(SM_CXDLGFRAME);
+			int th = ::GetSystemMetrics(SM_CYEDGE) + 10 + GetSystemMetrics(SM_CYBORDER) + GetSystemMetrics(SM_CYDLGFRAME) + GetSystemMetrics(SM_CYCAPTION);
+			RECT drect, mrect;
+			HWND hDesk = ::GetDesktopWindow();
 			::GetWindowRect(hDesk, &drect);
 			::GetWindowRect(hAttachedWindow_, &mrect);
-			int wWidth=mrect.right-mrect.left;
-			int wHeight=mrect.bottom-mrect.top;
-			int left=drect.right/2-wWidth/2;
-			int top=drect.bottom/2-wHeight/2;
-			::MoveWindow(hAttachedWindow_, left, top, wWidth+tw, wHeight+th, TRUE);
+			int wWidth = mrect.right - mrect.left;
+			int wHeight = mrect.bottom - mrect.top;
+			int left = drect.right / 2 - wWidth / 2;
+			int top = drect.bottom / 2 - wHeight / 2;
+			::MoveWindow(hAttachedWindow_, left, top, wWidth + tw, wHeight + th, TRUE);
 
-			::SetWindowPos(hAttachedWindow_,HWND_NOTOPMOST,
-				0,0,0,0,
-				SWP_NOSIZE|SWP_NOMOVE|SWP_NOREDRAW|SWP_NOACTIVATE|SWP_NOCOPYBITS|SWP_NOSENDCHANGING );
+			::SetWindowPos(hAttachedWindow_, HWND_NOTOPMOST,
+				0, 0, 0, 0,
+				SWP_NOSIZE | SWP_NOMOVE | SWP_NOREDRAW | SWP_NOACTIVATE | SWP_NOCOPYBITS | SWP_NOSENDCHANGING);
 
 			modeScreen_ = SCREENMODE_WINDOW;
-			while(::ShowCursor(TRUE)<0){};//ƒ}ƒEƒXƒJ[ƒ\ƒ‹‚ğoŒ»‚³‚¹‚é
-		}
-		else
-		{
+			while (::ShowCursor(TRUE) < 0) {
+			}; //ãƒã‚¦ã‚¹ã‚«ãƒ¼ã‚½ãƒ«ã‚’å‡ºç¾ã•ã›ã‚‹
+		} else {
 			pDevice_->Reset(&d3dppFull_);
 			::SetWindowLong(hAttachedWindow_, GWL_STYLE, wndStyleFull_);
 			::ShowWindow(hAttachedWindow_, SW_SHOW);
 			modeScreen_ = SCREENMODE_FULLSCREEN;
 		}
 
-		//ƒeƒNƒXƒ`ƒƒƒŒƒXƒgƒA
+		//ãƒ†ã‚¯ã‚¹ãƒãƒ£ãƒ¬ã‚¹ãƒˆã‚¢
 		_RestoreDxResource();
-	}
-	else
-	{
-		if(modeScreen_ == SCREENMODE_FULLSCREEN)
-		{
+	} else {
+		if (modeScreen_ == SCREENMODE_FULLSCREEN) {
 			::SetWindowLong(hWnd_, GWL_STYLE, wndStyleWin_);
 			::ShowWindow(hWnd_, SW_SHOW);
 
-			//Window‚ğ‰æ–Ê‚Ì’†‰›‚ÉˆÚ“®
-			int tw=::GetSystemMetrics(SM_CXEDGE)+GetSystemMetrics(SM_CXBORDER)+GetSystemMetrics(SM_CXDLGFRAME);
-			int th=::GetSystemMetrics(SM_CYEDGE)+GetSystemMetrics(SM_CYBORDER)+GetSystemMetrics(SM_CYDLGFRAME)+GetSystemMetrics(SM_CYCAPTION);
+			//Windowã‚’ç”»é¢ã®ä¸­å¤®ã«ç§»å‹•
+			int tw = ::GetSystemMetrics(SM_CXEDGE) + 10 + GetSystemMetrics(SM_CXBORDER) + GetSystemMetrics(SM_CXDLGFRAME);
+			int th = ::GetSystemMetrics(SM_CYEDGE) + 10 + GetSystemMetrics(SM_CYBORDER) + GetSystemMetrics(SM_CYDLGFRAME) + GetSystemMetrics(SM_CYCAPTION);
 
-			int wWidth = ::GetSystemMetrics( SM_CXFULLSCREEN );
-			int wHeight = ::GetSystemMetrics( SM_CYFULLSCREEN );
+			int wWidth = ::GetSystemMetrics(SM_CXFULLSCREEN);
+			int wHeight = ::GetSystemMetrics(SM_CYFULLSCREEN);
 			int screenWidth = config_.GetScreenWidth();
-			int screenHeight = config_.GetScreenHeight();			
+			int screenHeight = config_.GetScreenHeight();
 			int width = screenWidth;
 			int height = screenHeight;
 
 			double ratioWH = (double)screenWidth / (double)screenHeight;
-			if(width > wWidth)width = wWidth;
+			if (width > wWidth)
+				width = wWidth;
 			height = (double)width / ratioWH;
 
 			double ratioHW = (double)screenHeight / (double)screenWidth;
-			if(height > wHeight) height = wHeight;
+			if (height > wHeight)
+				height = wHeight;
 			width = (double)height / ratioHW;
 
 			width += tw;
@@ -980,9 +1019,7 @@ void DirectGraphicsPrimaryWindow::ChangeScreenMode()
 			MoveWindowCenter();
 
 			modeScreen_ = SCREENMODE_WINDOW;
-		}
-		else
-		{
+		} else {
 			RECT rect;
 			GetWindowRect(GetDesktopWindow(), &rect);
 			::SetWindowLong(hWnd_, GWL_STYLE, wndStyleFull_);
@@ -992,19 +1029,18 @@ void DirectGraphicsPrimaryWindow::ChangeScreenMode()
 			modeScreen_ = SCREENMODE_FULLSCREEN;
 		}
 	}
-
 }
 
 /**********************************************************
 //DxCamera
 **********************************************************/
+#endif
 DxCamera::DxCamera()
 {
 	Reset();
 }
 DxCamera::~DxCamera()
 {
-
 }
 void DxCamera::Reset()
 {
@@ -1026,9 +1062,9 @@ void DxCamera::Reset()
 D3DXVECTOR3 DxCamera::GetCameraPosition()
 {
 	D3DXVECTOR3 res;
-	res.x = pos_.x + (float)(radius_*cos(D3DXToRadian(angleElevation_))*cos(D3DXToRadian(angleAzimuth_)));
-	res.y = pos_.y + (float)(radius_*sin(D3DXToRadian(angleElevation_)));
-	res.z = pos_.z + (float)(radius_*cos(D3DXToRadian(angleElevation_))*sin(D3DXToRadian(angleAzimuth_)));
+	res.x = pos_.x + (float)(radius_ * cos(D3DXToRadian(angleElevation_)) * cos(D3DXToRadian(angleAzimuth_)));
+	res.y = pos_.y + (float)(radius_ * sin(D3DXToRadian(angleElevation_)));
+	res.z = pos_.z + (float)(radius_ * cos(D3DXToRadian(angleElevation_)) * sin(D3DXToRadian(angleAzimuth_)));
 	return res;
 }
 D3DXMATRIX DxCamera::GetMatrixLookAtLH()
@@ -1039,13 +1075,13 @@ D3DXMATRIX DxCamera::GetMatrixLookAtLH()
 	D3DXVECTOR3 vCameraUp(0, 1, 0);
 	{
 		D3DXQUATERNION qRot(0, 0, 0, 1.0f);
-		D3DXQuaternionRotationYawPitchRoll(&qRot, 
+		D3DXQuaternionRotationYawPitchRoll(&qRot,
 			Math::DegreeToRadian(yaw_), Math::DegreeToRadian(pitch_), Math::DegreeToRadian(roll_));
 		D3DXMATRIX matRot;
 		D3DXMatrixRotationQuaternion(&matRot, &qRot);
 		D3DXVec3TransformCoord((D3DXVECTOR3*)&vCameraUp, (D3DXVECTOR3*)&vCameraUp, &matRot);
 	}
-	
+
 	D3DXVECTOR3 posTo = pos_;
 	{
 		D3DXMATRIX matTrans1;
@@ -1056,7 +1092,7 @@ D3DXMATRIX DxCamera::GetMatrixLookAtLH()
 		float pitch = pitch_;
 
 		D3DXQUATERNION qRot(0, 0, 0, 1.0f);
-		D3DXQuaternionRotationYawPitchRoll(&qRot, 
+		D3DXQuaternionRotationYawPitchRoll(&qRot,
 			Math::DegreeToRadian(yaw_), Math::DegreeToRadian(pitch_), Math::DegreeToRadian(0));
 		D3DXMATRIX matRot;
 		D3DXMatrixRotationQuaternion(&matRot, &qRot);
@@ -1072,7 +1108,8 @@ D3DXMATRIX DxCamera::GetMatrixLookAtLH()
 void DxCamera::UpdateDeviceWorldViewMatrix()
 {
 	DirectGraphics* graph = DirectGraphics::GetBase();
-	if(graph == NULL)return;
+	if (graph == NULL)
+		return;
 	IDirect3DDevice9* device = graph->GetDevice();
 
 	D3DXMATRIX matView = GetMatrixLookAtLH();
@@ -1081,18 +1118,21 @@ void DxCamera::UpdateDeviceWorldViewMatrix()
 void DxCamera::SetProjectionMatrix(float width, float height, float posNear, float posFar)
 {
 	DirectGraphics* graph = DirectGraphics::GetBase();
-	if(graph == NULL)return;
+	if (graph == NULL)
+		return;
 	IDirect3DDevice9* device = graph->GetDevice();
 
-	D3DXMatrixPerspectiveFovLH(&matProjection_, D3DXToRadian(45.0), 
-		width/height, posNear, posFar);
+	D3DXMatrixPerspectiveFovLH(&matProjection_, D3DXToRadian(45.0),
+		width / height, posNear, posFar);
 
-	if(clipNear_ < 1)clipNear_ = 1;
-	if(clipFar_ < 1)clipFar_ = 1;
+	if (clipNear_ < 1)
+		clipNear_ = 1;
+	if (clipFar_ < 1)
+		clipFar_ = 1;
 	clipNear_ = posNear;
 	clipFar_ = posFar;
 
-/*
+	/*
 	ref_count_ptr<DxCamera2D> camera2D = graph->GetCamera2D();
 	D3DXVECTOR2 pos = camera2D->GetLeftTopPosition();
 	double ratio = camera2D->GetRatio();
@@ -1103,14 +1143,13 @@ void DxCamera::SetProjectionMatrix(float width, float height, float posNear, flo
 
 	persMat = persMat * matScale;
 	persMat = persMat * matTrans;
-*/
-
-
+	*/
 }
 void DxCamera::UpdateDeviceProjectionMatrix()
 {
 	DirectGraphics* graph = DirectGraphics::GetBase();
-	if(graph == NULL)return;
+	if (graph == NULL)
+		return;
 	IDirect3DDevice9* device = graph->GetDevice();
 	device->SetTransform(D3DTS_PROJECTION, &matProjection_);
 }
@@ -1137,15 +1176,14 @@ D3DXVECTOR2 DxCamera::TransformCoordinateTo2D(D3DXVECTOR3 pos)
 	float vy = vect.y;
 	float vz = vect.z;
 
-	vect.x=(vx*mat._11)+(vy*mat._21)+(vz*mat._31)+mat._41;
-	vect.y=(vx*mat._12)+(vy*mat._22)+(vz*mat._32)+mat._42;
-	vect.z=(vx*mat._13)+(vy*mat._23)+(vz*mat._33)+mat._43;
-	vect.w=(vx*mat._14)+(vy*mat._24)+(vz*mat._34)+mat._44;
+	vect.x = (vx * mat._11) + (vy * mat._21) + (vz * mat._31) + mat._41;
+	vect.y = (vx * mat._12) + (vy * mat._22) + (vz * mat._32) + mat._42;
+	vect.z = (vx * mat._13) + (vy * mat._23) + (vz * mat._33) + mat._43;
+	vect.w = (vx * mat._14) + (vy * mat._24) + (vz * mat._34) + mat._44;
 
-	if(vect.w>0)
-	{
-		vect.x = width/2+(vect.x/vect.w)*width/2; 
-		vect.y = height/2-(vect.y/vect.w)*height/2; // ‚x•ûŒü‚Íã‚ª³‚Æ‚È‚é‚½‚ß
+	if (vect.w > 0) {
+		vect.x = width / 2 + (vect.x / vect.w) * width / 2;
+		vect.y = height / 2 - (vect.y / vect.w) * height / 2; // ï¼¹æ–¹å‘ã¯ä¸ŠãŒæ­£ã¨ãªã‚‹ãŸã‚
 	}
 
 	D3DXVECTOR2 res(vect.x, vect.y);
@@ -1172,13 +1210,10 @@ void DxCamera2D::Reset()
 	DirectGraphics* graphics = DirectGraphics::GetBase();
 	int width = graphics->GetScreenWidth();
 	int height = graphics->GetScreenHeight();
-	if(posReset_ == NULL)
-	{
+	if (posReset_ == NULL) {
 		pos_.x = width / 2;
 		pos_.y = height / 2;
-	}
-	else
-	{
+	} else {
 		pos_.x = posReset_->x;
 		pos_.y = posReset_->y;
 	}
@@ -1186,7 +1221,7 @@ void DxCamera2D::Reset()
 	ratioY_ = 1.0;
 	SetRect(&rcClip_, 0, 0, width, height);
 
-	angleZ_=0;
+	angleZ_ = 0;
 }
 D3DXVECTOR2 DxCamera2D::GetLeftTopPosition()
 {
@@ -1212,19 +1247,19 @@ D3DXVECTOR2 DxCamera2D::GetLeftTopPosition(D3DXVECTOR2 focus, double ratioX, dou
 	int width = rcClip.right - rcClip.left;
 	int height = rcClip.bottom - rcClip.top;
 
-	int cx = rcClip.left + width / 2; //‰æ–Ê‚Ì’†SÀ•Wx
-	int cy = rcClip.top + height / 2; //‰æ–Ê‚Ì’†SÀ•Wy
+	int cx = rcClip.left + width / 2; //ç”»é¢ã®ä¸­å¿ƒåº§æ¨™x
+	int cy = rcClip.top + height / 2; //ç”»é¢ã®ä¸­å¿ƒåº§æ¨™y
 
-	int dx = focus.x - cx; //Œ»ƒtƒH[ƒJƒX‚Å‚Ì‰æ–Ê¶’[ˆÊ’u
-	int dy = focus.y - cy; //Œ»ƒtƒH[ƒJƒX‚Å‚Ì‰æ–Êã’[ˆÊ’u
+	int dx = focus.x - cx; //ç¾ãƒ•ã‚©ãƒ¼ã‚«ã‚¹ã§ã®ç”»é¢å·¦ç«¯ä½ç½®
+	int dy = focus.y - cy; //ç¾ãƒ•ã‚©ãƒ¼ã‚«ã‚¹ã§ã®ç”»é¢ä¸Šç«¯ä½ç½®
 
 	D3DXVECTOR2 res;
-	res.x = cx - dx * ratioX; //Œ»ƒtƒH[ƒJƒX‚Å‚Ì‰æ–Ê’†S‚ÌˆÊ’u(xÀ•W•ÏŠ·—Ê)
-	res.y = cy - dy * ratioY; //Œ»ƒtƒH[ƒJƒX‚Å‚Ì‰æ–Ê’†S‚ÌˆÊ’u(yÀ•W•ÏŠ·—Ê)
+	res.x = cx - dx * ratioX; //ç¾ãƒ•ã‚©ãƒ¼ã‚«ã‚¹ã§ã®ç”»é¢ä¸­å¿ƒã®ä½ç½®(xåº§æ¨™å¤‰æ›é‡)
+	res.y = cy - dy * ratioY; //ç¾ãƒ•ã‚©ãƒ¼ã‚«ã‚¹ã§ã®ç”»é¢ä¸­å¿ƒã®ä½ç½®(yåº§æ¨™å¤‰æ›é‡)
 
-	res.x -= (width / 2) * ratioX; //Œ»ƒtƒH[ƒJƒX‚Å‚Ì‰æ–Ê¶‚ÌˆÊ’u(xÀ•W•ÏŠ·—Ê)
-	res.y -= (height / 2) * ratioY; //Œ»ƒtƒH[ƒJƒX‚Å‚Ì‰æ–Ê’†S‚ÌˆÊ’u(xÀ•W•ÏŠ·—Ê)
-	
+	res.x -= (width / 2) * ratioX; //ç¾ãƒ•ã‚©ãƒ¼ã‚«ã‚¹ã§ã®ç”»é¢å·¦ã®ä½ç½®(xåº§æ¨™å¤‰æ›é‡)
+	res.y -= (height / 2) * ratioY; //ç¾ãƒ•ã‚©ãƒ¼ã‚«ã‚¹ã§ã®ç”»é¢ä¸­å¿ƒã®ä½ç½®(xåº§æ¨™å¤‰æ›é‡)
+
 	return res;
 }
 
@@ -1238,8 +1273,7 @@ D3DXMATRIX DxCamera2D::GetMatrix()
 
 	D3DXMATRIX matAngleZ;
 	D3DXMatrixIdentity(&matAngleZ);
-	if(angleZ_ != 0)
-	{
+	if (angleZ_ != 0) {
 		D3DXMATRIX matTransRot1;
 		D3DXMatrixTranslation(&matTransRot1, -GetFocusX() + pos.x, -GetFocusY() + pos.y, 0);
 		D3DXMATRIX matRot;

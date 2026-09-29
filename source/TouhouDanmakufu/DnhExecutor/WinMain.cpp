@@ -1,8 +1,45 @@
 #include"GcLibImpl.hpp"
 
+#ifdef __EMSCRIPTEN__
+#include <SDL3/SDL.h>
+#include <emscripten.h>
+#include <emscripten/main_loop.h>
+#endif
+
 /**********************************************************
-WinMain
+//Application entry
 **********************************************************/
+static void appMainLoop()
+{
+	EApplication* app = EApplication::GetInstance();
+	if (app) {
+		app->RunFrame();
+	}
+}
+
+#ifdef __EMSCRIPTEN__
+int main(int argc, char** argv)
+{
+	gstd::DebugUtility::DumpMemoryLeaksOnExit();
+	try {
+		DnhConfiguration* config = DnhConfiguration::CreateInstance();
+		ELogger* logger = ELogger::CreateInstance();
+		logger->Initialize(config->IsLogFile(), config->IsLogWindow());
+		EPathProperty::CreateInstance();
+
+		EApplication* app = EApplication::CreateInstance();
+		app->Initialize();
+
+		emscripten_set_main_loop(appMainLoop, 60, 1);
+	} catch (std::exception& e) {
+		std::wstring log = StringUtility::ConvertMultiToWide(e.what());
+		Logger::WriteTop(log);
+	} catch (gstd::wexception& e) {
+		Logger::WriteTop(e.what());
+	}
+	return 0;
+}
+#else
 int APIENTRY wWinMain(HINSTANCE hInstance,
                         HINSTANCE hPrevInstance,
                         LPWSTR lpCmdLine,
@@ -31,7 +68,7 @@ int APIENTRY wWinMain(HINSTANCE hInstance,
 	}
 //	catch(...)
 //	{
-//		Logger::WriteTop("ïsñæÇ»ÉGÉâÅ[");
+//		Logger::WriteTop("‰∏çÊòé„Å™„Ç®„É©„Éº");
 //	}
 
 	EApplication::DeleteInstance();
@@ -41,3 +78,4 @@ int APIENTRY wWinMain(HINSTANCE hInstance,
 
 	return 0;
 }
+#endif

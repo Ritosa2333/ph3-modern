@@ -13,7 +13,7 @@
 #undef APSTUDIO_READONLY_SYMBOLS
 
 /////////////////////////////////////////////////////////////////////////////
-// “ú–{Œê resources
+// æ—¥æœ¬èªž resources
 
 #if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_JPN)
 #ifdef _WIN32
@@ -54,16 +54,16 @@ END
 
 IDR_MENU_MAIN MENU DISCARDABLE 
 BEGIN
-    POPUP "Ì§²Ù(&F)"
+    POPUP "ï¾Œï½§ï½²ï¾™(&F)"
     BEGIN
-        MENUITEM "I—¹(&E)\tALT+F4",            ID_MENUITEM_MAIN_EXIT
+        MENUITEM "çµ‚äº†(&E)\tALT+F4",            ID_MENUITEM_MAIN_EXIT
     END
-    POPUP "•\Ž¦(&V)"
+    POPUP "è¡¨ç¤º(&V)"
     BEGIN
-        MENUITEM "ƒƒOƒEƒBƒ“ƒhƒE(&L)",          ID_MENUITEM_MAIN_LOGWINDOW
-        MENUITEM "ƒfƒoƒbƒOƒEƒBƒ“ƒhƒE(&D)",      ID_MENUITEM_MAIN_DEBUGWINDOW
+        MENUITEM "ãƒ­ã‚°ã‚¦ã‚£ãƒ³ãƒ‰ã‚¦(&L)",          ID_MENUITEM_MAIN_LOGWINDOW
+        MENUITEM "ãƒ‡ãƒãƒƒã‚°ã‚¦ã‚£ãƒ³ãƒ‰ã‚¦(&D)",      ID_MENUITEM_MAIN_DEBUGWINDOW
         MENUITEM SEPARATOR
-        MENUITEM "—Ìˆæ‚ð640x480‚ÉŒÅ’è(&F)",     ID_MENUITEM_MAIN_FIXEDAREA
+        MENUITEM "é ˜åŸŸã‚’640x480ã«å›ºå®š(&F)",     ID_MENUITEM_MAIN_FIXEDAREA
     END
 END
 
@@ -75,29 +75,29 @@ END
 
 IDD_DIALOG_SELECT_SCRIPT DIALOGEX 0, 0, 242, 153
 STYLE WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME
-CAPTION "ƒXƒNƒŠƒvƒg‘I‘ð"
-FONT 9, "‚l‚r ‚oƒSƒVƒbƒN"
+CAPTION "ã‚¹ã‚¯ãƒªãƒ—ãƒˆé¸æŠž"
+FONT 9, "ï¼­ï¼³ ï¼°ã‚´ã‚·ãƒƒã‚¯"
 BEGIN
     DEFPUSHBUTTON   "OK",IDOK,128,132,50,14
-    PUSHBUTTON      "·¬Ý¾Ù",IDCANCEL,185,132,50,14
+    PUSHBUTTON      "ï½·ï½¬ï¾ï½¾ï¾™",IDCANCEL,185,132,50,14
     CONTROL         "List1",IDC_LIST_SELECT_SCRIPT,"SysListView32",
                     LVS_REPORT | LVS_SINGLESEL | LVS_SHOWSELALWAYS | 
                     LVS_NOSORTHEADER | WS_BORDER | WS_TABSTOP,7,69,228,57,
                     WS_EX_CLIENTEDGE
-    GROUPBOX        "ƒtƒBƒ‹ƒ^",IDC_STATIC,7,28,228,34
-    LTEXT           "Ží•Ê",IDC_STATIC,15,41,19,10
+    GROUPBOX        "ãƒ•ã‚£ãƒ«ã‚¿",IDC_STATIC,7,28,228,34
+    LTEXT           "ç¨®åˆ¥",IDC_STATIC,15,41,19,10
     COMBOBOX        IDC_COMBO_TYPE_SCRIPT,33,39,82,14,CBS_DROPDOWNLIST | 
                     CBS_SORT | WS_VSCROLL | WS_TABSTOP
-    PUSHBUTTON      "Ä“Ç‚Ýž‚Ý",IDC_BUTTON_RELOAD_SCRIPT,7,7,50,14
+    PUSHBUTTON      "å†èª­ã¿è¾¼ã¿",IDC_BUTTON_RELOAD_SCRIPT,7,7,50,14
 END
 
 IDD_DIALOG_DEBUG DIALOGEX 0, 0, 111, 51
 STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
 EXSTYLE WS_EX_TOOLWINDOW
-CAPTION "ƒfƒoƒbƒO‘€ìƒpƒlƒ‹"
-FONT 9, "‚l‚r ‚oƒSƒVƒbƒN", 0, 0, 0x1
+CAPTION "ãƒ‡ãƒãƒƒã‚°æ“ä½œãƒ‘ãƒãƒ«"
+FONT 9, "ï¼­ï¼³ ï¼°ã‚´ã‚·ãƒƒã‚¯", 0, 0, 0x1
 BEGIN
-    CONTROL         "Ž©‹@–³“G( I )",IDC_CHECK_PLAYER_INVINCIBILITY,"Button",
+    CONTROL         "è‡ªæ©Ÿç„¡æ•µ( I )",IDC_CHECK_PLAYER_INVINCIBILITY,"Button",
                     BS_AUTOCHECKBOX | WS_TABSTOP,7,7,54,10
 END
 
@@ -128,7 +128,7 @@ BEGIN
 END
 #endif    // APSTUDIO_INVOKED
 
-#endif    // “ú–{Œê resources
+#endif    // æ—¥æœ¬èªž resources
 /////////////////////////////////////////////////////////////////////////////
 
 

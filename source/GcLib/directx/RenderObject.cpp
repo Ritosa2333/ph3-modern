@@ -1,15 +1,13 @@
-#include"RenderObject.hpp"
+#include "RenderObject.hpp"
 
-#include"DirectGraphics.hpp"
-#include"Shader.hpp"
+#include "DirectGraphics.hpp"
+#include "Shader.hpp"
 
-#include"MetasequoiaMesh.hpp"
-#include"ElfreinaMesh.hpp"
-
+#include "ElfreinaMesh.hpp"
+#include "MetasequoiaMesh.hpp"
 
 using namespace gstd;
 using namespace directx;
-
 
 /**********************************************************
 //RenderBlock
@@ -29,7 +27,7 @@ void RenderBlock::Render()
 	obj->SetPosition(position_);
 	obj->SetAngle(angle_);
 	obj->SetScale(scale_);
-	if(func_ != NULL)
+	if (func_ != NULL)
 		func_->CallRenderStateFunction();
 	obj->Render();
 }
@@ -47,26 +45,23 @@ void RenderManager::Render()
 {
 	DirectGraphics* graph = DirectGraphics::GetBase();
 
-	//ïsìßñæ
+	//‰∏çÈÄèÊòé
 	graph->SetZBufferEnable(true);
 	graph->SetZWriteEnalbe(true);
-	std::list<gstd::ref_count_ptr<RenderBlock> >::iterator itrOpaque;
-	for(itrOpaque = listBlockOpaque_.begin() ; itrOpaque != listBlockOpaque_.end() ; itrOpaque++)
-	{
+	std::list<gstd::ref_count_ptr<RenderBlock>>::iterator itrOpaque;
+	for (itrOpaque = listBlockOpaque_.begin(); itrOpaque != listBlockOpaque_.end(); itrOpaque++) {
 		(*itrOpaque)->Render();
 	}
 
-	//îºìßñæ
+	//ÂçäÈÄèÊòé
 	graph->SetZBufferEnable(true);
 	graph->SetZWriteEnalbe(false);
-	std::list<gstd::ref_count_ptr<RenderBlock> >::iterator itrTrans;
-	for(itrTrans = listBlockTranslucent_.begin() ; itrTrans != listBlockTranslucent_.end() ; itrTrans++)
-	{
+	std::list<gstd::ref_count_ptr<RenderBlock>>::iterator itrTrans;
+	for (itrTrans = listBlockTranslucent_.begin(); itrTrans != listBlockTranslucent_.end(); itrTrans++) {
 		(*itrTrans)->CalculateZValue();
 	}
 	SortUtility::CombSort(listBlockTranslucent_.begin(), listBlockTranslucent_.end(), ComparatorRenderBlockTranslucent());
-	for(itrTrans = listBlockTranslucent_.begin() ; itrTrans != listBlockTranslucent_.end() ; itrTrans++)
-	{
+	for (itrTrans = listBlockTranslucent_.begin(); itrTrans != listBlockTranslucent_.end(); itrTrans++) {
 		(*itrTrans)->Render();
 	}
 
@@ -75,23 +70,20 @@ void RenderManager::Render()
 }
 void RenderManager::AddBlock(gstd::ref_count_ptr<RenderBlock> block)
 {
-	if(block == NULL)return;
-	if(block->IsTranslucent())
-	{
+	if (block == NULL)
+		return;
+	if (block->IsTranslucent()) {
 		listBlockTranslucent_.push_back(block);
-	}
-	else 
-	{
+	} else {
 		listBlockOpaque_.push_back(block);
 	}
 }
 void RenderManager::AddBlock(gstd::ref_count_ptr<RenderBlocks> blocks)
 {
-	std::list<gstd::ref_count_ptr<RenderBlock> >& listBlock = blocks->GetList();
+	std::list<gstd::ref_count_ptr<RenderBlock>>& listBlock = blocks->GetList();
 	int size = listBlock.size();
-	std::list<gstd::ref_count_ptr<RenderBlock> >::iterator itr;
-	for(itr = listBlock.begin() ; itr != listBlock.end() ; itr++)
-	{
+	std::list<gstd::ref_count_ptr<RenderBlock>>::iterator itr;
+	for (itr = listBlock.begin(); itr != listBlock.end(); itr++) {
 		AddBlock(*itr);
 	}
 }
@@ -101,22 +93,18 @@ void RenderManager::AddBlock(gstd::ref_count_ptr<RenderBlocks> blocks)
 **********************************************************/
 RenderStateFunction::RenderStateFunction()
 {
-
 }
 RenderStateFunction::~RenderStateFunction()
 {
-
 }
 void RenderStateFunction::CallRenderStateFunction()
 {
-	std::map<RenderStateFunction::FUNC_TYPE, gstd::ref_count_ptr<gstd::ByteBuffer> >::iterator itr;
-	for(itr=mapFuncRenderState_.begin(); itr!=mapFuncRenderState_.end(); itr++)
-	{
+	std::map<RenderStateFunction::FUNC_TYPE, gstd::ref_count_ptr<gstd::ByteBuffer>>::iterator itr;
+	for (itr = mapFuncRenderState_.begin(); itr != mapFuncRenderState_.end(); itr++) {
 		RenderStateFunction::FUNC_TYPE type = (*itr).first;
 		gstd::ByteBuffer* args = (*itr).second.GetPointer();
 		args->Seek(0);
-		if(type == RenderStateFunction::FUNC_LIGHTING)
-		{
+		if (type == RenderStateFunction::FUNC_LIGHTING) {
 			bool bEnable = args->ReadBoolean();
 			DirectGraphics::GetBase()->SetLightingEnable(bEnable);
 		}
@@ -166,7 +154,7 @@ void RenderStateFunction::SetBlendMode(DWORD mode, int stage)
 	args->WriteInteger(stage);
 	mapFuncRenderState_[RenderStateFunction::FUNC_BLEND] = args;
 }
-void RenderStateFunction::SetTextureFilter(DWORD mode, int stage )
+void RenderStateFunction::SetTextureFilter(DWORD mode, int stage)
 {
 	int sizeArgs = sizeof(mode) + sizeof(stage);
 	gstd::ByteBuffer* args = new gstd::ByteBuffer();
@@ -184,7 +172,7 @@ RenderObject::RenderObject()
 	typePrimitive_ = D3DPT_TRIANGLELIST;
 	position_ = D3DXVECTOR3(0.0f, 0.0f, 0.0f);
 	angle_ = D3DXVECTOR3(0.0f, 0.0f, 0.0f);
-	scale_ =  D3DXVECTOR3(1.0f, 1.0f, 1.0f);
+	scale_ = D3DXVECTOR3(1.0f, 1.0f, 1.0f);
 	posWeightCenter_ = D3DXVECTOR3(0.0f, 0.0f, 0.0f);
 	D3DXMatrixIdentity(&matRelative_);
 
@@ -199,9 +187,12 @@ RenderObject::~RenderObject()
 }
 void RenderObject::_ReleaseVertexBuffer()
 {
-	if(pIndexBuffer_ != NULL)pIndexBuffer_->Release();
-	if(pVertexBuffer_ != NULL)pVertexBuffer_->Release();
-	if(pVertexDecl_ != NULL)pVertexDecl_->Release();
+	if (pIndexBuffer_ != NULL)
+		pIndexBuffer_->Release();
+	if (pVertexBuffer_ != NULL)
+		pVertexBuffer_->Release();
+	if (pVertexDecl_ != NULL)
+		pVertexDecl_->Release();
 	pVertexDecl_ = NULL;
 	pVertexBuffer_ = NULL;
 	pIndexBuffer_ = NULL;
@@ -214,30 +205,29 @@ int RenderObject::_GetPrimitiveCount()
 {
 	int res = 0;
 	int count = GetVertexCount();
-	if(vertexIndices_.size() != 0)
+	if (vertexIndices_.size() != 0)
 		count = vertexIndices_.size();
-	switch(typePrimitive_)
-	{
-		case D3DPT_POINTLIST://É|ÉCÉìÉgÉäÉXÉg
-			res = count;
-			break;
-		case D3DPT_LINELIST://ÉâÉCÉìÉäÉXÉg
-			res = count/2;
-			break;
-		case D3DPT_LINESTRIP://ÉâÉCÉìÉXÉgÉäÉbÉv
-			res = count-1;
-			break;
-		case D3DPT_TRIANGLELIST://ÉgÉâÉCÉAÉìÉOÉãÉäÉXÉg
-			res = count/3;
-			break;
-		case D3DPT_TRIANGLESTRIP://ÉgÉâÉCÉAÉìÉOÉãÉXÉgÉäÉbÉv
-			res = count-2;
-			break;
-		case D3DPT_TRIANGLEFAN://ÉgÉâÉCÉAÉìÉOÉãÉtÉ@Éì
-			res = count-2;
-			break;
+	switch (typePrimitive_) {
+	case D3DPT_POINTLIST: //„Éù„Ç§„É≥„Éà„É™„Çπ„Éà
+		res = count;
+		break;
+	case D3DPT_LINELIST: //„É©„Ç§„É≥„É™„Çπ„Éà
+		res = count / 2;
+		break;
+	case D3DPT_LINESTRIP: //„É©„Ç§„É≥„Çπ„Éà„É™„ÉÉ„Éó
+		res = count - 1;
+		break;
+	case D3DPT_TRIANGLELIST: //„Éà„É©„Ç§„Ç¢„É≥„Ç∞„É´„É™„Çπ„Éà
+		res = count / 3;
+		break;
+	case D3DPT_TRIANGESTRIP: //„Éà„É©„Ç§„Ç¢„É≥„Ç∞„É´„Çπ„Éà„É™„ÉÉ„Éó
+		res = count - 2;
+		break;
+	case D3DPT_TRIANGLEFAN: //„Éà„É©„Ç§„Ç¢„É≥„Ç∞„É´„Éï„Ç°„É≥
+		res = count - 2;
+		break;
 	}
-	
+
 	return res;
 }
 D3DXMATRIX RenderObject::_CreateWorldTransformMaxtrix()
@@ -247,32 +237,27 @@ D3DXMATRIX RenderObject::_CreateWorldTransformMaxtrix()
 	bool bPos = position_.x != 0.0f || position_.y != 0.0f || position_.z != 0.0f;
 	bool bAngle = angle_.x != 0.0f || angle_.y != 0.0f || angle_.z != 0.0f;
 	bool bScale = scale_.x != 1.0f || scale_.y != 1.0f || scale_.z != 1.0f;
-	if(bPos || bAngle || bScale)
-	{
-		if(bScale)
-		{
+	if (bPos || bAngle || bScale) {
+		if (bScale) {
 			D3DXMATRIX matScale;
 			D3DXMatrixScaling(&matScale, scale_.x, scale_.y, scale_.z);
 			mat = mat * matScale;
 		}
-		if(bAngle)
-		{
+		if (bAngle) {
 			D3DXMATRIX matRot;
-			D3DXMatrixRotationYawPitchRoll(&matRot, D3DXToRadian(angle_.y),D3DXToRadian(angle_.x),D3DXToRadian(angle_.z));
+			D3DXMatrixRotationYawPitchRoll(&matRot, D3DXToRadian(angle_.y), D3DXToRadian(angle_.x), D3DXToRadian(angle_.z));
 			mat = mat * matRot;
 		}
 
-		if(bPos)
-		{
+		if (bPos) {
 			D3DXMATRIX matTrans;
 			D3DXMatrixTranslation(&matTrans, position_.x, position_.y, position_.z);
 			mat = mat * matTrans;
-		}	
+		}
 	}
 	mat = mat * matRelative_;
 
-	if(bCoordinate2D_)
-	{
+	if (bCoordinate2D_) {
 		DirectGraphics* graphics = DirectGraphics::GetBase();
 		IDirect3DDevice9* device = graphics->GetDevice();
 
@@ -282,8 +267,7 @@ D3DXMATRIX RenderObject::_CreateWorldTransformMaxtrix()
 		float height = viewPort.Height;
 
 		DxCamera2D* camera2D = graphics->GetCamera2D().GetPointer();
-		if(camera2D->IsEnable())
-		{
+		if (camera2D->IsEnable()) {
 			D3DXMATRIX matCamera = camera2D->GetMatrix();
 			mat = mat * matCamera;
 		}
@@ -318,12 +302,12 @@ D3DXMATRIX RenderObject::_CreateWorldTransformMaxtrix()
 		mat = mat * matTrans * matScale * matInvViewPort * matInvProj * matInvView;
 		mat._43 *= -1;
 	}
-
 	return mat;
 }
 void RenderObject::_SetCoordinate2dDeviceMatrix()
 {
-	if(!bCoordinate2D_)return;
+	if (!bCoordinate2D_)
+		return;
 
 	DirectGraphics* graphics = DirectGraphics::GetBase();
 	IDirect3DDevice9* device = graphics->GetDevice();
@@ -335,51 +319,53 @@ void RenderObject::_SetCoordinate2dDeviceMatrix()
 
 	D3DXMATRIX viewMat;
 	D3DXMATRIX persMat;
-	D3DVECTOR viewFrom = D3DXVECTOR3(0,0,-100);
-	D3DXMatrixLookAtLH(&viewMat,(D3DXVECTOR3*)&viewFrom,&D3DXVECTOR3(0,0,0),&D3DXVECTOR3(0,1,0));
-	D3DXMatrixPerspectiveFovLH(&persMat, D3DXToRadian(180), 
-		(float)viewPort.Width/(float)viewPort.Height,1, 2000);
+	D3DVECTOR viewFrom = D3DXVECTOR3(0, 0, -100);
+	D3DXVECTOR3 viewAt(0, 0, 0), viewUp(0, 1, 0);
+	D3DXMatrixLookAtLH(&viewMat, (D3DXVECTOR3*)&viewFrom, &viewAt, &viewUp);
+	D3DXMatrixPerspectiveFovLH(&persMat, D3DXToRadian(180),
+		(float)viewPort.Width / (float)viewPort.Height, 1, 2000);
 
-	device->SetTransform(D3DTS_VIEW,&viewMat);
-	device->SetTransform(D3DTS_PROJECTION,&persMat);
+	device->SetTransform(D3DTS_VIEW, &viewMat);
+	device->SetTransform(D3DTS_PROJECTION, &persMat);
 }
 void RenderObject::SetTexture(Texture* texture, int stage)
 {
-	if(texture == NULL)
+	if (texture == NULL)
 		texture_[stage] = NULL;
-	else
-	{
-		if(stage >= texture_.size())return;
+	else {
+		if (stage >= texture_.size())
+			return;
 		texture_[stage] = new Texture(texture);
 	}
 }
 void RenderObject::SetTexture(ref_count_ptr<Texture> texture, int stage)
 {
-	if(texture == NULL)
+	if (texture == NULL)
 		texture_[stage] = NULL;
-	else
-	{
-		if(stage >= texture_.size())return;
+	else {
+		if (stage >= texture_.size())
+			return;
 		texture_[stage] = texture;
 	}
 }
 void RenderObject::BeginShader()
 {
-	if(shader_ == NULL)return;
+	if (shader_ == NULL)
+		return;
 
-//	if(pVertexDecl_ == NULL)
-//		_CreateVertexDeclaration();
+	// if(pVertexDecl_ == NULL)
+	// 	_CreateVertexDeclaration();
 
 	shader_->Begin();
 
 	DirectGraphics* graphics = DirectGraphics::GetBase();
 	IDirect3DDevice9* device = graphics->GetDevice();
-//	device->SetVertexDeclaration(pVertexDecl_);
-
+	// device->SetVertexDeclaration(pVertexDecl_);
 }
 void RenderObject::EndShader()
 {
-	if(shader_ == NULL)return;
+	if (shader_ == NULL)
+		return;
 	shader_->End();
 
 	DirectGraphics* graphics = DirectGraphics::GetBase();
@@ -389,7 +375,7 @@ void RenderObject::EndShader()
 
 /**********************************************************
 //RenderObjectTLX
-//ç¿ïW3Dïœä∑çœÇ›ÅAÉâÉCÉeÉBÉìÉOçœÇ›ÅAÉeÉNÉXÉ`ÉÉóLÇË
+//Â∫ßÊ®ô3DÂ§âÊèõÊ∏à„Åø„ÄÅ„É©„Ç§„ÉÜ„Ç£„É≥„Ç∞Ê∏à„Åø„ÄÅ„ÉÜ„ÇØ„Çπ„ÉÅ„É£Êúâ„Çä
 **********************************************************/
 RenderObjectTLX::RenderObjectTLX()
 {
@@ -399,20 +385,19 @@ RenderObjectTLX::RenderObjectTLX()
 }
 RenderObjectTLX::~RenderObjectTLX()
 {
-
 }
 void RenderObjectTLX::_CreateVertexDeclaration()
 {
-	if(pVertexDecl_ != NULL)return;
+	if (pVertexDecl_ != NULL)
+		return;
 
 	//D3DFVF_XYZRHW|D3DFVF_DIFFUSE|D3DFVF_TEX1
 	IDirect3DDevice9* device = DirectGraphics::GetBase()->GetDevice();
-	D3DVERTEXELEMENT9 element[] = 
-	{
+	D3DVERTEXELEMENT9 element[] = {
 		{ 0, 0, D3DDECLTYPE_FLOAT4, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_POSITIONT, 0 },
 		{ 0, 16, D3DDECLTYPE_D3DCOLOR, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_COLOR, 0 },
 		{ 0, 20, D3DDECLTYPE_FLOAT2, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_TEXCOORD, 0 },
-		D3DDECL_END() // îzóÒÇÃèIÇÌÇË
+		D3DDECL_END() // ÈÖçÂàó„ÅÆÁµÇ„Çè„Çä
 	};
 	device->CreateVertexDeclaration(element, &pVertexDecl_);
 }
@@ -422,89 +407,75 @@ void RenderObjectTLX::Render()
 	DxCamera2D* camera = graphics->GetCamera2D().GetPointer();
 	IDirect3DDevice9* device = graphics->GetDevice();
 	ref_count_ptr<Texture>& texture = texture_[0];
-	if(texture != NULL)
+	if (texture != NULL)
 		device->SetTexture(0, texture->GetD3DTexture());
 	else
 		device->SetTexture(0, NULL);
 	device->SetFVF(VERTEX_TLX::fvf);
 
-	//ç¿ïWïœä∑
+	//Â∫ßÊ®ôÂ§âÊèõ
 	bool bPos = position_.x != 0.0f || position_.y != 0.0f || position_.z != 0.0f;
 	bool bAngle = angle_.x != 0.0f || angle_.y != 0.0f || angle_.z != 0.0f;
 	bool bScale = scale_.x != 1.0f || scale_.y != 1.0f || scale_.z != 1.0f;
 	bool bCamera = camera->IsEnable() && bPermitCamera_;
-	if(bPos || bAngle || bScale || bCamera)
-	{
-		//ç¿ïWïœä∑óLÇËÇ»ÇÁÅAç¿ïW3Dïœä∑çœÇ›Ç»ÇΩÇﬂé©ëOÇ≈ïœä∑ÇÇ©ÇØÇÈ
+	if (bPos || bAngle || bScale || bCamera) {
+		//Â∫ßÊ®ôÂ§âÊèõÊúâ„Çä„Å™„Çâ„ÄÅÂ∫ßÊ®ô3DÂ§âÊèõÊ∏à„Åø„Å™„Åü„ÇÅËá™Ââç„ÅßÂ§âÊèõ„Çí„Åã„Åë„Çã
 		D3DXMATRIX mat;
 		D3DXMatrixIdentity(&mat);
-		if(bScale)
-		{
+		if (bScale) {
 			D3DXMATRIX matScale;
 			D3DXMatrixScaling(&matScale, scale_.x, scale_.y, scale_.z);
 			mat = mat * matScale;
 		}
-		if(bAngle)
-		{
+		if (bAngle) {
 			D3DXMATRIX matRot;
-			D3DXMatrixRotationYawPitchRoll(&matRot, D3DXToRadian(angle_.y),D3DXToRadian(angle_.x),D3DXToRadian(angle_.z));
+			D3DXMatrixRotationYawPitchRoll(&matRot, D3DXToRadian(angle_.y), D3DXToRadian(angle_.x), D3DXToRadian(angle_.z));
 			mat = mat * matRot;
 		}
-		if(bPos)
-		{
+		if (bPos) {
 			D3DXMATRIX matTrans;
 			D3DXMatrixTranslation(&matTrans, position_.x, position_.y, position_.z);
 			mat = mat * matTrans;
 		}
 
-		if(bCamera)
-		{
+		if (bCamera) {
 			D3DXMATRIX matCamera = camera->GetMatrix();
 			mat = mat * matCamera;
 		}
 
-		//í∏ì_èÓïÒÇÃÉRÉsÅ[ÇÇ∆ÇÈ
+		//È†ÇÁÇπÊÉÖÂ†±„ÅÆ„Ç≥„Éî„Éº„Çí„Å®„Çã
 		vertCopy_.Copy(vertex_);
 
-		//äeí∏ì_Ç∆çsóÒÇÃêœÇåvéZÇ∑ÇÈ
+		//ÂêÑÈ†ÇÁÇπ„Å®Ë°åÂàó„ÅÆÁ©ç„ÇíË®àÁÆó„Åô„Çã
 		int countVertex = GetVertexCount();
-		for(int iVert=0; iVert<countVertex; iVert++)
-		{
+		for (int iVert = 0; iVert < countVertex; iVert++) {
 			int pos = iVert * strideVertexStreamZero_;
 			VERTEX_TLX* vert = (VERTEX_TLX*)vertCopy_.GetPointer(pos);
 			D3DXVec3TransformCoord((D3DXVECTOR3*)&vert->position, (D3DXVECTOR3*)&vert->position, &mat);
 		}
 
-		//ï`âÊ
+		//ÊèèÁîª
 		BeginShader();
 		int oldSamplerState = 0;
-		if(vertexIndices_.size() == 0)
-		{
+		if (vertexIndices_.size() == 0) {
 			device->DrawPrimitiveUP(typePrimitive_, _GetPrimitiveCount(), vertCopy_.GetPointer(), strideVertexStreamZero_);
-		}
-		else
-		{
-			device->DrawIndexedPrimitiveUP(typePrimitive_, 0, 
+		} else {
+			device->DrawIndexedPrimitiveUP(typePrimitive_, 0,
 				GetVertexCount(), _GetPrimitiveCount(),
 				&vertexIndices_[0], D3DFMT_INDEX16,
 				vertCopy_.GetPointer(), strideVertexStreamZero_);
 		}
 		EndShader();
 
-		//í∏ì_èÓïÒÇå≥Ç…ñﬂÇ∑
-		//memcpy(vertex_.GetPointer(), vertCopy_.GetPointer(), vertex_.GetSize());
-	}
-	else
-	{
-		//ç¿ïWïœä∑ñ≥ÇµÇ»ÇÁÇªÇÃÇ‹Ç‹ï`âÊ
+		//È†ÇÁÇπÊÉÖÂ†±„ÇíÂÖÉ„Å´Êàª„Åô
+		// memcpy(vertex_.GetPointer(), vertCopy_.GetPointer(), vertex_.GetSize());
+	} else {
+		//Â∫ßÊ®ôÂ§âÊèõÁÑ°„Åó„Å™„Çâ„Åù„ÅÆ„Åæ„ÅæÊèèÁîª
 		BeginShader();
-		if(vertexIndices_.size() == 0)
-		{
+		if (vertexIndices_.size() == 0) {
 			device->DrawPrimitiveUP(typePrimitive_, _GetPrimitiveCount(), vertex_.GetPointer(), strideVertexStreamZero_);
-		}
-		else
-		{
-			device->DrawIndexedPrimitiveUP(typePrimitive_, 0, 
+		} else {
+			device->DrawIndexedPrimitiveUP(typePrimitive_, 0,
 				GetVertexCount(), _GetPrimitiveCount(),
 				&vertexIndices_[0], D3DFMT_INDEX16,
 				vertex_.GetPointer(), strideVertexStreamZero_);
@@ -515,25 +486,28 @@ void RenderObjectTLX::Render()
 void RenderObjectTLX::SetVertexCount(int count)
 {
 	RenderObject::SetVertexCount(count);
-	SetColorRGB(D3DCOLOR_ARGB(255, 255,255, 255));
+	SetColorRGB(D3DCOLOR_ARGB(255, 255, 255, 255));
 	SetAlpha(255);
 }
 VERTEX_TLX* RenderObjectTLX::GetVertex(int index)
 {
 	int pos = index * strideVertexStreamZero_;
-	if(pos >= vertex_.GetSize())return NULL;
+	if (pos >= vertex_.GetSize())
+		return NULL;
 	return (VERTEX_TLX*)vertex_.GetPointer(pos);
 }
 void RenderObjectTLX::SetVertex(int index, VERTEX_TLX& vertex)
 {
 	int pos = index * strideVertexStreamZero_;
-	if(pos >= vertex_.GetSize())return;
+	if (pos >= vertex_.GetSize())
+		return;
 	memcpy(vertex_.GetPointer(pos), &vertex, strideVertexStreamZero_);
 }
 void RenderObjectTLX::SetVertexPosition(int index, float x, float y, float z, float w)
 {
 	VERTEX_TLX* vertex = GetVertex(index);
-	if(vertex == NULL)return;
+	if (vertex == NULL)
+		return;
 
 	float bias = -0.5f;
 	vertex->position.x = x + bias;
@@ -544,33 +518,38 @@ void RenderObjectTLX::SetVertexPosition(int index, float x, float y, float z, fl
 void RenderObjectTLX::SetVertexUV(int index, float u, float v)
 {
 	VERTEX_TLX* vertex = GetVertex(index);
-	if(vertex == NULL)return;
+	if (vertex == NULL)
+		return;
 	vertex->texcoord.x = u;
 	vertex->texcoord.y = v;
 }
 void RenderObjectTLX::SetVertexColor(int index, D3DCOLOR color)
 {
 	VERTEX_TLX* vertex = GetVertex(index);
-	if(vertex == NULL)return;
+	if (vertex == NULL)
+		return;
 	vertex->diffuse_color = color;
 }
 void RenderObjectTLX::SetVertexColorARGB(int index, int a, int r, int g, int b)
 {
 	VERTEX_TLX* vertex = GetVertex(index);
-	if(vertex == NULL)return;
+	if (vertex == NULL)
+		return;
 	vertex->diffuse_color = D3DCOLOR_ARGB(a, r, g, b);
 }
 void RenderObjectTLX::SetVertexAlpha(int index, int alpha)
 {
 	VERTEX_TLX* vertex = GetVertex(index);
-	if(vertex == NULL)return;
+	if (vertex == NULL)
+		return;
 	D3DCOLOR& color = vertex->diffuse_color;
 	color = ColorAccess::SetColorA(color, alpha);
 }
 void RenderObjectTLX::SetVertexColorRGB(int index, int r, int g, int b)
 {
 	VERTEX_TLX* vertex = GetVertex(index);
-	if(vertex == NULL)return;
+	if (vertex == NULL)
+		return;
 	D3DCOLOR& color = vertex->diffuse_color;
 	color = ColorAccess::SetColorR(color, r);
 	color = ColorAccess::SetColorG(color, g);
@@ -581,21 +560,19 @@ void RenderObjectTLX::SetColorRGB(D3DCOLOR color)
 	int r = ColorAccess::GetColorR(color);
 	int g = ColorAccess::GetColorG(color);
 	int b = ColorAccess::GetColorB(color);
-	for(int iVert=0; iVert<vertex_.GetSize(); iVert++)
-	{
+	for (int iVert = 0; iVert < vertex_.GetSize(); iVert++) {
 		SetVertexColorRGB(iVert, r, g, b);
 	}
 }
 void RenderObjectTLX::SetAlpha(int alpha)
 {
-	for(int iVert=0; iVert<vertex_.GetSize(); iVert++)
-	{
+	for (int iVert = 0; iVert < vertex_.GetSize(); iVert++) {
 		SetVertexAlpha(iVert, alpha);
 	}
 }
 /**********************************************************
 //RenderObjectLX
-//ÉâÉCÉeÉBÉìÉOçœÇ›ÅAÉeÉNÉXÉ`ÉÉóLÇË
+//„É©„Ç§„ÉÜ„Ç£„É≥„Ç∞Ê∏à„Åø„ÄÅ„ÉÜ„ÇØ„Çπ„ÉÅ„É£Êúâ„Çä
 **********************************************************/
 RenderObjectLX::RenderObjectLX()
 {
@@ -604,20 +581,19 @@ RenderObjectLX::RenderObjectLX()
 }
 RenderObjectLX::~RenderObjectLX()
 {
-
 }
 void RenderObjectLX::_CreateVertexDeclaration()
 {
-	if(pVertexDecl_ != NULL)return;
+	if (pVertexDecl_ != NULL)
+		return;
 
 	//D3DFVF_XYZ|D3DFVF_DIFFUSE|D3DFVF_TEX1
 	IDirect3DDevice9* device = DirectGraphics::GetBase()->GetDevice();
-	D3DVERTEXELEMENT9 element[] = 
-	{
+	D3DVERTEXELEMENT9 element[] = {
 		{ 0, 0, D3DDECLTYPE_FLOAT3, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_POSITION, 0 },
 		{ 0, 12, D3DDECLTYPE_D3DCOLOR, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_COLOR, 0 },
 		{ 0, 16, D3DDECLTYPE_FLOAT2, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_TEXCOORD, 0 },
-		D3DDECL_END() // îzóÒÇÃèIÇÌÇË
+		D3DDECL_END() // ÈÖçÂàó„ÅÆÁµÇ„Çè„Çä
 	};
 	device->CreateVertexDeclaration(element, &pVertexDecl_);
 }
@@ -625,7 +601,7 @@ void RenderObjectLX::Render()
 {
 	IDirect3DDevice9* device = DirectGraphics::GetBase()->GetDevice();
 	ref_count_ptr<Texture>& texture = texture_[0];
-	if(texture != NULL)
+	if (texture != NULL)
 		device->SetTexture(0, texture->GetD3DTexture());
 	else
 		device->SetTexture(0, NULL);
@@ -636,13 +612,10 @@ void RenderObjectLX::Render()
 	device->SetFVF(VERTEX_LX::fvf);
 
 	BeginShader();
-	if(vertexIndices_.size() == 0)
-	{
+	if (vertexIndices_.size() == 0) {
 		device->DrawPrimitiveUP(typePrimitive_, _GetPrimitiveCount(), vertex_.GetPointer(), strideVertexStreamZero_);
-	}
-	else
-	{
-		device->DrawIndexedPrimitiveUP(typePrimitive_, 0, 
+	} else {
+		device->DrawIndexedPrimitiveUP(typePrimitive_, 0,
 			GetVertexCount(), _GetPrimitiveCount(),
 			&vertexIndices_[0], D3DFMT_INDEX16,
 			vertex_.GetPointer(), strideVertexStreamZero_);
@@ -652,25 +625,28 @@ void RenderObjectLX::Render()
 void RenderObjectLX::SetVertexCount(int count)
 {
 	RenderObject::SetVertexCount(count);
-	SetColorRGB(D3DCOLOR_ARGB(255, 255,255, 255));
+	SetColorRGB(D3DCOLOR_ARGB(255, 255, 255, 255));
 	SetAlpha(255);
 }
 VERTEX_LX* RenderObjectLX::GetVertex(int index)
 {
 	int pos = index * strideVertexStreamZero_;
-	if(pos >= vertex_.GetSize())return NULL;
+	if (pos >= vertex_.GetSize())
+		return NULL;
 	return (VERTEX_LX*)vertex_.GetPointer(pos);
 }
 void RenderObjectLX::SetVertex(int index, VERTEX_LX& vertex)
 {
 	int pos = index * strideVertexStreamZero_;
-	if(pos >= vertex_.GetSize())return;
+	if (pos >= vertex_.GetSize())
+		return;
 	memcpy(vertex_.GetPointer(pos), &vertex, strideVertexStreamZero_);
 }
 void RenderObjectLX::SetVertexPosition(int index, float x, float y, float z)
 {
 	VERTEX_LX* vertex = GetVertex(index);
-	if(vertex == NULL)return;
+	if (vertex == NULL)
+		return;
 
 	float bias = -0.5f;
 	vertex->position.x = x + bias;
@@ -680,33 +656,38 @@ void RenderObjectLX::SetVertexPosition(int index, float x, float y, float z)
 void RenderObjectLX::SetVertexUV(int index, float u, float v)
 {
 	VERTEX_LX* vertex = GetVertex(index);
-	if(vertex == NULL)return;
+	if (vertex == NULL)
+		return;
 	vertex->texcoord.x = u;
 	vertex->texcoord.y = v;
 }
 void RenderObjectLX::SetVertexColor(int index, D3DCOLOR color)
 {
 	VERTEX_LX* vertex = GetVertex(index);
-	if(vertex == NULL)return;
+	if (vertex == NULL)
+		return;
 	vertex->diffuse_color = color;
 }
 void RenderObjectLX::SetVertexColorARGB(int index, int a, int r, int g, int b)
 {
 	VERTEX_LX* vertex = GetVertex(index);
-	if(vertex == NULL)return;
+	if (vertex == NULL)
+		return;
 	vertex->diffuse_color = D3DCOLOR_ARGB(a, r, g, b);
 }
 void RenderObjectLX::SetVertexAlpha(int index, int alpha)
 {
 	VERTEX_LX* vertex = GetVertex(index);
-	if(vertex == NULL)return;
+	if (vertex == NULL)
+		return;
 	D3DCOLOR& color = vertex->diffuse_color;
 	color = ColorAccess::SetColorA(color, alpha);
 }
 void RenderObjectLX::SetVertexColorRGB(int index, int r, int g, int b)
 {
 	VERTEX_LX* vertex = GetVertex(index);
-	if(vertex == NULL)return;
+	if (vertex == NULL)
+		return;
 	D3DCOLOR& color = vertex->diffuse_color;
 	color = ColorAccess::SetColorR(color, r);
 	color = ColorAccess::SetColorG(color, g);
@@ -717,15 +698,13 @@ void RenderObjectLX::SetColorRGB(D3DCOLOR color)
 	int r = ColorAccess::GetColorR(color);
 	int g = ColorAccess::GetColorG(color);
 	int b = ColorAccess::GetColorB(color);
-	for(int iVert=0; iVert<vertex_.GetSize(); iVert++)
-	{
+	for (int iVert = 0; iVert < vertex_.GetSize(); iVert++) {
 		SetVertexColorRGB(iVert, r, g, b);
 	}
 }
 void RenderObjectLX::SetAlpha(int alpha)
 {
-	for(int iVert=0; iVert<vertex_.GetSize(); iVert++)
-	{
+	for (int iVert = 0; iVert < vertex_.GetSize(); iVert++) {
 		SetVertexAlpha(iVert, alpha);
 	}
 }
@@ -739,20 +718,19 @@ RenderObjectNX::RenderObjectNX()
 }
 RenderObjectNX::~RenderObjectNX()
 {
-
 }
 void RenderObjectNX::_CreateVertexDeclaration()
 {
-	if(pVertexDecl_ != NULL)return;
+	if (pVertexDecl_ != NULL)
+		return;
 
 	//D3DFVF_XYZ|D3DFVF_NORMAL|D3DFVF_TEX1
 	IDirect3DDevice9* device = DirectGraphics::GetBase()->GetDevice();
-	D3DVERTEXELEMENT9 element[] = 
-	{
+	D3DVERTEXELEMENT9 element[] = {
 		{ 0, 0, D3DDECLTYPE_FLOAT3, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_POSITION, 0 },
 		{ 0, 12, D3DDECLTYPE_FLOAT3, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_NORMAL, 0 },
 		{ 0, 24, D3DDECLTYPE_FLOAT2, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_TEXCOORD, 0 },
-		D3DDECL_END() // îzóÒÇÃèIÇÌÇË
+		D3DDECL_END() // ÈÖçÂàó„ÅÆÁµÇ„Çè„Çä
 	};
 	device->CreateVertexDeclaration(element, &pVertexDecl_);
 }
@@ -760,15 +738,15 @@ void RenderObjectNX::Render()
 {
 	IDirect3DDevice9* device = DirectGraphics::GetBase()->GetDevice();
 	ref_count_ptr<Texture>& texture = texture_[0];
-	if(texture != NULL)
+	if (texture != NULL)
 		device->SetTexture(0, texture->GetD3DTexture());
-	else device->SetTexture(0, NULL);
+	else
+		device->SetTexture(0, NULL);
 
 	DWORD bFogEnable = FALSE;
 	D3DXMATRIX matView;
 	D3DXMATRIX matProj;
-	if(bCoordinate2D_)
-	{
+	if (bCoordinate2D_) {
 		device->GetTransform(D3DTS_VIEW, &matView);
 		device->GetTransform(D3DTS_PROJECTION, &matProj);
 		device->GetRenderState(D3DRS_FOGENABLE, &bFogEnable);
@@ -781,21 +759,17 @@ void RenderObjectNX::Render()
 
 	device->SetFVF(VERTEX_NX::fvf);
 	BeginShader();
-	if(vertexIndices_.size() == 0)
-	{
+	if (vertexIndices_.size() == 0) {
 		device->DrawPrimitiveUP(typePrimitive_, _GetPrimitiveCount(), vertex_.GetPointer(), strideVertexStreamZero_);
-	}
-	else
-	{
-		device->DrawIndexedPrimitiveUP(typePrimitive_, 0, 
+	} else {
+		device->DrawIndexedPrimitiveUP(typePrimitive_, 0,
 			GetVertexCount(), _GetPrimitiveCount(),
 			&vertexIndices_[0], D3DFMT_INDEX16,
 			vertex_.GetPointer(), strideVertexStreamZero_);
 	}
 	EndShader();
 
-	if(bCoordinate2D_)
-	{
+	if (bCoordinate2D_) {
 		device->SetTransform(D3DTS_VIEW, &matView);
 		device->SetTransform(D3DTS_PROJECTION, &matProj);
 		device->SetRenderState(D3DRS_FOGENABLE, bFogEnable);
@@ -804,19 +778,22 @@ void RenderObjectNX::Render()
 VERTEX_NX* RenderObjectNX::GetVertex(int index)
 {
 	int pos = index * strideVertexStreamZero_;
-	if(pos >= vertex_.GetSize())return NULL;
+	if (pos >= vertex_.GetSize())
+		return NULL;
 	return (VERTEX_NX*)vertex_.GetPointer(pos);
 }
 void RenderObjectNX::SetVertex(int index, VERTEX_NX& vertex)
 {
 	int pos = index * strideVertexStreamZero_;
-	if(pos >= vertex_.GetSize())return;
+	if (pos >= vertex_.GetSize())
+		return;
 	memcpy(vertex_.GetPointer(pos), &vertex, strideVertexStreamZero_);
 }
 void RenderObjectNX::SetVertexPosition(int index, float x, float y, float z)
 {
 	VERTEX_NX* vertex = GetVertex(index);
-	if(vertex == NULL)return;
+	if (vertex == NULL)
+		return;
 
 	float bias = -0.5f;
 	vertex->position.x = x + bias;
@@ -826,14 +803,16 @@ void RenderObjectNX::SetVertexPosition(int index, float x, float y, float z)
 void RenderObjectNX::SetVertexUV(int index, float u, float v)
 {
 	VERTEX_NX* vertex = GetVertex(index);
-	if(vertex == NULL)return;
+	if (vertex == NULL)
+		return;
 	vertex->texcoord.x = u;
 	vertex->texcoord.y = v;
 }
 void RenderObjectNX::SetVertexNormal(int index, float x, float y, float z)
 {
 	VERTEX_NX* vertex = GetVertex(index);
-	if(vertex == NULL)return;
+	if (vertex == NULL)
+		return;
 	vertex->normal.x = x;
 	vertex->normal.y = y;
 	vertex->normal.z = z;
@@ -848,50 +827,59 @@ RenderObjectBNX::RenderObjectBNX()
 	color_ = D3DCOLOR_ARGB(255, 255, 255, 255);
 
 	_CreateVertexDeclaration();
-	materialBNX_.Diffuse.a=1.0f;materialBNX_.Diffuse.r=1.0f;materialBNX_.Diffuse.g=1.0f;materialBNX_.Diffuse.b=1.0f;
-	materialBNX_.Ambient.a=1.0f;materialBNX_.Ambient.r=1.0f;materialBNX_.Ambient.g=1.0f;materialBNX_.Ambient.b=1.0f;
-	materialBNX_.Specular.a=1.0f;materialBNX_.Specular.r=1.0f;materialBNX_.Specular.g=1.0f;materialBNX_.Specular.b=1.0f;
-	materialBNX_.Emissive.a=1.0f;materialBNX_.Emissive.r=1.0f;materialBNX_.Emissive.g=1.0f;materialBNX_.Emissive.b=1.0f;
+	materialBNX_.Diffuse.a = 1.0f;
+	materialBNX_.Diffuse.r = 1.0f;
+	materialBNX_.Diffuse.g = 1.0f;
+	materialBNX_.Diffuse.b = 1.0f;
+	materialBNX_.Ambient.a = 1.0f;
+	materialBNX_.Ambient.r = 1.0f;
+	materialBNX_.Ambient.g = 1.0f;
+	materialBNX_.Ambient.b = 1.0f;
+	materialBNX_.Specular.a = 1.0f;
+	materialBNX_.Specular.r = 1.0f;
+	materialBNX_.Specular.g = 1.0f;
+	materialBNX_.Specular.b = 1.0f;
+	materialBNX_.Emissive.a = 1.0f;
+	materialBNX_.Emissive.r = 1.0f;
+	materialBNX_.Emissive.g = 1.0f;
+	materialBNX_.Emissive.b = 1.0f;
 }
 RenderObjectBNX::~RenderObjectBNX()
 {
 }
 void RenderObjectBNX::_CreateVertexDeclaration()
 {
-	if(pVertexDecl_ != NULL)return;
+	if (pVertexDecl_ != NULL)
+		return;
 	IDirect3DDevice9* device = DirectGraphics::GetBase()->GetDevice();
-	D3DVERTEXELEMENT9 element[] = 
-	{
+	D3DVERTEXELEMENT9 element[] = {
 		{ 0, 0, D3DDECLTYPE_FLOAT3, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_POSITION, 0 },
 		{ 0, 12, D3DDECLTYPE_FLOAT4, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_BLENDWEIGHT, 0 },
 		{ 0, 28, D3DDECLTYPE_FLOAT4, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_BLENDINDICES, 0 },
 		{ 0, 44, D3DDECLTYPE_FLOAT3, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_NORMAL, 0 },
 		{ 0, 56, D3DDECLTYPE_FLOAT2, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_TEXCOORD, 0 },
-		D3DDECL_END() // îzóÒÇÃèIÇÌÇË
+		D3DDECL_END() // ÈÖçÂàó„ÅÆÁµÇ„Çè„Çä
 	};
 	device->CreateVertexDeclaration(element, &pVertexDecl_);
-
 }
 void RenderObjectBNX::InitializeVertexBuffer()
 {
 	int countVertex = GetVertexCount();
 	IDirect3DDevice9* device = DirectGraphics::GetBase()->GetDevice();
-	device->CreateVertexBuffer(countVertex * sizeof(Vertex), 0, 0 , D3DPOOL_MANAGED, &pVertexBuffer_, NULL);
+	device->CreateVertexBuffer(countVertex * sizeof(Vertex), 0, 0, D3DPOOL_MANAGED, &pVertexBuffer_, NULL);
 
-	//ÉRÉsÅ[
+	//„Ç≥„Éî„Éº
 	_CopyVertexBufferOnInitialize();
 
 	int countIndex = vertexIndices_.size();
-	if(countIndex != 0)
-	{
-		device->CreateIndexBuffer(sizeof(short) * countIndex ,
-			D3DUSAGE_WRITEONLY , D3DFMT_INDEX16 , D3DPOOL_MANAGED , &pIndexBuffer_, NULL);
+	if (countIndex != 0) {
+		device->CreateIndexBuffer(sizeof(short) * countIndex,
+			D3DUSAGE_WRITEONLY, D3DFMT_INDEX16, D3DPOOL_MANAGED, &pIndexBuffer_, NULL);
 
-		BYTE *bufIndex;
-		HRESULT hrLockIndex = pIndexBuffer_->Lock(0 , 0 , reinterpret_cast<void**>(&bufIndex) , 0);
-		if(!FAILED(hrLockIndex))
-		{
-			memcpy(bufIndex , &vertexIndices_[0] , sizeof(short) * countIndex);
+		BYTE* bufIndex;
+		HRESULT hrLockIndex = pIndexBuffer_->Lock(0, 0, reinterpret_cast<void**>(&bufIndex), 0);
+		if (!FAILED(hrLockIndex)) {
+			memcpy(bufIndex, &vertexIndices_[0], sizeof(short) * countIndex);
 			pIndexBuffer_->Unlock();
 		}
 	}
@@ -900,15 +888,15 @@ void RenderObjectBNX::Render()
 {
 	IDirect3DDevice9* device = DirectGraphics::GetBase()->GetDevice();
 	ref_count_ptr<Texture>& texture = texture_[0];
-	if(texture != NULL)
+	if (texture != NULL)
 		device->SetTexture(0, texture->GetD3DTexture());
-	else device->SetTexture(0, NULL);
+	else
+		device->SetTexture(0, NULL);
 
 	DWORD bFogEnable = FALSE;
 	D3DXMATRIX matView;
 	D3DXMATRIX matProj;
-	if(bCoordinate2D_)
-	{
+	if (bCoordinate2D_) {
 		device->GetTransform(D3DTS_VIEW, &matView);
 		device->GetTransform(D3DTS_PROJECTION, &matProj);
 		device->GetRenderState(D3DRS_FOGENABLE, &bFogEnable);
@@ -916,44 +904,36 @@ void RenderObjectBNX::Render()
 		_SetCoordinate2dDeviceMatrix();
 	}
 
-	if(false)
-	{
+	if (false) {
 		D3DXMATRIX mat = _CreateWorldTransformMaxtrix();
 		device->SetTransform(D3DTS_WORLD, &mat);
 
 		int sizeMatrix = matrix_->GetSize();
-		for(int iMatrix = 0 ; iMatrix < sizeMatrix ; iMatrix++)
-		{
+		for (int iMatrix = 0; iMatrix < sizeMatrix; iMatrix++) {
 			D3DXMATRIX matrix = matrix_->GetMatrix(iMatrix) * mat;
-			device->SetTransform(D3DTS_WORLDMATRIX(iMatrix), 
+			device->SetTransform(D3DTS_WORLDMATRIX(iMatrix),
 				&matrix);
 		}
 
-		device->SetRenderState(D3DRS_INDEXEDVERTEXBLENDENABLE,TRUE);
-		device->SetRenderState(D3DRS_VERTEXBLEND,D3DVBF_1WEIGHTS);
+		device->SetRenderState(D3DRS_INDEXEDVERTEXBLENDENABLE, TRUE);
+		device->SetRenderState(D3DRS_VERTEXBLEND, D3DVBF_1WEIGHTS);
 
 		device->SetFVF(VERTEX_B2NX::fvf);
-		if(vertexIndices_.size() == 0)
-		{
+		if (vertexIndices_.size() == 0) {
 			device->DrawPrimitiveUP(typePrimitive_, _GetPrimitiveCount(), vertex_.GetPointer(), strideVertexStreamZero_);
-		}
-		else
-		{
-			device->DrawIndexedPrimitiveUP(typePrimitive_, 0, 
+		} else {
+			device->DrawIndexedPrimitiveUP(typePrimitive_, 0,
 				GetVertexCount(), _GetPrimitiveCount(),
 				&vertexIndices_[0], D3DFMT_INDEX16,
 				vertex_.GetPointer(), strideVertexStreamZero_);
 		}
 
-		device->SetRenderState(D3DRS_INDEXEDVERTEXBLENDENABLE,FALSE);
-		device->SetRenderState(D3DRS_VERTEXBLEND,D3DVBF_DISABLE);
-	}
-	else
-	{
+		device->SetRenderState(D3DRS_INDEXEDVERTEXBLENDENABLE, FALSE);
+		device->SetRenderState(D3DRS_VERTEXBLEND, D3DVBF_DISABLE);
+	} else {
 		ShaderManager* manager = ShaderManager::GetBase();
 		ref_count_ptr<Shader> shader = manager->GetDefaultSkinnedMeshShader();
-		if(shader != NULL)
-		{
+		if (shader != NULL) {
 			shader->SetTechnique("BasicTec");
 
 			D3DXMATRIX matView;
@@ -961,31 +941,32 @@ void RenderObjectBNX::Render()
 			D3DXMATRIX matProj;
 			device->GetTransform(D3DTS_PROJECTION, &matProj);
 
-			shader->SetMatrix( "mViewProj", matView * matProj );
+			D3DXMATRIX matViewProjection = matView * matProj;
+			shader->SetMatrix("mViewProj", matViewProjection);
 
 			D3DXMATRIX matWorld = _CreateWorldTransformMaxtrix();
 			D3DLIGHT9 light;
 			device->GetLight(0, &light);
 			D3DCOLORVALUE diffuse = materialBNX_.Diffuse;
-			diffuse.r = min(diffuse.r + light.Diffuse.r , 1.0f);
-			diffuse.g = min(diffuse.g + light.Diffuse.g , 1.0f);
-			diffuse.b = min(diffuse.b + light.Diffuse.b , 1.0f);
+			diffuse.r = min(diffuse.r + light.Diffuse.r, 1.0f);
+			diffuse.g = min(diffuse.g + light.Diffuse.g, 1.0f);
+			diffuse.b = min(diffuse.b + light.Diffuse.b, 1.0f);
 			diffuse = ColorAccess::SetColor(diffuse, color_);
 
 			D3DCOLORVALUE ambient = materialBNX_.Ambient;
-			ambient.r = min(ambient.r + light.Ambient.r , 1.0f);
-			ambient.g = min(ambient.g + light.Ambient.g , 1.0f);
-			ambient.b = min(ambient.b + light.Ambient.b , 1.0f);
+			ambient.r = min(ambient.r + light.Ambient.r, 1.0f);
+			ambient.g = min(ambient.g + light.Ambient.g, 1.0f);
+			ambient.b = min(ambient.b + light.Ambient.b, 1.0f);
 			ambient = ColorAccess::SetColor(ambient, color_);
 
-
-			//ÉâÉCÉg
-			shader->SetVector("lightDirection", D3DXVECTOR4(1.0f, 1.0f, 1.0f, 1.0f));
-			shader->SetVector("lightDiffuse", D3DXVECTOR4(1.0f, 1.0f, 1.0f, 1.0f));
+			//„É©„Ç§„Éà
+			D3DXVECTOR4 lightVector(1.0f, 1.0f, 1.0f, 1.0f);
+			shader->SetVector("lightDirection", lightVector);
+			shader->SetVector("lightDiffuse", lightVector);
 			shader->SetVector("materialDiffuse", (D3DXVECTOR4&)diffuse);
 			shader->SetVector("materialAmbient", (D3DXVECTOR4&)ambient);
 
-			//ÉtÉHÉO
+			//„Éï„Ç©„Ç∞
 			DWORD fogNear = 0;
 			DWORD fogFar = 0;
 			device->GetRenderState(D3DRS_FOGSTART, &fogNear);
@@ -993,11 +974,10 @@ void RenderObjectBNX::Render()
 			shader->SetFloat("fogNear", (float&)fogNear);
 			shader->SetFloat("fogFar", (float&)fogFar);
 
-			//ç¿ïWïœä∑
+			//Â∫ßÊ®ôÂ§âÊèõ
 			int sizeMatrix = matrix_->GetSize();
 			std::vector<D3DXMATRIX> listMatrix(sizeMatrix);
-			for(int iMatrix = 0 ; iMatrix < sizeMatrix ; iMatrix++)
-			{
+			for (int iMatrix = 0; iMatrix < sizeMatrix; iMatrix++) {
 				D3DXMATRIX matrix = matrix_->GetMatrix(iMatrix) * matWorld;
 				listMatrix[iMatrix] = matrix;
 			}
@@ -1006,35 +986,28 @@ void RenderObjectBNX::Render()
 			unsigned int numPass = shader->Begin();
 
 			device->SetVertexDeclaration(pVertexDecl_);
-			device->SetStreamSource(0, pVertexBuffer_ , 0, sizeof(Vertex));
-			if(vertexIndices_.size() == 0)
-			{
+			device->SetStreamSource(0, pVertexBuffer_, 0, sizeof(Vertex));
+			if (vertexIndices_.size() == 0) {
 				device->SetIndices(NULL);
-				device->DrawPrimitive(typePrimitive_, 0, _GetPrimitiveCount() );
-			}
-			else
-			{
+				device->DrawPrimitive(typePrimitive_, 0, _GetPrimitiveCount());
+			} else {
 				device->SetIndices(pIndexBuffer_);
-				device->DrawIndexedPrimitive(typePrimitive_, 0, 
+				device->DrawIndexedPrimitive(typePrimitive_, 0,
 					0, GetVertexCount(),
 					0, _GetPrimitiveCount());
 			}
 
 			shader->End();
+		} else {
+			Logger::WriteTop(StringUtility::Format(L"Shader error[%s]", "DEFAULT"));
 		}
-		else
-		{
-			Logger::WriteTop(StringUtility::Format(L"Shader error[%s]","DEFAULT"));
-		}
-
 
 		device->SetVertexDeclaration(NULL);
 		device->SetIndices(NULL);
 		device->SetTexture(0, NULL);
 	}
 
-	if(bCoordinate2D_)
-	{
+	if (bCoordinate2D_) {
 		device->SetTransform(D3DTS_VIEW, &matView);
 		device->SetTransform(D3DTS_PROJECTION, &matProj);
 		device->SetRenderState(D3DRS_FOGENABLE, bFogEnable);
@@ -1050,17 +1023,14 @@ RenderObjectB2NX::RenderObjectB2NX()
 }
 RenderObjectB2NX::~RenderObjectB2NX()
 {
-
 }
 void RenderObjectB2NX::_CopyVertexBufferOnInitialize()
 {
 	int countVertex = GetVertexCount();
 	Vertex* bufVertex;
 	HRESULT hrLockVertex = pVertexBuffer_->Lock(0, 0, reinterpret_cast<void**>(&bufVertex), D3DLOCK_NOSYSLOCK);
-	if(!FAILED(hrLockVertex))
-	{
-		for(int iVert = 0 ; iVert < countVertex ; iVert++)
-		{
+	if (!FAILED(hrLockVertex)) {
+		for (int iVert = 0; iVert < countVertex; iVert++) {
 			Vertex* dest = &bufVertex[iVert];
 			VERTEX_B2NX* src = GetVertex(iVert);
 			ZeroMemory(dest, sizeof(Vertex));
@@ -1069,8 +1039,7 @@ void RenderObjectB2NX::_CopyVertexBufferOnInitialize()
 			dest->normal = src->normal;
 			dest->texcoord = src->texcoord;
 
-			for(int iBlend = 0 ;iBlend < 2 ; iBlend++)
-			{
+			for (int iBlend = 0; iBlend < 2; iBlend++) {
 				int indexBlend = BitAccess::GetByte(src->blendIndex, iBlend * 8);
 				dest->blendIndex[iBlend] = indexBlend;
 			}
@@ -1088,8 +1057,7 @@ void RenderObjectB2NX::CalculateWeightCenter()
 	double yTotal = 0;
 	double zTotal = 0;
 	int countVert = GetVertexCount();
-	for(int iVert = 0 ; iVert < countVert ; iVert++)
-	{
+	for (int iVert = 0; iVert < countVert; iVert++) {
 		VERTEX_B2NX* vertex = GetVertex(iVert);
 		xTotal += vertex->position.x;
 		yTotal += vertex->position.y;
@@ -1105,19 +1073,22 @@ void RenderObjectB2NX::CalculateWeightCenter()
 VERTEX_B2NX* RenderObjectB2NX::GetVertex(int index)
 {
 	int pos = index * strideVertexStreamZero_;
-	if(pos >= vertex_.GetSize())return NULL;
+	if (pos >= vertex_.GetSize())
+		return NULL;
 	return (VERTEX_B2NX*)vertex_.GetPointer(pos);
 }
 void RenderObjectB2NX::SetVertex(int index, VERTEX_B2NX& vertex)
 {
 	int pos = index * strideVertexStreamZero_;
-	if(pos >= vertex_.GetSize())return;
+	if (pos >= vertex_.GetSize())
+		return;
 	memcpy(vertex_.GetPointer(pos), &vertex, strideVertexStreamZero_);
 }
 void RenderObjectB2NX::SetVertexPosition(int index, float x, float y, float z)
 {
 	VERTEX_B2NX* vertex = GetVertex(index);
-	if(vertex == NULL)return;
+	if (vertex == NULL)
+		return;
 
 	float bias = -0.5f;
 	vertex->position.x = x + bias;
@@ -1127,21 +1098,25 @@ void RenderObjectB2NX::SetVertexPosition(int index, float x, float y, float z)
 void RenderObjectB2NX::SetVertexUV(int index, float u, float v)
 {
 	VERTEX_B2NX* vertex = GetVertex(index);
-	if(vertex == NULL)return;
+	if (vertex == NULL)
+		return;
 	vertex->texcoord.x = u;
 	vertex->texcoord.y = v;
 }
 void RenderObjectB2NX::SetVertexBlend(int index, int pos, BYTE indexBlend, float rate)
 {
 	VERTEX_B2NX* vertex = GetVertex(index);
-	if(vertex == NULL)return;
-	BitAccess::SetByte(vertex->blendIndex, pos*8, indexBlend);
-	if(pos == 0)vertex->blendRate = rate;
+	if (vertex == NULL)
+		return;
+	BitAccess::SetByte(vertex->blendIndex, pos * 8, indexBlend);
+	if (pos == 0)
+		vertex->blendRate = rate;
 }
 void RenderObjectB2NX::SetVertexNormal(int index, float x, float y, float z)
 {
 	VERTEX_B2NX* vertex = GetVertex(index);
-	if(vertex == NULL)return;
+	if (vertex == NULL)
+		return;
 	vertex->normal.x = x;
 	vertex->normal.y = y;
 	vertex->normal.z = z;
@@ -1170,17 +1145,14 @@ RenderObjectB4NX::RenderObjectB4NX()
 }
 RenderObjectB4NX::~RenderObjectB4NX()
 {
-
 }
 void RenderObjectB4NX::_CopyVertexBufferOnInitialize()
 {
 	int countVertex = GetVertexCount();
 	Vertex* bufVertex;
 	HRESULT hrLockVertex = pVertexBuffer_->Lock(0, 0, reinterpret_cast<void**>(&bufVertex), D3DLOCK_NOSYSLOCK);
-	if(!FAILED(hrLockVertex))
-	{
-		for(int iVert = 0 ; iVert < countVertex ; iVert++)
-		{
+	if (!FAILED(hrLockVertex)) {
+		for (int iVert = 0; iVert < countVertex; iVert++) {
 			Vertex* dest = &bufVertex[iVert];
 			VERTEX_B4NX* src = GetVertex(iVert);
 			ZeroMemory(dest, sizeof(Vertex));
@@ -1189,15 +1161,13 @@ void RenderObjectB4NX::_CopyVertexBufferOnInitialize()
 			dest->normal = src->normal;
 			dest->texcoord = src->texcoord;
 
-			for(int iBlend = 0 ;iBlend < 4 ; iBlend++)
-			{
+			for (int iBlend = 0; iBlend < 4; iBlend++) {
 				int indexBlend = BitAccess::GetByte(src->blendIndex, iBlend * 8);
 				dest->blendIndex[iBlend] = indexBlend;
 			}
 
 			float lastRate = 1.0f;
-			for(int iRate = 0 ; iRate < 3 ; iRate++)
-			{
+			for (int iRate = 0; iRate < 3; iRate++) {
 				float rate = src->blendRate[iRate];
 				dest->blendRate[iRate] = rate;
 				lastRate -= rate;
@@ -1214,8 +1184,7 @@ void RenderObjectB4NX::CalculateWeightCenter()
 	double yTotal = 0;
 	double zTotal = 0;
 	int countVert = GetVertexCount();
-	for(int iVert = 0 ; iVert < countVert ; iVert++)
-	{
+	for (int iVert = 0; iVert < countVert; iVert++) {
 		VERTEX_B4NX* vertex = GetVertex(iVert);
 		xTotal += vertex->position.x;
 		yTotal += vertex->position.y;
@@ -1231,19 +1200,22 @@ void RenderObjectB4NX::CalculateWeightCenter()
 VERTEX_B4NX* RenderObjectB4NX::GetVertex(int index)
 {
 	int pos = index * strideVertexStreamZero_;
-	if(pos >= vertex_.GetSize())return NULL;
+	if (pos >= vertex_.GetSize())
+		return NULL;
 	return (VERTEX_B4NX*)vertex_.GetPointer(pos);
 }
 void RenderObjectB4NX::SetVertex(int index, VERTEX_B4NX& vertex)
 {
 	int pos = index * strideVertexStreamZero_;
-	if(pos >= vertex_.GetSize())return;
+	if (pos >= vertex_.GetSize())
+		return;
 	memcpy(vertex_.GetPointer(pos), &vertex, strideVertexStreamZero_);
 }
 void RenderObjectB4NX::SetVertexPosition(int index, float x, float y, float z)
 {
 	VERTEX_B4NX* vertex = GetVertex(index);
-	if(vertex == NULL)return;
+	if (vertex == NULL)
+		return;
 
 	float bias = -0.5f;
 	vertex->position.x = x + bias;
@@ -1253,21 +1225,25 @@ void RenderObjectB4NX::SetVertexPosition(int index, float x, float y, float z)
 void RenderObjectB4NX::SetVertexUV(int index, float u, float v)
 {
 	VERTEX_B4NX* vertex = GetVertex(index);
-	if(vertex == NULL)return;
+	if (vertex == NULL)
+		return;
 	vertex->texcoord.x = u;
 	vertex->texcoord.y = v;
 }
 void RenderObjectB4NX::SetVertexBlend(int index, int pos, BYTE indexBlend, float rate)
 {
 	VERTEX_B4NX* vertex = GetVertex(index);
-	if(vertex == NULL)return;
-	BitAccess::SetByte(vertex->blendIndex, pos*8, indexBlend);
-	if(pos <= 2)vertex->blendRate[pos] = rate;
+	if (vertex == NULL)
+		return;
+	BitAccess::SetByte(vertex->blendIndex, pos * 8, indexBlend);
+	if (pos <= 2)
+		vertex->blendRate[pos] = rate;
 }
 void RenderObjectB4NX::SetVertexNormal(int index, float x, float y, float z)
 {
 	VERTEX_B4NX* vertex = GetVertex(index);
-	if(vertex == NULL)return;
+	if (vertex == NULL)
+		return;
 	vertex->normal.x = x;
 	vertex->normal.y = y;
 	vertex->normal.z = z;
@@ -1289,16 +1265,15 @@ void RenderObjectB4NXBlock::Render()
 
 /**********************************************************
 //Sprite2D
-//ãÈå`ÉXÉvÉâÉCÉg
+//Áü©ÂΩ¢„Çπ„Éó„É©„Ç§„Éà
 **********************************************************/
 Sprite2D::Sprite2D()
 {
-	SetVertexCount(4);//ç∂è„ÅAâEè„ÅAç∂â∫ÅAâEâ∫
-	SetPrimitiveType(D3DPT_TRIANGLESTRIP);
+	SetVertexCount(4); //Â∑¶‰∏ä„ÄÅÂè≥‰∏ä„ÄÅÂ∑¶‰∏ã„ÄÅÂè≥‰∏ã
+	SetPrimitiveType(D3DPT_TRIANGESTRIP);
 }
 Sprite2D::~Sprite2D()
 {
-
 }
 void Sprite2D::Copy(Sprite2D* src)
 {
@@ -1306,34 +1281,34 @@ void Sprite2D::Copy(Sprite2D* src)
 	strideVertexStreamZero_ = src->strideVertexStreamZero_;
 	vertex_.Copy(src->vertex_);
 	vertexIndices_ = src->vertexIndices_;
-	for(int iTex = 0 ; iTex < texture_.size() ; iTex++)
-	{
+	for (int iTex = 0; iTex < texture_.size(); iTex++) {
 		texture_[iTex] = src->texture_[iTex];
 	}
 
 	posWeightCenter_ = src->posWeightCenter_;
-	
+
 	position_ = src->position_;
 	angle_ = src->angle_;
 	scale_ = src->scale_;
 	matRelative_ = src->matRelative_;
 }
-void Sprite2D::SetSourceRect(RECT_D &rcSrc)
+void Sprite2D::SetSourceRect(RECT_D& rcSrc)
 {
 	ref_count_ptr<Texture>& texture = texture_[0];
-	if(texture == NULL)return;
+	if (texture == NULL)
+		return;
 	int width = texture->GetWidth();
 	int height = texture->GetHeight();
 
-	//ÉeÉNÉXÉ`ÉÉUV
-	SetVertexUV(0, (float)rcSrc.left/(float)width  , (float)rcSrc.top/(float)height );
-	SetVertexUV(1, (float)rcSrc.right/(float)width , (float)rcSrc.top/(float)height );
-	SetVertexUV(2, (float)rcSrc.left/(float)width  , (float)rcSrc.bottom/(float)height );
-	SetVertexUV(3, (float)rcSrc.right/(float)width , (float)rcSrc.bottom/(float)height );
+	//„ÉÜ„ÇØ„Çπ„ÉÅ„É£UV
+	SetVertexUV(0, (float)rcSrc.left / (float)width, (float)rcSrc.top / (float)height);
+	SetVertexUV(1, (float)rcSrc.right / (float)width, (float)rcSrc.top / (float)height);
+	SetVertexUV(2, (float)rcSrc.left / (float)width, (float)rcSrc.bottom / (float)height);
+	SetVertexUV(3, (float)rcSrc.right / (float)width, (float)rcSrc.bottom / (float)height);
 }
-void Sprite2D::SetDestinationRect(RECT_D &rcDest)
+void Sprite2D::SetDestinationRect(RECT_D& rcDest)
 {
-	//í∏ì_à íu
+	//È†ÇÁÇπ‰ΩçÁΩÆ
 	SetVertexPosition(0, rcDest.left, rcDest.top);
 	SetVertexPosition(1, rcDest.right, rcDest.top);
 	SetVertexPosition(2, rcDest.left, rcDest.bottom);
@@ -1342,20 +1317,21 @@ void Sprite2D::SetDestinationRect(RECT_D &rcDest)
 void Sprite2D::SetDestinationCenter()
 {
 	ref_count_ptr<Texture>& texture = texture_[0];
-	if(texture == NULL || GetVertexCount() < 4)return;
+	if (texture == NULL || GetVertexCount() < 4)
+		return;
 	int width = texture->GetWidth();
 	int height = texture->GetHeight();
 
-	VERTEX_TLX* vertLT = GetVertex(0); //ç∂è„
-	VERTEX_TLX* vertRB = GetVertex(3); //âEâ∫
+	VERTEX_TLX* vertLT = GetVertex(0); //Â∑¶‰∏ä
+	VERTEX_TLX* vertRB = GetVertex(3); //Âè≥‰∏ã
 
 	int vWidth = vertRB->texcoord.x * width - vertLT->texcoord.x * width;
 	int vHeight = vertRB->texcoord.y * height - vertLT->texcoord.y * height;
-	RECT_D rcDest = {-vWidth / 2., -vHeight / 2., vWidth / 2., vHeight / 2.};
+	RECT_D rcDest = { -vWidth / 2., -vHeight / 2., vWidth / 2., vHeight / 2. };
 
 	SetDestinationRect(rcDest);
 }
-void Sprite2D::SetVertex(RECT_D &rcSrc, RECT_D &rcDest,D3DCOLOR color)
+void Sprite2D::SetVertex(RECT_D& rcSrc, RECT_D& rcDest, D3DCOLOR color)
 {
 	SetSourceRect(rcSrc);
 	SetDestinationRect(rcDest);
@@ -1374,7 +1350,7 @@ RECT_D Sprite2D::GetDestinationRect()
 	rect.top = vertexLeftTop->position.y - bias;
 	rect.right = vertexRightBottom->position.x - bias;
 	rect.bottom = vertexRightBottom->position.y - bias;
-	
+
 	return rect;
 }
 
@@ -1385,7 +1361,7 @@ SpriteList2D::SpriteList2D()
 {
 	countRenderVertex_ = 0;
 	color_ = D3DCOLOR_ARGB(255, 255, 255, 255);
-	bCloseVertexList_ = false; 
+	bCloseVertexList_ = false;
 }
 void SpriteList2D::Render()
 {
@@ -1393,94 +1369,79 @@ void SpriteList2D::Render()
 	DxCamera2D* camera = graphics->GetCamera2D().GetPointer();
 	IDirect3DDevice9* device = graphics->GetDevice();
 	ref_count_ptr<Texture>& texture = texture_[0];
-	if(texture != NULL)
+	if (texture != NULL)
 		device->SetTexture(0, texture->GetD3DTexture());
 	else
 		device->SetTexture(0, NULL);
 	device->SetFVF(VERTEX_TLX::fvf);
 
-	//ç¿ïWïœä∑
+	//Â∫ßÊ®ôÂ§âÊèõ
 	bool bPos = position_.x != 0.0f || position_.y != 0.0f || position_.z != 0.0f;
 	bool bAngle = angle_.x != 0.0f || angle_.y != 0.0f || angle_.z != 0.0f;
 	bool bScale = scale_.x != 1.0f || scale_.y != 1.0f || scale_.z != 1.0f;
 	bool bCamera = camera->IsEnable() && bPermitCamera_;
-	if(bPos || bAngle || bScale || bCamera)
-	{
-		//ç¿ïWïœä∑óLÇËÇ»ÇÁÅAç¿ïW3Dïœä∑çœÇ›Ç»ÇΩÇﬂé©ëOÇ≈ïœä∑ÇÇ©ÇØÇÈ
+	if (bPos || bAngle || bScale || bCamera) {
+		//Â∫ßÊ®ôÂ§âÊèõÊúâ„Çä„Å™„Çâ„ÄÅÂ∫ßÊ®ô3DÂ§âÊèõÊ∏à„Åø„Å™„Åü„ÇÅËá™Ââç„ÅßÂ§âÊèõ„Çí„Åã„Åë„Çã
 		D3DXMATRIX mat;
 		D3DXMatrixIdentity(&mat);
 
-		if(bCloseVertexList_)
-		{
-			if(bScale)
-			{
+		if (bCloseVertexList_) {
+			if (bScale) {
 				D3DXMATRIX matScale;
 				D3DXMatrixScaling(&matScale, scale_.x, scale_.y, scale_.z);
 				mat = mat * matScale;
 			}
-			if(bAngle)
-			{
+			if (bAngle) {
 				D3DXMATRIX matRot;
-				D3DXMatrixRotationYawPitchRoll(&matRot, D3DXToRadian(angle_.y),D3DXToRadian(angle_.x),D3DXToRadian(angle_.z));
+				D3DXMatrixRotationYawPitchRoll(&matRot, D3DXToRadian(angle_.y), D3DXToRadian(angle_.x), D3DXToRadian(angle_.z));
 				mat = mat * matRot;
 			}
-			if(bPos)
-			{
+			if (bPos) {
 				D3DXMATRIX matTrans;
 				D3DXMatrixTranslation(&matTrans, position_.x, position_.y, position_.z);
 				mat = mat * matTrans;
 			}
 		}
 
-		if(bCamera)
-		{
+		if (bCamera) {
 			D3DXMATRIX matCamera = camera->GetMatrix();
 			mat = mat * matCamera;
 		}
 
-		//í∏ì_èÓïÒÇÃÉRÉsÅ[ÇÇ∆ÇÈ
+		//È†ÇÁÇπÊÉÖÂ†±„ÅÆ„Ç≥„Éî„Éº„Çí„Å®„Çã
 		vertCopy_.Copy(vertex_);
 
-		//äeí∏ì_Ç∆çsóÒÇÃêœÇåvéZÇ∑ÇÈ
+		//ÂêÑÈ†ÇÁÇπ„Å®Ë°åÂàó„ÅÆÁ©ç„ÇíË®àÁÆó„Åô„Çã
 		int countVertex = GetVertexCount();
-		for(int iVert=0; iVert<countVertex; iVert++)
-		{
+		for (int iVert = 0; iVert < countVertex; iVert++) {
 			int pos = iVert * strideVertexStreamZero_;
 			VERTEX_TLX* vert = (VERTEX_TLX*)vertCopy_.GetPointer(pos);
 			D3DXVec3TransformCoord((D3DXVECTOR3*)&vert->position, (D3DXVECTOR3*)&vert->position, &mat);
 		}
 
-		//ï`âÊ
+		//ÊèèÁîª
 		int oldSamplerState = 0;
 
 		BeginShader();
-		if(vertexIndices_.size() == 0)
-		{
+		if (vertexIndices_.size() == 0) {
 			device->DrawPrimitiveUP(typePrimitive_, _GetPrimitiveCount(), vertCopy_.GetPointer(), strideVertexStreamZero_);
-		}
-		else
-		{
-			device->DrawIndexedPrimitiveUP(typePrimitive_, 0, 
+		} else {
+			device->DrawIndexedPrimitiveUP(typePrimitive_, 0,
 				GetVertexCount(), _GetPrimitiveCount(),
 				&vertexIndices_[0], D3DFMT_INDEX16,
 				vertCopy_.GetPointer(), strideVertexStreamZero_);
 		}
 		EndShader();
 
-		//í∏ì_èÓïÒÇå≥Ç…ñﬂÇ∑
-		//memcpy(vertex_.GetPointer(), vertCopy_.GetPointer(), vertex_.GetSize());
-	}
-	else
-	{
-		//ç¿ïWïœä∑ñ≥ÇµÇ»ÇÁÇªÇÃÇ‹Ç‹ï`âÊ
+		//È†ÇÁÇπÊÉÖÂ†±„ÇíÂÖÉ„Å´Êàª„Åô
+		// memcpy(vertex_.GetPointer(), vertCopy_.GetPointer(), vertex_.GetSize());
+	} else {
+		//Â∫ßÊ®ôÂ§âÊèõÁÑ°„Åó„Å™„Çâ„Åù„ÅÆ„Åæ„ÅæÊèèÁîª
 		BeginShader();
-		if(vertexIndices_.size() == 0)
-		{
+		if (vertexIndices_.size() == 0) {
 			device->DrawPrimitiveUP(typePrimitive_, _GetPrimitiveCount(), vertex_.GetPointer(), strideVertexStreamZero_);
-		}
-		else
-		{
-			device->DrawIndexedPrimitiveUP(typePrimitive_, 0, 
+		} else {
+			device->DrawIndexedPrimitiveUP(typePrimitive_, 0,
 				GetVertexCount(), _GetPrimitiveCount(),
 				&vertexIndices_[0], D3DFMT_INDEX16,
 				vertex_.GetPointer(), strideVertexStreamZero_);
@@ -1497,10 +1458,9 @@ int SpriteList2D::GetVertexCount()
 void SpriteList2D::_AddVertex(VERTEX_TLX& vertex)
 {
 	int count = vertex_.GetSize() / strideVertexStreamZero_;
-	if(countRenderVertex_ >= count)
-	{
-		//ÉäÉTÉCÉY
-		int newCount = max(10, count * 1.5);
+	if (countRenderVertex_ >= count) {
+		//„É™„Çµ„Ç§„Ç∫
+		int newCount = static_cast<int>(max(10.0, count * 1.5));
 		ByteBuffer buffer(vertex_);
 		SetVertexCount(newCount);
 		memcpy(vertex_.GetPointer(), buffer.GetPointer(), buffer.GetSize());
@@ -1510,11 +1470,12 @@ void SpriteList2D::_AddVertex(VERTEX_TLX& vertex)
 }
 void SpriteList2D::AddVertex()
 {
-	if(bCloseVertexList_)
+	if (bCloseVertexList_)
 		return;
 
 	ref_count_ptr<Texture>& texture = texture_[0];
-	if(texture == NULL)return;
+	if (texture == NULL)
+		return;
 
 	int width = texture->GetWidth();
 	int height = texture->GetHeight();
@@ -1527,32 +1488,28 @@ void SpriteList2D::AddVertex()
 	bool bAngle = angle_.x != 0.0f || angle_.y != 0.0f || angle_.z != 0.0f;
 	bool bScale = scale_.x != 1.0f || scale_.y != 1.0f || scale_.z != 1.0f;
 
-	if(bScale)
-	{
+	if (bScale) {
 		D3DXMATRIX matScale;
 		D3DXMatrixScaling(&matScale, scale_.x, scale_.y, scale_.z);
 		mat = mat * matScale;
 	}
-	if(bAngle)
-	{
+	if (bAngle) {
 		D3DXMATRIX matRot;
-		D3DXMatrixRotationYawPitchRoll(&matRot, D3DXToRadian(angle_.y),D3DXToRadian(angle_.x),D3DXToRadian(angle_.z));
+		D3DXMatrixRotationYawPitchRoll(&matRot, D3DXToRadian(angle_.y), D3DXToRadian(angle_.x), D3DXToRadian(angle_.z));
 		mat = mat * matRot;
 	}
-	if(bPos)
-	{
+	if (bPos) {
 		D3DXMATRIX matTrans;
 		D3DXMatrixTranslation(&matTrans, position_.x, position_.y, position_.z);
 		mat = mat * matTrans;
 	}
 
 	VERTEX_TLX verts[4];
-	float srcX[] = {(float)rcSrc_.left, (float)rcSrc_.right, (float)rcSrc_.left, (float)rcSrc_.right};
-	float srcY[] = { (float)rcSrc_.top, (float)rcSrc_.top, (float)rcSrc_.bottom, (float)rcSrc_.bottom};
-	int destX[] = {(int)rcDest_.left, (int)rcDest_.right, (int)rcDest_.left, (int)rcDest_.right};
-	int destY[] = { (int)rcDest_.top,(int)rcDest_.top, (int)rcDest_.bottom, (int)rcDest_.bottom};
-	for(int iVert = 0 ;iVert < 4 ; iVert++)
-	{
+	float srcX[] = { (float)rcSrc_.left, (float)rcSrc_.right, (float)rcSrc_.left, (float)rcSrc_.right };
+	float srcY[] = { (float)rcSrc_.top, (float)rcSrc_.top, (float)rcSrc_.bottom, (float)rcSrc_.bottom };
+	int destX[] = { (int)rcDest_.left, (int)rcDest_.right, (int)rcDest_.left, (int)rcDest_.right };
+	int destY[] = { (int)rcDest_.top, (int)rcDest_.top, (int)rcDest_.bottom, (int)rcDest_.bottom };
+	for (int iVert = 0; iVert < 4; iVert++) {
 		VERTEX_TLX& vert = verts[iVert];
 
 		vert.texcoord.x = srcX[iVert] / width;
@@ -1573,21 +1530,22 @@ void SpriteList2D::AddVertex()
 	_AddVertex(verts[1]);
 	_AddVertex(verts[1]);
 	_AddVertex(verts[2]);
-	_AddVertex(verts[3]);	
+	_AddVertex(verts[3]);
 }
 void SpriteList2D::SetDestinationCenter()
 {
 	ref_count_ptr<Texture>& texture = texture_[0];
-	if(texture == NULL)return;
+	if (texture == NULL)
+		return;
 	int width = texture->GetWidth();
 	int height = texture->GetHeight();
 
-	VERTEX_TLX* vertLT = GetVertex(0); //ç∂è„
-	VERTEX_TLX* vertRB = GetVertex(3); //âEâ∫
+	VERTEX_TLX* vertLT = GetVertex(0); //Â∑¶‰∏ä
+	VERTEX_TLX* vertRB = GetVertex(3); //Âè≥‰∏ã
 
 	int vWidth = rcSrc_.right - rcSrc_.left;
 	int vHeight = rcSrc_.bottom - rcSrc_.top;
-	RECT_D rcDest = {-vWidth / 2., -vHeight / 2., vWidth / 2., vHeight / 2.};
+	RECT_D rcDest = { -vWidth / 2., -vHeight / 2., vWidth / 2., vHeight / 2. };
 
 	SetDestinationRect(rcDest);
 }
@@ -1597,7 +1555,7 @@ void SpriteList2D::CloseVertex()
 
 	position_ = D3DXVECTOR3(0.0f, 0.0f, 0.0f);
 	angle_ = D3DXVECTOR3(0.0f, 0.0f, 0.0f);
-	scale_ =  D3DXVECTOR3(1.0f, 1.0f, 1.0f);
+	scale_ = D3DXVECTOR3(1.0f, 1.0f, 1.0f);
 }
 
 /**********************************************************
@@ -1605,8 +1563,8 @@ void SpriteList2D::CloseVertex()
 **********************************************************/
 Sprite3D::Sprite3D()
 {
-	SetVertexCount(4);//ç∂è„ÅAâEè„ÅAç∂â∫ÅAâEâ∫
-	SetPrimitiveType(D3DPT_TRIANGLESTRIP);
+	SetVertexCount(4); //Â∑¶‰∏ä„ÄÅÂè≥‰∏ä„ÄÅÂ∑¶‰∏ã„ÄÅÂè≥‰∏ã
+	SetPrimitiveType(D3DPT_TRIANGESTRIP);
 	bBillboard_ = false;
 }
 Sprite3D::~Sprite3D()
@@ -1619,22 +1577,18 @@ D3DXMATRIX Sprite3D::_CreateWorldTransformMaxtrix()
 	bool bPos = position_.x != 0.0f || position_.y != 0.0f || position_.z != 0.0f;
 	bool bAngle = angle_.x != 0.0f || angle_.y != 0.0f || angle_.z != 0.0f;
 	bool bScale = scale_.x != 1.0f || scale_.y != 1.0f || scale_.z != 1.0f;
-	if(bPos || bAngle || bScale || bBillboard_)
-	{
-		if(bScale)
-		{
+	if (bPos || bAngle || bScale || bBillboard_) {
+		if (bScale) {
 			D3DXMATRIX matScale;
 			D3DXMatrixScaling(&matScale, scale_.x, scale_.y, scale_.z);
 			mat = mat * matScale;
 		}
-		if(bAngle)
-		{
+		if (bAngle) {
 			D3DXMATRIX matRot;
-			D3DXMatrixRotationYawPitchRoll(&matRot, D3DXToRadian(angle_.y),D3DXToRadian(angle_.x),D3DXToRadian(angle_.z));
+			D3DXMatrixRotationYawPitchRoll(&matRot, D3DXToRadian(angle_.y), D3DXToRadian(angle_.x), D3DXToRadian(angle_.z));
 			mat = mat * matRot;
 		}
-		if(bBillboard_)
-		{
+		if (bBillboard_) {
 			DirectGraphics* graph = DirectGraphics::GetBase();
 			IDirect3DDevice9* device = graph->GetDevice();
 			D3DXMATRIX matView;
@@ -1653,75 +1607,73 @@ D3DXMATRIX Sprite3D::_CreateWorldTransformMaxtrix()
 			matInv._33 = matView._33;
 			mat = mat * matInv;
 		}
-		if(bPos)
-		{
+		if (bPos) {
 			D3DXMATRIX matTrans;
 			D3DXMatrixTranslation(&matTrans, position_.x, position_.y, position_.z);
 			mat = mat * matTrans;
 		}
 	}
 
-	if(bBillboard_)
-	{
+	if (bBillboard_) {
 		D3DXMATRIX matRelative;
 		D3DXMatrixIdentity(&matRelative);
 		D3DXVECTOR3 pos;
-		D3DXVec3TransformCoord(&pos, &D3DXVECTOR3(0,0,0), &matRelative_);
+		D3DXVECTOR3 origin(0, 0, 0);
+		D3DXVec3TransformCoord(&pos, &origin, &matRelative_);
 		D3DXMatrixTranslation(&matRelative, pos.x, pos.y, pos.z);
 		mat = mat * matRelative;
-	}
-	else
-	{
+	} else {
 		mat = mat * matRelative_;
 	}
 	return mat;
 }
-void Sprite3D::SetSourceRect(RECT_D &rcSrc)
+void Sprite3D::SetSourceRect(RECT_D& rcSrc)
 {
 	ref_count_ptr<Texture>& texture = texture_[0];
-	if(texture == NULL)return;
+	if (texture == NULL)
+		return;
 	int width = texture->GetWidth();
 	int height = texture->GetHeight();
 
-	//ÉeÉNÉXÉ`ÉÉUV
-	SetVertexUV(0, (float)rcSrc.left/(float)width  , (float)rcSrc.top/(float)height );
-	SetVertexUV(1, (float)rcSrc.left/(float)width  , (float)rcSrc.bottom/(float)height );
-	SetVertexUV(2, (float)rcSrc.right/(float)width , (float)rcSrc.top/(float)height );
-	SetVertexUV(3, (float)rcSrc.right/(float)width , (float)rcSrc.bottom/(float)height );
+	//„ÉÜ„ÇØ„Çπ„ÉÅ„É£UV
+	SetVertexUV(0, (float)rcSrc.left / (float)width, (float)rcSrc.top / (float)height);
+	SetVertexUV(1, (float)rcSrc.left / (float)width, (float)rcSrc.bottom / (float)height);
+	SetVertexUV(2, (float)rcSrc.right / (float)width, (float)rcSrc.top / (float)height);
+	SetVertexUV(3, (float)rcSrc.right / (float)width, (float)rcSrc.bottom / (float)height);
 }
-void Sprite3D::SetDestinationRect(RECT_D &rcDest)
+void Sprite3D::SetDestinationRect(RECT_D& rcDest)
 {
-	//í∏ì_à íu
+	//È†ÇÁÇπ‰ΩçÁΩÆ
 	SetVertexPosition(0, rcDest.left, rcDest.top, 0);
 	SetVertexPosition(1, rcDest.left, rcDest.bottom, 0);
 	SetVertexPosition(2, rcDest.right, rcDest.top, 0);
 	SetVertexPosition(3, rcDest.right, rcDest.bottom, 0);
 }
-void Sprite3D::SetVertex(RECT_D &rcSrc, RECT_D &rcDest, D3DCOLOR color)
+void Sprite3D::SetVertex(RECT_D& rcSrc, RECT_D& rcDest, D3DCOLOR color)
 {
 	SetSourceRect(rcSrc);
 	SetDestinationRect(rcDest);
 
-	//í∏ì_êF
+	//È†ÇÁÇπËâ≤
 	SetColorRGB(color);
 	SetAlpha(ColorAccess::GetColorA(color));
 }
 
-void Sprite3D::SetSourceDestRect(RECT_D &rcSrc)
+void Sprite3D::SetSourceDestRect(RECT_D& rcSrc)
 {
 	int width = rcSrc.right - rcSrc.left;
 	int height = rcSrc.bottom - rcSrc.top;
 	RECT_D rcDest;
-	SetRectD(&rcDest, -width/2., -height/2., width/2., height/2.);
+	SetRectD(&rcDest, -width / 2., -height / 2., width / 2., height / 2.);
 
 	SetSourceRect(rcSrc);
 	SetDestinationRect(rcDest);
 }
-void Sprite3D::SetVertex(RECT_D &rcSrc, D3DCOLOR color)
+void Sprite3D::SetVertex(RECT_D& rcSrc, D3DCOLOR color)
 {
 	SetSourceDestRect(rcSrc);
 
-	//í∏ì_êF
+	//È†ÇÁÇπËâ≤
 	SetColorRGB(color);
 	SetAlpha(ColorAccess::GetColorA(color));
 }
@@ -1731,7 +1683,7 @@ void Sprite3D::SetVertex(RECT_D &rcSrc, D3DCOLOR color)
 **********************************************************/
 TrajectoryObject3D::TrajectoryObject3D()
 {
-	SetPrimitiveType(D3DPT_TRIANGLESTRIP);
+	SetPrimitiveType(D3DPT_TRIANGESTRIP);
 	diffAlpha_ = 20;
 	countComplement_ = 8;
 	color_ = D3DCOLOR_ARGB(255, 255, 255, 255);
@@ -1748,12 +1700,13 @@ D3DXMATRIX TrajectoryObject3D::_CreateWorldTransformMaxtrix()
 void TrajectoryObject3D::Work()
 {
 	std::list<Data>::iterator itr;
-	for(itr = listData_.begin() ; itr != listData_.end();)
-	{
+	for (itr = listData_.begin(); itr != listData_.end();) {
 		Data& data = (*itr);
 		data.alpha -= diffAlpha_;
-		if(data.alpha < 0)itr=listData_.erase(itr);
-		else itr++;
+		if (data.alpha < 0)
+			itr = listData_.erase(itr);
+		else
+			itr++;
 	}
 }
 void TrajectoryObject3D::Render()
@@ -1763,20 +1716,17 @@ void TrajectoryObject3D::Render()
 
 	int width = 1;
 	gstd::ref_count_ptr<Texture> texture = texture_[0];
-	if(texture != NULL)
-	{
+	if (texture != NULL) {
 		width = texture->GetWidth();
 	}
 
 	float dWidth = 1.0 / width / listData_.size();
 	int iData = 0;
 	std::list<Data>::iterator itr;
-	for(itr = listData_.begin(); itr != listData_.end(); itr++, iData++)
-	{
+	for (itr = listData_.begin(); itr != listData_.end(); itr++, iData++) {
 		Data data = (*itr);
 		int alpha = data.alpha;
-		for(int iPos = 0 ; iPos < 2 ; iPos++)
-		{
+		for (int iPos = 0; iPos < 2; iPos++) {
 			int index = iData * 2 + iPos;
 			D3DXVECTOR3& pos = iPos == 0 ? data.pos1 : data.pos2;
 			float u = dWidth * iData;
@@ -1788,7 +1738,7 @@ void TrajectoryObject3D::Render()
 			float r = ColorAccess::GetColorR(color_) * alpha / 255;
 			float g = ColorAccess::GetColorG(color_) * alpha / 255;
 			float b = ColorAccess::GetColorB(color_) * alpha / 255;
-			SetVertexColorARGB(index, alpha, r, g, b);	
+			SetVertexColorARGB(index, alpha, r, g, b);
 		}
 	}
 	RenderObjectLX::Render();
@@ -1807,22 +1757,17 @@ void TrajectoryObject3D::AddPoint(D3DXMATRIX mat)
 	D3DXVec3TransformCoord((D3DXVECTOR3*)&data.pos1, (D3DXVECTOR3*)&data.pos1, &mat);
 	D3DXVec3TransformCoord((D3DXVECTOR3*)&data.pos2, (D3DXVECTOR3*)&data.pos2, &mat);
 
-	if(listData_.size() <= 1)
-	{
+	if (listData_.size() <= 1) {
 		listData_.push_back(data);
 		dataLast2_ = dataLast1_;
 		dataLast1_ = data;
-	}
-	else
-	{
+	} else {
 		float cDiff = 1.0 / (countComplement_);
 		float diffAlpha = diffAlpha_ / countComplement_;
-		for(int iCount = 0 ; iCount < countComplement_-1 ; iCount++)
-		{
+		for (int iCount = 0; iCount < countComplement_ - 1; iCount++) {
 			Data cData;
 			float flame = cDiff * (iCount + 1);
-			for(int iPos = 0 ; iPos < 2 ; iPos++)
-			{
+			for (int iPos = 0; iPos < 2; iPos++) {
 				D3DXVECTOR3& outPos = iPos == 0 ? cData.pos1 : cData.pos2;
 				D3DXVECTOR3& cPos = iPos == 0 ? data.pos1 : data.pos2;
 				D3DXVECTOR3& lPos1 = iPos == 0 ? dataLast1_.pos1 : dataLast1_.pos2;
@@ -1831,11 +1776,11 @@ void TrajectoryObject3D::AddPoint(D3DXMATRIX mat)
 				D3DXVECTOR3 vPos1 = lPos1 - lPos2;
 				D3DXVECTOR3 vPos2 = lPos2 - cPos + vPos1;
 
-//				D3DXVECTOR3 vPos1 = lPos2 - lPos1;
-//				D3DXVECTOR3 vPos2 = lPos2 - cPos + vPos1;
+				// D3DXVECTOR3 vPos1 = lPos2 - lPos1;
+				// D3DXVECTOR3 vPos2 = lPos2 - cPos + vPos1;
 
-				//D3DXVECTOR3 vPos1 = lPos1 - lPos2;
-				//D3DXVECTOR3 vPos2 = cPos - lPos1;
+				// D3DXVECTOR3 vPos1 = lPos1 - lPos2;
+				// D3DXVECTOR3 vPos2 = cPos - lPos1;
 
 				D3DXVec3Hermite(&outPos, &lPos1, &vPos1, &cPos, &vPos2, flame);
 			}
@@ -1846,7 +1791,6 @@ void TrajectoryObject3D::AddPoint(D3DXMATRIX mat)
 		dataLast2_ = dataLast1_;
 		dataLast1_ = data;
 	}
-
 }
 
 /**********************************************************
@@ -1865,7 +1809,7 @@ DxMesh::DxMesh()
 {
 	position_ = D3DXVECTOR3(0.0f, 0.0f, 0.0f);
 	angle_ = D3DXVECTOR3(0.0f, 0.0f, 0.0f);
-	scale_ =  D3DXVECTOR3(1.0f, 1.0f, 1.0f);
+	scale_ = D3DXVECTOR3(1.0f, 1.0f, 1.0f);
 	color_ = D3DCOLOR_ARGB(255, 255, 255, 255);
 	bCoordinate2D_ = false;
 }
@@ -1886,14 +1830,11 @@ void DxMesh::Release()
 	{
 		DxMeshManager* manager = DxMeshManager::GetBase();
 		Lock lock(manager->GetLock());
-		if(data_ != NULL)
-		{
-			if(manager->IsDataExists(data_->GetName()))
-			{
+		if (data_ != NULL) {
+			if (manager->IsDataExists(data_->GetName())) {
 				int countRef = data_.GetReferenceCount();
-				//é©êgÇ∆DxMeshManagerì‡ÇÃêîÇæÇØÇ…Ç»Ç¡ÇΩÇÁçÌèú
-				if(countRef == 2)
-				{
+				//Ëá™Ë∫´„Å®DxMeshManagerÂÜÖ„ÅÆÊï∞„Å†„Åë„Å´„Å™„Å£„Åü„ÇâÂâäÈô§
+				if (countRef == 2) {
 					manager->_ReleaseMeshData(data_->GetName());
 				}
 			}
@@ -1903,16 +1844,14 @@ void DxMesh::Release()
 }
 bool DxMesh::CreateFromFile(std::wstring path)
 {
-	try
-	{
+	try {
 		path = PathProperty::GetUnique(path);
 		ref_count_ptr<FileReader> reader = FileManager::GetBase()->GetFileReader(path);
-		if(reader == NULL)throw gstd::wexception(L"ÉtÉ@ÉCÉãÇ™å©Ç¬Ç©ÇËÇ‹ÇπÇÒ");
+		if (reader == NULL)
+			throw gstd::wexception(L"„Éï„Ç°„Ç§„É´„ÅåË¶ã„Å§„Åã„Çä„Åæ„Åõ„Çì");
 		return CreateFromFileReader(reader);
-	}
-	catch(gstd::wexception& e)
-	{
-		std::wstring str = StringUtility::Format(L"DxMeshÅFÉÅÉbÉVÉÖì«Ç›çûÇ›é∏îs[%s]\n\t%s", path.c_str(), e.what());
+	} catch (gstd::wexception& e) {
+		std::wstring str = StringUtility::Format(L"DxMeshÔºö„É°„ÉÉ„Ç∑„É•Ë™≠„ÅøËæº„ÅøÂ§±Êïó[%s]\n\t%s", path.c_str(), e.what());
 		Logger::WriteTop(str);
 	}
 	return false;
@@ -1922,11 +1861,11 @@ bool DxMesh::CreateFromFileInLoadThread(std::wstring path, int type)
 	bool res = false;
 	{
 		Lock lock(DxMeshManager::GetBase()->GetLock());
-		if(data_ != NULL)Release();
+		if (data_ != NULL)
+			Release();
 		DxMeshManager* manager = DxMeshManager::GetBase();
 		ref_count_ptr<DxMesh> mesh = manager->CreateFromFileInLoadThread(path, type);
-		if(mesh != NULL)
-		{
+		if (mesh != NULL) {
 			data_ = mesh->data_;
 		}
 		res = data_ != NULL;
@@ -1959,7 +1898,7 @@ DxMeshManager::~DxMeshManager()
 	this->Clear();
 	FileManager::GetBase()->RemoveLoadThreadListener(this);
 	panelInfo_ = NULL;
-	thisBase_=NULL;
+	thisBase_ = NULL;
 }
 bool DxMeshManager::Initialize()
 {
@@ -1981,8 +1920,7 @@ void DxMeshManager::_AddMeshData(std::wstring name, gstd::ref_count_ptr<DxMeshDa
 {
 	{
 		Lock lock(lock_);
-		if(!IsDataExists(name))
-		{
+		if (!IsDataExists(name)) {
 			mapMeshData_[name] = data;
 		}
 	}
@@ -1992,8 +1930,7 @@ gstd::ref_count_ptr<DxMeshData> DxMeshManager::_GetMeshData(std::wstring name)
 	gstd::ref_count_ptr<DxMeshData> res = NULL;
 	{
 		Lock lock(lock_);
-		if(IsDataExists(name))
-		{
+		if (IsDataExists(name)) {
 			res = mapMeshData_[name];
 		}
 	}
@@ -2003,10 +1940,9 @@ void DxMeshManager::_ReleaseMeshData(std::wstring name)
 {
 	{
 		Lock lock(lock_);
-		if(IsDataExists(name))
-		{
+		if (IsDataExists(name)) {
 			mapMeshData_.erase(name);
-			Logger::WriteTop(StringUtility::Format(L"DxMeshManagerÅFÉÅÉbÉVÉÖÇâï˙ÇµÇ‹ÇµÇΩ[%s]", name.c_str()));
+			Logger::WriteTop(StringUtility::Format(L"DxMeshManagerÔºö„É°„ÉÉ„Ç∑„É•„ÇíËß£Êîæ„Åó„Åæ„Åó„Åü[%s]", name.c_str()));
 		}
 	}
 }
@@ -2015,8 +1951,7 @@ void DxMeshManager::Add(std::wstring name, gstd::ref_count_ptr<DxMesh> mesh)
 	{
 		Lock lock(lock_);
 		bool bExist = mapMesh_.find(name) != mapMesh_.end();
-		if(!bExist)
-		{
+		if (!bExist) {
 			mapMesh_[name] = mesh;
 		}
 	}
@@ -2043,19 +1978,19 @@ gstd::ref_count_ptr<DxMesh> DxMeshManager::CreateFromFileInLoadThread(std::wstri
 	{
 		Lock lock(lock_);
 		bool bExist = mapMesh_.find(path) != mapMesh_.end();
-		if(bExist)
-		{
+		if (bExist) {
 			res = mapMesh_[path];
-		}
-		else
-		{
-			if(type == MESH_ELFREINA)res = new ElfreinaMesh();
-			else if(type == MESH_METASEQUOIA)res = new MetasequoiaMesh();
-			if(!IsDataExists(path))
-			{
+		} else {
+			if (type == MESH_ELFREINA)
+				res = new ElfreinaMesh();
+			else if (type == MESH_METASEQUOIA)
+				res = new MetasequoiaMesh();
+			if (!IsDataExists(path)) {
 				ref_count_ptr<DxMeshData> data = NULL;
-				if(type == MESH_ELFREINA)data = new ElfreinaMeshData();
-				else if(type == MESH_METASEQUOIA)data = new MetasequoiaMeshData();
+				if (type == MESH_ELFREINA)
+					data = new ElfreinaMeshData();
+				else if (type == MESH_METASEQUOIA)
+					data = new MetasequoiaMeshData();
 				mapMeshData_[path] = data;
 				data->manager_ = this;
 				data->name_ = path;
@@ -2077,24 +2012,22 @@ void DxMeshManager::CallFromLoadThread(ref_count_ptr<FileManager::LoadThreadEven
 	{
 		Lock lock(lock_);
 		ref_count_ptr<DxMesh> mesh = ref_count_ptr<DxMesh>::DownCast(event->GetSource());
-		if(mesh == NULL)return;
+		if (mesh == NULL)
+			return;
 
 		ref_count_ptr<DxMeshData> data = mesh->data_;
-		if(data->bLoad_)return;
+		if (data->bLoad_)
+			return;
 
 		bool res = false;
 		ref_count_ptr<FileReader> reader = FileManager::GetBase()->GetFileReader(path);
-		if(reader != NULL && reader->Open())
-		{
+		if (reader != NULL && reader->Open()) {
 			res = data->CreateFromFileReader(reader);
 		}
-		if(res)
-		{
-			Logger::WriteTop(StringUtility::Format(L"ÉÅÉbÉVÉÖÇì«Ç›çûÇ›Ç‹ÇµÇΩ[%s]", path.c_str()));
-		}
-		else
-		{
-			Logger::WriteTop(StringUtility::Format(L"ÉÅÉbÉVÉÖÇì«Ç›çûÇ›é∏îs[%s]", path.c_str()));
+		if (res) {
+			Logger::WriteTop(StringUtility::Format(L"„É°„ÉÉ„Ç∑„É•„ÇíË™≠„ÅøËæº„Åø„Åæ„Åó„Åü[%s]", path.c_str()));
+		} else {
+			Logger::WriteTop(StringUtility::Format(L"„É°„ÉÉ„Ç∑„É•„ÇíË™≠„ÅøËæº„ÅøÂ§±Êïó[%s]", path.c_str()));
 		}
 		data->bLoad_ = true;
 	}
@@ -2115,10 +2048,9 @@ bool DxMeshInfoPanel::_AddedLogger(HWND hTab)
 	Create(hTab);
 
 	gstd::WListView::Style styleListView;
-	styleListView.SetStyle(WS_CHILD | WS_VISIBLE | 
-		LVS_REPORT | LVS_SHOWSELALWAYS | LVS_SINGLESEL| LVS_NOSORTHEADER);
+	styleListView.SetStyle(WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS | LVS_SINGLESEL | LVS_NOSORTHEADER);
 	styleListView.SetStyleEx(WS_EX_CLIENTEDGE);
-	styleListView.SetListViewStyleEx(LVS_EX_FULLROWSELECT|LVS_EX_GRIDLINES);
+	styleListView.SetListViewStyleEx(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
 	wndListView_.Create(hWnd_, styleListView);
 
 	wndListView_.AddColumn(64, ROW_ADDRESS, L"Address");
@@ -2141,32 +2073,30 @@ void DxMeshInfoPanel::LocateParts()
 }
 void DxMeshInfoPanel::_Run()
 {
-	while(GetStatus() == RUN)
-	{
+	while (GetStatus() == RUN) {
 		DxMeshManager* manager = DxMeshManager::GetBase();
-		if(manager != NULL)
+		if (manager != NULL)
 			Update(manager);
 		Sleep(timeUpdateInterval_);
 	}
 }
 void DxMeshInfoPanel::Update(DxMeshManager* manager)
 {
-	if(!IsWindowVisible())return;
+	if (!IsWindowVisible())
+		return;
 	std::set<std::wstring> setKey;
-	std::map<std::wstring, gstd::ref_count_ptr<DxMeshData> >& mapData = manager->mapMeshData_;
-	std::map<std::wstring, gstd::ref_count_ptr<DxMeshData> >::iterator itrMap;
+	std::map<std::wstring, gstd::ref_count_ptr<DxMeshData>>& mapData = manager->mapMeshData_;
+	std::map<std::wstring, gstd::ref_count_ptr<DxMeshData>>::iterator itrMap;
 	{
 		Lock lock(manager->GetLock());
-		for(itrMap=mapData.begin(); itrMap!=mapData.end(); itrMap++)
-		{
+		for (itrMap = mapData.begin(); itrMap != mapData.end(); itrMap++) {
 			std::wstring name = itrMap->first;
 			DxMeshData* data = (itrMap->second).GetPointer();
 
 			int address = (int)data;
 			std::wstring key = StringUtility::Format(L"%08x", address);
 			int index = wndListView_.GetIndexInColumn(key, ROW_ADDRESS);
-			if(index == -1)
-			{
+			if (index == -1) {
 				index = wndListView_.GetRowCount();
 				wndListView_.SetText(index, ROW_ADDRESS, key);
 			}
@@ -2181,10 +2111,11 @@ void DxMeshInfoPanel::Update(DxMeshManager* manager)
 		}
 	}
 
-	for(int iRow=0; iRow<wndListView_.GetRowCount();)
-	{
+	for (int iRow = 0; iRow < wndListView_.GetRowCount();) {
 		std::wstring key = wndListView_.GetText(iRow, ROW_ADDRESS);
-		if(setKey.find(key) != setKey.end())iRow++;
-		else wndListView_.DeleteRow(iRow);
+		if (setKey.find(key) != setKey.end())
+			iRow++;
+		else
+			wndListView_.DeleteRow(iRow);
 	}
 }

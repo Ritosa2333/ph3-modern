@@ -149,10 +149,10 @@ void StgStageScriptObjectManager::RenderObject(int priMin, int priMax)
 	focusPos.x -= stgWidth / 2;
 	focusPos.y -= stgHeight / 2;
 
-	//ƒtƒHƒOİ’è
+	//ãƒ•ã‚©ã‚°è¨­å®š
 	graphics->SetVertexFog(bFogEnable_, fogColor_, fogStart_, fogEnd_);
 
-	//•`‰æŠJn‘OƒŠƒZƒbƒg
+	//æç”»é–‹å§‹å‰ãƒªã‚»ãƒƒãƒˆ
 	camera2D->SetEnable(false);
 	camera2D->Reset();
 	graphics->ResetViewPort();	
@@ -166,7 +166,7 @@ void StgStageScriptObjectManager::RenderObject(int priMin, int priMax)
 
 		if(iPri >= priMinStgFrame && !bRunMinStgFrame)
 		{
-			//STGƒtƒŒ[ƒ€ŠJn
+			//STGãƒ•ãƒ¬ãƒ¼ãƒ é–‹å§‹
 			graphics->ClearRenderTarget(rcStgFrame);
 			camera2D->SetEnable(true);
 			camera2D->SetRatio(focusRatio);
@@ -182,12 +182,12 @@ void StgStageScriptObjectManager::RenderObject(int priMin, int priMax)
 		}
 		if(iPri == priShot)
 		{
-			//’e•`‰æ
+			//å¼¾æç”»
 			stageController_->GetShotManager()->Render();
 		}
 		if(iPri == priItem)
 		{
-			//ƒAƒCƒeƒ€•`‰æ
+			//ã‚¢ã‚¤ãƒ†ãƒ æç”»
 			stageController_->GetItemManager()->Render();
 		}
 
@@ -218,7 +218,7 @@ void StgStageScriptObjectManager::RenderObject(int priMin, int priMax)
 		}
 		if(iPri >= priMaxStgFrame && !bRunMaxStgFrame)
 		{
-			//STGƒtƒŒ[ƒ€I—¹
+			//STGãƒ•ãƒ¬ãƒ¼ãƒ çµ‚äº†
 			camera2D->SetEnable(false);
 			camera2D->Reset();
 			graphics->ResetViewPort();
@@ -233,7 +233,7 @@ void StgStageScriptObjectManager::RenderObject(int priMin, int priMax)
 }
 int StgStageScriptObjectManager::CreatePlayerObject()
 {
-	//©‹@ƒIƒuƒWƒFƒNƒg¶¬
+	//è‡ªæ©Ÿã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆç”Ÿæˆ
 	ref_count_ptr<StgPlayerObject>::unsync objPlayer = new StgPlayerObject(stageController_);
 	idObjPleyer_ = AddObject(objPlayer);
 	return idObjPleyer_;
@@ -245,11 +245,11 @@ int StgStageScriptObjectManager::CreatePlayerObject()
 **********************************************************/
 function const stgFunction[] =  
 {
-	//STG‹¤’ÊŠÖ”F‹¤’Êƒf[ƒ^
+	//STGå…±é€šé–¢æ•°ï¼šå…±é€šãƒ‡ãƒ¼ã‚¿
 	{"SaveCommonDataAreaToReplayFile", StgStageScript::Func_SaveCommonDataAreaToReplayFile, 1},
 	{"LoadCommonDataAreaFromReplayFile", StgStageScript::Func_LoadCommonDataAreaFromReplayFile, 1},
 
-	//STG‹¤’ÊŠÖ”FƒVƒXƒeƒ€ŠÖ˜A
+	//STGå…±é€šé–¢æ•°ï¼šã‚·ã‚¹ãƒ†ãƒ é–¢é€£
 	{"GetMainStgScriptPath", StgStageScript::Func_GetMainStgScriptPath, 0},
 	{"GetMainStgScriptDirectory", StgStageScript::Func_GetMainStgScriptDirectory, 0},
 	{"SetStgFrame", StgStageScript::Func_SetStgFrame, 6},
@@ -264,7 +264,7 @@ function const stgFunction[] =
 	{"CloseStgScene", StgStageScript::Func_CloseStgScene, 0},
 	{"GetReplayFps", StgStageScript::Func_GetReplayFps, 0},
 
-	//STG‹¤’ÊŠÖ”F©‹@
+	//STGå…±é€šé–¢æ•°ï¼šè‡ªæ©Ÿ
 	{"GetPlayerObjectID", StgStageScript::Func_GetPlayerObjectID, 0},
 	{"SetPlayerSpeed", StgStageScript::Func_SetPlayerSpeed, 2},
 	{"SetPlayerClip", StgStageScript::Func_SetPlayerClip, 4},
@@ -296,7 +296,7 @@ function const stgFunction[] =
 	{"IsPlayerSpellActive", StgStageScript::Func_IsPlayerSpellActive, 0},
 	{"GetPlayerScriptID", StgStageScript::Func_GetPlayerScriptID, 0},
 
-	//STG‹¤’ÊŠÖ”F“G
+	//STGå…±é€šé–¢æ•°ï¼šæ•µ
 	{"GetEnemyBossSceneObjectID", StgStageScript::Func_GetEnemyBossSceneObjectID, 0},
 	{"GetEnemyBossObjectID", StgStageScript::Func_GetEnemyBossObjectID, 0},
 	{"GetAllEnemyID", StgStageScript::Func_GetAllEnemyID, 0},
@@ -308,7 +308,7 @@ function const stgFunction[] =
 	{"LoadEnemyShotData", StgStageScript::Func_LoadEnemyShotData, 1},
 	{"ReloadEnemyShotData", StgStageScript::Func_ReloadEnemyShotData, 1},
 
-	//STG‹¤’ÊŠÖ”F’e
+	//STGå…±é€šé–¢æ•°ï¼šå¼¾
 	{"DeleteShotAll", StgStageScript::Func_DeleteShotAll, 2},
 	{"DeleteShotInCircle", StgStageScript::Func_DeleteShotInCircle, 5},
 	{"CreateShotA1", StgStageScript::Func_CreateShotA1, 6},
@@ -330,7 +330,7 @@ function const stgFunction[] =
 	{"GetShotDataInfoA1", StgStageScript::Func_GetShotDataInfoA1, 3},
 	{"StartShotScript", StgStageScript::Func_StartShotScript, 1},
 
-	//STG‹¤’ÊŠÖ”FƒAƒCƒeƒ€
+	//STGå…±é€šé–¢æ•°ï¼šã‚¢ã‚¤ãƒ†ãƒ 
 	{"CreateItemA1", StgStageScript::Func_CreateItemA1, 4},
 	{"CreateItemA2", StgStageScript::Func_CreateItemA2, 6},
 	{"CreateItemU1", StgStageScript::Func_CreateItemU1, 4},
@@ -345,13 +345,13 @@ function const stgFunction[] =
 	{"LoadItemData", StgStageScript::Func_LoadItemData, 1},
 	{"ReloadItemData", StgStageScript::Func_ReloadItemData, 1},
 
-	//STG‹¤’ÊŠÖ”F‚»‚Ì‘¼
+	//STGå…±é€šé–¢æ•°ï¼šãã®ä»–
 	{"StartSlow", StgStageScript::Func_StartSlow, 2},
 	{"StopSlow", StgStageScript::Func_StopSlow, 1},
 	{"IsIntersected_Line_Circle", StgStageScript::Func_IsIntersected_Line_Circle, 8},
 	{"IsIntersected_Obj_Obj", StgStageScript::Func_IsIntersected_Obj_Obj, 2},
 
-	//STG‹¤’ÊŠÖ”FˆÚ“®ƒIƒuƒWƒFƒNƒg‘€ì
+	//STGå…±é€šé–¢æ•°ï¼šç§»å‹•ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆæ“ä½œ
 	{"ObjMove_SetX", StgStageScript::Func_ObjMove_SetX, 2},
 	{"ObjMove_SetY", StgStageScript::Func_ObjMove_SetY, 2},
 	{"ObjMove_SetPosition", StgStageScript::Func_ObjMove_SetPosition, 3},
@@ -375,7 +375,7 @@ function const stgFunction[] =
 	{"ObjMove_GetSpeed", StgStageScript::Func_ObjMove_GetSpeed, 1},
 	{"ObjMove_GetAngle", StgStageScript::Func_ObjMove_GetAngle, 1},
 
-	//STG‹¤’ÊŠÖ”F“GƒIƒuƒWƒFƒNƒg‘€ì
+	//STGå…±é€šé–¢æ•°ï¼šæ•µã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆæ“ä½œ
 	{"ObjEnemy_Create", StgStageScript::Func_ObjEnemy_Create, 1},
 	{"ObjEnemy_Regist", StgStageScript::Func_ObjEnemy_Regist, 1},
 	{"ObjEnemy_GetInfo", StgStageScript::Func_ObjEnemy_GetInfo, 2},
@@ -386,7 +386,7 @@ function const stgFunction[] =
 	{"ObjEnemy_SetIntersectionCircleToShot", StgStageScript::Func_ObjEnemy_SetIntersectionCircleToShot, 4},
 	{"ObjEnemy_SetIntersectionCircleToPlayer", StgStageScript::Func_ObjEnemy_SetIntersectionCircleToPlayer, 4},
 
-	//STG‹¤’ÊŠÖ”F“Gƒ{ƒXƒV[ƒ“ƒIƒuƒWƒFƒNƒg‘€ì
+	//STGå…±é€šé–¢æ•°ï¼šæ•µãƒœã‚¹ã‚·ãƒ¼ãƒ³ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆæ“ä½œ
 	{"ObjEnemyBossScene_Create", StgStageScript::Func_ObjEnemyBossScene_Create, 0},
 	{"ObjEnemyBossScene_Regist", StgStageScript::Func_ObjEnemyBossScene_Regist, 1},
 	{"ObjEnemyBossScene_Add", StgStageScript::Func_ObjEnemyBossScene_Add, 3},
@@ -395,7 +395,7 @@ function const stgFunction[] =
 	{"ObjEnemyBossScene_SetSpellTimer", StgStageScript::Func_ObjEnemyBossScene_SetSpellTimer, 2},
 	{"ObjEnemyBossScene_StartSpell", StgStageScript::Func_ObjEnemyBossScene_StartSpell, 1},
 
-	//STG‹¤’ÊŠÖ”F’eƒIƒuƒWƒFƒNƒg‘€ì
+	//STGå…±é€šé–¢æ•°ï¼šå¼¾ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆæ“ä½œ
 	{"ObjShot_Create", StgStageScript::Func_ObjShot_Create, 1},
 	{"ObjShot_Regist", StgStageScript::Func_ObjShot_Regist, 1},
 	{"ObjShot_SetAutoDelete", StgStageScript::Func_ObjShot_SetAutoDelete, 2},
@@ -437,7 +437,7 @@ function const stgFunction[] =
 	{"ObjStLaser_SetSource", StgStageScript::Func_ObjStLaser_SetSource, 2},
 	{"ObjCrLaser_SetTipDecrement", StgStageScript::Func_ObjCrLaser_SetTipDecrement, 2},
 
-	//STG‹¤’ÊŠÖ”FƒAƒCƒeƒ€ƒIƒuƒWƒFƒNƒg‘€ì
+	//STGå…±é€šé–¢æ•°ï¼šã‚¢ã‚¤ãƒ†ãƒ ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆæ“ä½œ
 	{"ObjItem_Create", StgStageScript::Func_ObjItem_Create, 1},
 	{"ObjItem_Regist", StgStageScript::Func_ObjItem_Regist, 1},
 	{"ObjItem_SetItemID", StgStageScript::Func_ObjItem_SetItemID, 2},
@@ -446,17 +446,17 @@ function const stgFunction[] =
 	{"ObjItem_SetDefinedMovePatternA1", StgStageScript::Func_ObjItem_SetDefinedMovePatternA1, 2},
 	{"ObjItem_GetInfo", StgStageScript::Func_ObjItem_GetInfo, 2},
 
-	//STG‹¤’ÊŠÖ”F©‹@ƒIƒuƒWƒFƒNƒg‘€ì
+	//STGå…±é€šé–¢æ•°ï¼šè‡ªæ©Ÿã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆæ“ä½œ
 	{"ObjPlayer_AddIntersectionCircleA1", StgStageScript::Func_ObjPlayer_AddIntersectionCircleA1, 5},
 	{"ObjPlayer_AddIntersectionCircleA2", StgStageScript::Func_ObjPlayer_AddIntersectionCircleA2, 4},
 	{"ObjPlayer_ClearIntersection", StgStageScript::Func_ObjPlayer_ClearIntersection, 1},
 
-	//STG‹¤’ÊŠÖ”F“–‚½‚è”»’èƒIƒuƒWƒFƒNƒg‘€ì
+	//STGå…±é€šé–¢æ•°ï¼šå½“ãŸã‚Šåˆ¤å®šã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆæ“ä½œ
 	{"ObjCol_IsIntersected", StgStageScript::Func_ObjCol_IsIntersected, 1},
 	{"ObjCol_GetListOfIntersectedEnemyID", StgStageScript::Func_ObjCol_GetListOfIntersectedEnemyID, 1},
 	{"ObjCol_GetIntersectedCount", StgStageScript::Func_ObjCol_GetIntersectedCount, 1},
 
-	//’è”
+	//å®šæ•°
 	{"SCREEN_WIDTH", constant<640>::func, 0},
 	{"SCREEN_HEIGHT", constant<480>::func, 0},
 	{"TYPE_ALL", constant<StgStageScript::TYPE_ALL>::func, 0},
@@ -578,7 +578,7 @@ ref_count_ptr<StgStageScriptObjectManager> StgStageScript::GetStgObjectManager()
 }
 
 
-//STG§Œä‹¤’ÊŠÖ”F‹¤’Êƒf[ƒ^
+//STGåˆ¶å¾¡å…±é€šé–¢æ•°ï¼šå…±é€šãƒ‡ãƒ¼ã‚¿
 gstd::value StgStageScript::Func_SaveCommonDataAreaToReplayFile(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
 	StgStageScript* script = (StgStageScript*)machine->data;
@@ -624,7 +624,7 @@ gstd::value StgStageScript::Func_LoadCommonDataAreaFromReplayFile(gstd::script_m
 	return value(machine->get_engine()->get_boolean_type(), true);
 }
 
-//STG‹¤’ÊŠÖ”FƒVƒXƒeƒ€ŠÖ˜A
+//STGå…±é€šé–¢æ•°ï¼šã‚·ã‚¹ãƒ†ãƒ é–¢é€£
 gstd::value StgStageScript::Func_GetMainStgScriptPath(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
 	StgStageScript* script = (StgStageScript*)machine->data;
@@ -696,28 +696,28 @@ gstd::value StgStageScript::Func_GetStgFrameRenderPriorityMinI(gstd::script_mach
 {
 	StgStageScript* script = (StgStageScript*)machine->data;
 	StgStageController* stageController = script->stageController_;
-	long double res = stageController->GetStageInformation()->GetStgFrameMinPriority();
+	gstd::script_real res = stageController->GetStageInformation()->GetStgFrameMinPriority();
 	return value(machine->get_engine()->get_real_type(), res);
 }
 gstd::value StgStageScript::Func_GetStgFrameRenderPriorityMaxI(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
 	StgStageScript* script = (StgStageScript*)machine->data;
 	StgStageController* stageController = script->stageController_;
-	long double res = stageController->GetStageInformation()->GetStgFrameMaxPriority();
+	gstd::script_real res = stageController->GetStageInformation()->GetStgFrameMaxPriority();
 	return value(machine->get_engine()->get_real_type(), res);
 }
 gstd::value StgStageScript::Func_GetItemRenderPriorityI(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
 	StgStageScript* script = (StgStageScript*)machine->data;
 	StgStageController* stageController = script->stageController_;
-	long double res = stageController->GetStageInformation()->GetItemObjectPriority();
+	gstd::script_real res = stageController->GetStageInformation()->GetItemObjectPriority();
 	return value(machine->get_engine()->get_real_type(), res);
 }
 gstd::value StgStageScript::Func_GetShotRenderPriorityI(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
 	StgStageScript* script = (StgStageScript*)machine->data;
 	StgStageController* stageController = script->stageController_;
-	long double res = stageController->GetStageInformation()->GetShotObjectPriority();
+	gstd::script_real res = stageController->GetStageInformation()->GetShotObjectPriority();
 	return value(machine->get_engine()->get_real_type(), res);
 }
 gstd::value StgStageScript::Func_GetPlayerRenderPriorityI(gstd::script_machine* machine, int argc, gstd::value const * argv)
@@ -726,7 +726,7 @@ gstd::value StgStageScript::Func_GetPlayerRenderPriorityI(gstd::script_machine* 
 	ref_count_ptr<StgStageScriptObjectManager> objectManager = script->GetStgObjectManager();
 	int idObjPlayer = objectManager->GetPlayerObjectID();
 
-	long double res = 30;
+	gstd::script_real res = 30;
 	StgPlayerObject* obj = dynamic_cast<StgPlayerObject*>(script->GetObjectPointer(idObjPlayer));
 	if(obj != NULL)
 	{
@@ -740,7 +740,7 @@ gstd::value StgStageScript::Func_GetCameraFocusPermitPriorityI(gstd::script_mach
 {
 	StgStageScript* script = (StgStageScript*)machine->data;
 	StgStageController* stageController = script->stageController_;
-	long double res = stageController->GetStageInformation()->GetCameraFocusPermitPriority();
+	gstd::script_real res = stageController->GetStageInformation()->GetCameraFocusPermitPriority();
 	return value(machine->get_engine()->get_real_type(), res);
 }
 
@@ -769,15 +769,15 @@ gstd::value StgStageScript::Func_GetReplayFps(gstd::script_machine* machine, int
 		fps = replayStageData->GetFramePerSecond(frame);
 	}
 
-	return value(machine->get_engine()->get_real_type(), (long double)fps);
+	return value(machine->get_engine()->get_real_type(), (gstd::script_real)fps);
 }
 
-//STG‹¤’ÊŠÖ”F©‹@
+//STGå…±é€šé–¢æ•°ï¼šè‡ªæ©Ÿ
 gstd::value StgStageScript::Func_GetPlayerObjectID(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
 	StgStageScript* script = (StgStageScript*)machine->data;
 	ref_count_ptr<StgStageScriptObjectManager> objectManager = script->GetStgObjectManager();
-	long double res = objectManager->GetPlayerObjectID();
+	gstd::script_real res = objectManager->GetPlayerObjectID();
 	return value(machine->get_engine()->get_real_type(), res);
 }
 gstd::value StgStageScript::Func_GetPlayerScriptID(gstd::script_machine* machine, int argc, gstd::value const * argv)
@@ -787,7 +787,7 @@ gstd::value StgStageScript::Func_GetPlayerScriptID(gstd::script_machine* machine
 	StgStageScriptManager* scriptManager = stageController->GetScriptManagerP();
 
 	_int64 res = scriptManager->GetPlayerScriptID();
-	return value(machine->get_engine()->get_real_type(), (long double)res);
+	return value(machine->get_engine()->get_real_type(), (gstd::script_real)res);
 }
 gstd::value StgStageScript::Func_SetPlayerSpeed(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
@@ -947,7 +947,7 @@ gstd::value StgStageScript::Func_GetPlayerX(gstd::script_machine* machine, int a
 	StgStageController* stageController = script->stageController_;
 	ref_count_ptr<StgPlayerObject>::unsync obj = stageController->GetPlayerObject();
 	double res = obj != NULL ? obj->GetX() : 0;
-	return value(machine->get_engine()->get_real_type(), (long double)res);
+	return value(machine->get_engine()->get_real_type(), (gstd::script_real)res);
 }
 gstd::value StgStageScript::Func_GetPlayerY(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
@@ -955,7 +955,7 @@ gstd::value StgStageScript::Func_GetPlayerY(gstd::script_machine* machine, int a
 	StgStageController* stageController = script->stageController_;
 	ref_count_ptr<StgPlayerObject>::unsync obj = stageController->GetPlayerObject();
 	double res = obj != NULL ? obj->GetY() : 0;
-	return value(machine->get_engine()->get_real_type(), (long double)res);
+	return value(machine->get_engine()->get_real_type(), (gstd::script_real)res);
 }
 gstd::value StgStageScript::Func_GetPlayerState(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
@@ -963,7 +963,7 @@ gstd::value StgStageScript::Func_GetPlayerState(gstd::script_machine* machine, i
 	StgStageController* stageController = script->stageController_;
 	ref_count_ptr<StgPlayerObject>::unsync obj = stageController->GetPlayerObject();
 	double res = obj != NULL ? obj->GetState() : StgPlayerObject::STATE_END;
-	return value(machine->get_engine()->get_real_type(), (long double)res);
+	return value(machine->get_engine()->get_real_type(), (gstd::script_real)res);
 }
 gstd::value StgStageScript::Func_GetPlayerSpeed(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
@@ -971,7 +971,7 @@ gstd::value StgStageScript::Func_GetPlayerSpeed(gstd::script_machine* machine, i
 	StgStageController* stageController = script->stageController_;
 	ref_count_ptr<StgPlayerObject>::unsync obj = stageController->GetPlayerObject();
 
-	std::vector<long double> listValue;
+	std::vector<gstd::script_real> listValue;
 	listValue.push_back(obj->GetFastSpeed());
 	listValue.push_back(obj->GetSlowSpeed());
 
@@ -985,7 +985,7 @@ gstd::value StgStageScript::Func_GetPlayerClip(gstd::script_machine* machine, in
 	ref_count_ptr<StgPlayerObject>::unsync obj = stageController->GetPlayerObject();
 
 	RECT clip = obj->GetClip();
-	std::vector<long double> listValue;
+	std::vector<gstd::script_real> listValue;
 	listValue.push_back(clip.left);
 	listValue.push_back(clip.top);
 	listValue.push_back(clip.right);
@@ -1000,7 +1000,7 @@ gstd::value StgStageScript::Func_GetPlayerLife(gstd::script_machine* machine, in
 	StgStageController* stageController = script->stageController_;
 	ref_count_ptr<StgPlayerObject>::unsync obj = stageController->GetPlayerObject();
 	double res = obj != NULL ? obj->GetLife() : 0;
-	return value(machine->get_engine()->get_real_type(), (long double)res);
+	return value(machine->get_engine()->get_real_type(), (gstd::script_real)res);
 }
 gstd::value StgStageScript::Func_GetPlayerSpell(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
@@ -1008,7 +1008,7 @@ gstd::value StgStageScript::Func_GetPlayerSpell(gstd::script_machine* machine, i
 	StgStageController* stageController = script->stageController_;
 	ref_count_ptr<StgPlayerObject>::unsync obj = stageController->GetPlayerObject();
 	double res = obj != NULL ? obj->GetSpell() : 0;
-	return value(machine->get_engine()->get_real_type(), (long double)res);
+	return value(machine->get_engine()->get_real_type(), (gstd::script_real)res);
 }
 gstd::value StgStageScript::Func_GetPlayerPower(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
@@ -1016,7 +1016,7 @@ gstd::value StgStageScript::Func_GetPlayerPower(gstd::script_machine* machine, i
 	StgStageController* stageController = script->stageController_;
 	ref_count_ptr<StgPlayerObject>::unsync obj = stageController->GetPlayerObject();
 	double res = obj != NULL ? obj->GetPower() : 0;
-	return value(machine->get_engine()->get_real_type(), (long double)res);
+	return value(machine->get_engine()->get_real_type(), (gstd::script_real)res);
 }
 gstd::value StgStageScript::Func_GetPlayerInvincibilityFrame(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
@@ -1024,7 +1024,7 @@ gstd::value StgStageScript::Func_GetPlayerInvincibilityFrame(gstd::script_machin
 	StgStageController* stageController = script->stageController_;
 	ref_count_ptr<StgPlayerObject>::unsync obj = stageController->GetPlayerObject();
 	double res = obj != NULL ? obj->GetInvincibilityFrame() : 0;
-	return value(machine->get_engine()->get_real_type(), (long double)res);
+	return value(machine->get_engine()->get_real_type(), (gstd::script_real)res);
 }
 gstd::value StgStageScript::Func_GetPlayerDownStateFrame(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
@@ -1032,7 +1032,7 @@ gstd::value StgStageScript::Func_GetPlayerDownStateFrame(gstd::script_machine* m
 	StgStageController* stageController = script->stageController_;
 	ref_count_ptr<StgPlayerObject>::unsync obj = stageController->GetPlayerObject();
 	double res = obj != NULL ? obj->GetDownStateFrame() : 0;
-	return value(machine->get_engine()->get_real_type(), (long double)res);
+	return value(machine->get_engine()->get_real_type(), (gstd::script_real)res);
 }
 gstd::value StgStageScript::Func_GetPlayerRebirthFrame(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
@@ -1040,26 +1040,26 @@ gstd::value StgStageScript::Func_GetPlayerRebirthFrame(gstd::script_machine* mac
 	StgStageController* stageController = script->stageController_;
 	ref_count_ptr<StgPlayerObject>::unsync obj = stageController->GetPlayerObject();
 	double res = obj != NULL ? obj->GetRebirthFrame() : 0;
-	return value(machine->get_engine()->get_real_type(), (long double)res);
+	return value(machine->get_engine()->get_real_type(), (gstd::script_real)res);
 }
 gstd::value StgStageScript::Func_GetAngleToPlayer(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
 	StgStageScript* script = (StgStageScript*)machine->data;
 	StgStageController* stageController = script->stageController_;
 	ref_count_ptr<StgPlayerObject>::unsync objPlayer = stageController->GetPlayerObject();
-	if(objPlayer == NULL)return value(machine->get_engine()->get_real_type(), (long double)-1);
+	if(objPlayer == NULL)return value(machine->get_engine()->get_real_type(), (gstd::script_real)-1);
 	double px = objPlayer->GetPositionX();
 	double py = objPlayer->GetPositionY();
 
 	int id = (int)argv[0].as_real();
 	ref_count_ptr<DxScriptRenderObject>::unsync objMove = 
 		ref_count_ptr<DxScriptRenderObject>::unsync::DownCast(script->GetObject(id));
-	if(objMove == NULL)return value(machine->get_engine()->get_real_type(), (long double)-1);
+	if(objMove == NULL)return value(machine->get_engine()->get_real_type(), (gstd::script_real)-1);
 	double tx = objMove->GetPosition().x;
 	double ty = objMove->GetPosition().y;
 
-	long double angle = atan2(py-ty, px-tx) * 180 / PAI;
-	return value(machine->get_engine()->get_real_type(), (long double)angle);
+	gstd::script_real angle = atan2(py-ty, px-tx) * 180 / PAI;
+	return value(machine->get_engine()->get_real_type(), (gstd::script_real)angle);
 }
 
 gstd::value StgStageScript::Func_IsPermitPlayerShot(gstd::script_machine* machine, int argc, gstd::value const * argv)
@@ -1102,7 +1102,7 @@ gstd::value StgStageScript::Func_IsPlayerSpellActive(gstd::script_machine* machi
 }
 
 
-//STG‹¤’ÊŠÖ”F“G
+//STGå…±é€šé–¢æ•°ï¼šæ•µ
 gstd::value StgStageScript::Func_GetEnemyBossSceneObjectID(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
 	StgStageScript* script = (StgStageScript*)machine->data;
@@ -1114,7 +1114,7 @@ gstd::value StgStageScript::Func_GetEnemyBossSceneObjectID(gstd::script_machine*
 	if(obj != NULL && !obj->IsDeleted())
 		res = obj->GetObjectID();
 
-	return value(machine->get_engine()->get_real_type(), (long double)res);
+	return value(machine->get_engine()->get_real_type(), (gstd::script_real)res);
 }
 gstd::value StgStageScript::Func_GetEnemyBossObjectID(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
@@ -1123,7 +1123,7 @@ gstd::value StgStageScript::Func_GetEnemyBossObjectID(gstd::script_machine* mach
 	StgEnemyManager* enemyManager = stageController->GetEnemyManager();
 	ref_count_ptr<StgEnemyBossSceneObject>::unsync scene = enemyManager->GetBossSceneObject();
 
-	std::vector<long double> listLD;
+	std::vector<gstd::script_real> listLD;
 	if(scene != NULL)
 	{
 		ref_count_ptr<StgEnemyBossSceneData>::unsync data = scene->GetActiveData();
@@ -1150,7 +1150,7 @@ gstd::value StgStageScript::Func_GetAllEnemyID(gstd::script_machine* machine, in
 
 	std::list<ref_count_ptr<StgEnemyObject>::unsync >& listEnemy = enemyManager->GetEnemyList();
 
-	std::vector<long double> listLD;
+	std::vector<gstd::script_real> listLD;
 	std::list<ref_count_ptr<StgEnemyObject>::unsync >::iterator itr = listEnemy.begin();
 	for(; itr != listEnemy.end() ; itr++)
 	{
@@ -1168,7 +1168,7 @@ gstd::value StgStageScript::Func_GetIntersectionRegistedEnemyID(gstd::script_mac
 	StgStageController* stageController = script->stageController_;
 	StgIntersectionManager* interSectionManager = stageController->GetIntersectionManager();
 
-	std::vector<long double> listLD;
+	std::vector<gstd::script_real> listLD;
 	std::vector<StgIntersectionTargetPoint>* listPoint = interSectionManager->GetAllEnemyTargetPoint();
 	for(int iPoint = 0 ; iPoint < listPoint->size() ; iPoint++)
 	{
@@ -1191,7 +1191,7 @@ gstd::value StgStageScript::Func_GetAllEnemyIntersectionPosition(gstd::script_ma
 	{
 		StgIntersectionTargetPoint& target = listPoint->at(iPoint);
 		POINT pos = target.GetPoint();
-		std::vector<long double> listLD;
+		std::vector<gstd::script_real> listLD;
 		listLD.push_back(pos.x);
 		listLD.push_back(pos.y);
 		gstd::value v = script->CreateRealArrayValue(listLD);
@@ -1278,7 +1278,7 @@ gstd::value StgStageScript::Func_GetEnemyIntersectionPosition(gstd::script_machi
 	for(iPoint = 0 ; iPoint < listRes.size() ; iPoint++)
 	{
 		POINT& pos = listRes[iPoint];
-		std::vector<long double> listLD;
+		std::vector<gstd::script_real> listLD;
 		listLD.push_back(pos.x);
 		listLD.push_back(pos.y);
 		gstd::value v = script->CreateRealArrayValue(listLD);
@@ -1288,9 +1288,9 @@ gstd::value StgStageScript::Func_GetEnemyIntersectionPosition(gstd::script_machi
 }
 gstd::value StgStageScript::Func_GetEnemyIntersectionPositionByIdA1(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
-	//ˆø”1i“GƒIƒuƒWƒFƒNƒgIDj©‹@‚©‚ç‚àƒAƒNƒZƒX‰Â”\
-	//w’è‚µ‚½“GƒIƒuƒWƒFƒNƒgID‚ª‚Â©‹@ƒVƒ‡ƒbƒg‚Ö‚Ì“–‚½‚è”»’èˆÊ’u‚ğ‘S‚Äæ“¾
-	//“ñŸŒ³”z—ñ‚ª•Ô‚éB([<ƒCƒ“ƒfƒbƒNƒX>][<0:xÀ•W, 1:yÀ•W>])@”z—ñ‚Ì0”Ô–Ú‚ªÅ‚à“G–{‘Ì‚ÌÀ•W‚É‹ß‚¢
+	//å¼•æ•°1ï¼ˆæ•µã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆIDï¼‰è‡ªæ©Ÿã‹ã‚‰ã‚‚ã‚¢ã‚¯ã‚»ã‚¹å¯èƒ½
+	//æŒ‡å®šã—ãŸæ•µã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆIDãŒæŒã¤è‡ªæ©Ÿã‚·ãƒ§ãƒƒãƒˆã¸ã®å½“ãŸã‚Šåˆ¤å®šä½ç½®ã‚’å…¨ã¦å–å¾—
+	//äºŒæ¬¡å…ƒé…åˆ—ãŒè¿”ã‚‹ã€‚([<ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹>][<0:xåº§æ¨™, 1:yåº§æ¨™>])ã€€é…åˆ—ã®0ç•ªç›®ãŒæœ€ã‚‚æ•µæœ¬ä½“ã®åº§æ¨™ã«è¿‘ã„
 	StgStageScript* script = (StgStageScript*)machine->data;
 	int id = (int)argv[0].as_real();
 	StgEnemyObject* obj = dynamic_cast<StgEnemyObject*>(script->GetObjectPointer(id));
@@ -1318,7 +1318,7 @@ gstd::value StgStageScript::Func_GetEnemyIntersectionPositionByIdA1(gstd::script
 		for(; itr != mapPos.end(); itr++)
 		{
 			POINT pos = (itr->second);
-			std::vector<long double> listLD;
+			std::vector<gstd::script_real> listLD;
 			listLD.push_back(pos.x);
 			listLD.push_back(pos.y);
 			gstd::value v = script->CreateRealArrayValue(listLD);
@@ -1330,9 +1330,9 @@ gstd::value StgStageScript::Func_GetEnemyIntersectionPositionByIdA1(gstd::script
 }
 gstd::value StgStageScript::Func_GetEnemyIntersectionPositionByIdA2(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
-	//ˆø”3i“GƒIƒuƒWƒFƒNƒgIDExÀ•WEyÀ•Wj©‹@‚©‚ç‚àƒAƒNƒZƒX‰Â”\
-	//w’è‚µ‚½“GƒIƒuƒWƒFƒNƒgID‚ª‚ÂA©‹@ƒVƒ‡ƒbƒg‚Ö‚Ì“–‚½‚è”»’è‚Ì‚¤‚¿Aw’èÀ•W‚ÉÅ‚à‹ß‚¢1‚Â‚ğæ“¾
-	//”z—ñ‚ª•Ô‚éB([<0:xÀ•W, 1:yÀ•W>])
+	//å¼•æ•°3ï¼ˆæ•µã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆIDãƒ»xåº§æ¨™ãƒ»yåº§æ¨™ï¼‰è‡ªæ©Ÿã‹ã‚‰ã‚‚ã‚¢ã‚¯ã‚»ã‚¹å¯èƒ½
+	//æŒ‡å®šã—ãŸæ•µã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆIDãŒæŒã¤ã€è‡ªæ©Ÿã‚·ãƒ§ãƒƒãƒˆã¸ã®å½“ãŸã‚Šåˆ¤å®šã®ã†ã¡ã€æŒ‡å®šåº§æ¨™ã«æœ€ã‚‚è¿‘ã„1ã¤ã‚’å–å¾—
+	//é…åˆ—ãŒè¿”ã‚‹ã€‚([<0:xåº§æ¨™, 1:yåº§æ¨™>])
 
 	StgStageScript* script = (StgStageScript*)machine->data;
 	int id = (int)argv[0].as_real();
@@ -1361,7 +1361,7 @@ gstd::value StgStageScript::Func_GetEnemyIntersectionPositionByIdA2(gstd::script
 		for(; itr != mapPos.end(); itr++)
 		{
 			POINT pos = (itr->second);
-			std::vector<long double> listLD;
+			std::vector<gstd::script_real> listLD;
 			listLD.push_back(pos.x);
 			listLD.push_back(pos.y);
 			gstd::value v = script->CreateRealArrayValue(listLD);
@@ -1399,7 +1399,7 @@ gstd::value StgStageScript::Func_ReloadEnemyShotData(gstd::script_machine* machi
 	return value(machine->get_engine()->get_boolean_type(), res);
 }
 
-//STG‹¤’ÊŠÖ”F’e
+//STGå…±é€šé–¢æ•°ï¼šå¼¾
 gstd::value StgStageScript::Func_DeleteShotAll(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
 	StgStageScript* script = (StgStageScript*)machine->data;
@@ -1466,10 +1466,10 @@ gstd::value StgStageScript::Func_CreateShotA1(gstd::script_machine* machine, int
 	if(id != ID_INVALID)
 	{
 		stageController->GetShotManager()->AddShot(obj);
-		long double posX = argv[0].as_real();
-		long double posY = argv[1].as_real();
-		long double speed = argv[2].as_real();
-		long double angle = argv[3].as_real();
+		gstd::script_real posX = argv[0].as_real();
+		gstd::script_real posY = argv[1].as_real();
+		gstd::script_real speed = argv[2].as_real();
+		gstd::script_real angle = argv[3].as_real();
 		int idShot = (int)argv[4].as_real();
 		int delay = (int)argv[5].as_real();
 		int typeOwner = script->GetScriptType() == TYPE_PLAYER ? 
@@ -1484,7 +1484,7 @@ gstd::value StgStageScript::Func_CreateShotA1(gstd::script_machine* machine, int
 		obj->SetOwnerType(typeOwner);
 	}
 	
-	return value(machine->get_engine()->get_real_type(),(long double)id);
+	return value(machine->get_engine()->get_real_type(),(gstd::script_real)id);
 }
 gstd::value StgStageScript::Func_CreateShotA2(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
@@ -1497,12 +1497,12 @@ gstd::value StgStageScript::Func_CreateShotA2(gstd::script_machine* machine, int
 	if(id != ID_INVALID)
 	{
 		stageController->GetShotManager()->AddShot(obj);
-		long double posX = argv[0].as_real();
-		long double posY = argv[1].as_real();
-		long double speed = argv[2].as_real();
-		long double angle = argv[3].as_real();
-		long double accele = argv[4].as_real();
-		long double maxSpeed = argv[5].as_real();
+		gstd::script_real posX = argv[0].as_real();
+		gstd::script_real posY = argv[1].as_real();
+		gstd::script_real speed = argv[2].as_real();
+		gstd::script_real angle = argv[3].as_real();
+		gstd::script_real accele = argv[4].as_real();
+		gstd::script_real maxSpeed = argv[5].as_real();
 		int idShot = (int)argv[6].as_real();
 		int delay = (int)argv[7].as_real();
 		int typeOwner = script->GetScriptType() == TYPE_PLAYER ? 
@@ -1522,7 +1522,7 @@ gstd::value StgStageScript::Func_CreateShotA2(gstd::script_machine* machine, int
 		pattern->SetMaxSpeed(maxSpeed);
 	}
 	
-	return value(machine->get_engine()->get_real_type(),(long double)id);
+	return value(machine->get_engine()->get_real_type(),(gstd::script_real)id);
 }
 gstd::value StgStageScript::Func_CreateShotOA1(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
@@ -1532,7 +1532,7 @@ gstd::value StgStageScript::Func_CreateShotOA1(gstd::script_machine* machine, in
 	int tId = (int)argv[0].as_real();
 	DxScriptRenderObject* tObj = dynamic_cast<DxScriptRenderObject*>(script->GetObjectPointer(tId));
 	if(tObj == NULL)
-		return value(machine->get_engine()->get_real_type(),(long double)ID_INVALID);
+		return value(machine->get_engine()->get_real_type(),(gstd::script_real)ID_INVALID);
 
 	double posX = tObj->GetPosition().x;
 	double posY = tObj->GetPosition().y;
@@ -1543,8 +1543,8 @@ gstd::value StgStageScript::Func_CreateShotOA1(gstd::script_machine* machine, in
 	if(id != ID_INVALID)
 	{
 		stageController->GetShotManager()->AddShot(obj);
-		long double speed = argv[1].as_real();
-		long double angle = argv[2].as_real();
+		gstd::script_real speed = argv[1].as_real();
+		gstd::script_real angle = argv[2].as_real();
 		int idShot = (int)argv[3].as_real();
 		int delay = (int)argv[4].as_real();
 		int typeOwner = script->GetScriptType() == TYPE_PLAYER ? 
@@ -1559,7 +1559,7 @@ gstd::value StgStageScript::Func_CreateShotOA1(gstd::script_machine* machine, in
 		obj->SetOwnerType(typeOwner);
 	}
 	
-	return value(machine->get_engine()->get_real_type(),(long double)id);
+	return value(machine->get_engine()->get_real_type(),(gstd::script_real)id);
 }
 gstd::value StgStageScript::Func_CreateShotB1(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
@@ -1572,10 +1572,10 @@ gstd::value StgStageScript::Func_CreateShotB1(gstd::script_machine* machine, int
 	if(id != ID_INVALID)
 	{
 		stageController->GetShotManager()->AddShot(obj);
-		long double posX = argv[0].as_real();
-		long double posY = argv[1].as_real();
-		long double speedX = argv[2].as_real();
-		long double speedY = argv[3].as_real();
+		gstd::script_real posX = argv[0].as_real();
+		gstd::script_real posY = argv[1].as_real();
+		gstd::script_real speedX = argv[2].as_real();
+		gstd::script_real speedY = argv[3].as_real();
 		int idShot = (int)argv[4].as_real();
 		int delay = (int)argv[5].as_real();
 		int typeOwner = script->GetScriptType() == TYPE_PLAYER ? 
@@ -1593,7 +1593,7 @@ gstd::value StgStageScript::Func_CreateShotB1(gstd::script_machine* machine, int
 		obj->SetPattern(pattern);
 	}
 	
-	return value(machine->get_engine()->get_real_type(),(long double)id);
+	return value(machine->get_engine()->get_real_type(),(gstd::script_real)id);
 }
 gstd::value StgStageScript::Func_CreateShotB2(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
@@ -1606,14 +1606,14 @@ gstd::value StgStageScript::Func_CreateShotB2(gstd::script_machine* machine, int
 	if(id != ID_INVALID)
 	{
 		stageController->GetShotManager()->AddShot(obj);
-		long double posX = argv[0].as_real();
-		long double posY = argv[1].as_real();
-		long double speedX = argv[2].as_real();
-		long double speedY = argv[3].as_real();
-		long double accelX = argv[4].as_real();
-		long double accelY = argv[5].as_real();
-		long double maxSpeedX = argv[6].as_real();
-		long double maxSpeedY = argv[7].as_real();
+		gstd::script_real posX = argv[0].as_real();
+		gstd::script_real posY = argv[1].as_real();
+		gstd::script_real speedX = argv[2].as_real();
+		gstd::script_real speedY = argv[3].as_real();
+		gstd::script_real accelX = argv[4].as_real();
+		gstd::script_real accelY = argv[5].as_real();
+		gstd::script_real maxSpeedX = argv[6].as_real();
+		gstd::script_real maxSpeedY = argv[7].as_real();
 		int idShot = (int)argv[8].as_real();
 		int delay = (int)argv[9].as_real();
 		int typeOwner = script->GetScriptType() == TYPE_PLAYER ? 
@@ -1635,7 +1635,7 @@ gstd::value StgStageScript::Func_CreateShotB2(gstd::script_machine* machine, int
 		obj->SetPattern(pattern);
 	}
 	
-	return value(machine->get_engine()->get_real_type(),(long double)id);
+	return value(machine->get_engine()->get_real_type(),(gstd::script_real)id);
 }
 gstd::value StgStageScript::Func_CreateShotOB1(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
@@ -1645,7 +1645,7 @@ gstd::value StgStageScript::Func_CreateShotOB1(gstd::script_machine* machine, in
 	int tId = (int)argv[0].as_real();
 	DxScriptRenderObject* tObj = dynamic_cast<DxScriptRenderObject*>(script->GetObjectPointer(tId));
 	if(tObj == NULL)
-		return value(machine->get_engine()->get_real_type(),(long double)ID_INVALID);
+		return value(machine->get_engine()->get_real_type(),(gstd::script_real)ID_INVALID);
 
 	double posX = tObj->GetPosition().x;
 	double posY = tObj->GetPosition().y;
@@ -1656,8 +1656,8 @@ gstd::value StgStageScript::Func_CreateShotOB1(gstd::script_machine* machine, in
 	if(id != ID_INVALID)
 	{
 		stageController->GetShotManager()->AddShot(obj);
-		long double speedX = argv[1].as_real();
-		long double speedY = argv[2].as_real();
+		gstd::script_real speedX = argv[1].as_real();
+		gstd::script_real speedY = argv[2].as_real();
 		int idShot = (int)argv[3].as_real();
 		int delay = (int)argv[4].as_real();
 		int typeOwner = script->GetScriptType() == TYPE_PLAYER ? 
@@ -1675,7 +1675,7 @@ gstd::value StgStageScript::Func_CreateShotOB1(gstd::script_machine* machine, in
 		obj->SetPattern(pattern);
 	}
 	
-	return value(machine->get_engine()->get_real_type(),(long double)id);
+	return value(machine->get_engine()->get_real_type(),(gstd::script_real)id);
 }
 
 gstd::value StgStageScript::Func_CreateLooseLaserA1(gstd::script_machine* machine, int argc, gstd::value const * argv)
@@ -1689,10 +1689,10 @@ gstd::value StgStageScript::Func_CreateLooseLaserA1(gstd::script_machine* machin
 	if(id != ID_INVALID)
 	{
 		stageController->GetShotManager()->AddShot(obj);
-		long double posX = argv[0].as_real();
-		long double posY = argv[1].as_real();
-		long double speed = argv[2].as_real();
-		long double angle = argv[3].as_real();
+		gstd::script_real posX = argv[0].as_real();
+		gstd::script_real posY = argv[1].as_real();
+		gstd::script_real speed = argv[2].as_real();
+		gstd::script_real angle = argv[3].as_real();
 		int length = argv[4].as_real();
 		int width = argv[5].as_real();
 		int idShot = (int)argv[6].as_real();
@@ -1711,7 +1711,7 @@ gstd::value StgStageScript::Func_CreateLooseLaserA1(gstd::script_machine* machin
 		obj->SetOwnerType(typeOwner);
 	}
 	
-	return value(machine->get_engine()->get_real_type(),(long double)id);
+	return value(machine->get_engine()->get_real_type(),(gstd::script_real)id);
 }
 
 gstd::value StgStageScript::Func_CreateStraightLaserA1(gstd::script_machine* machine, int argc, gstd::value const * argv)
@@ -1725,9 +1725,9 @@ gstd::value StgStageScript::Func_CreateStraightLaserA1(gstd::script_machine* mac
 	if(id != ID_INVALID)
 	{
 		stageController->GetShotManager()->AddShot(obj);
-		long double posX = argv[0].as_real();
-		long double posY = argv[1].as_real();
-		long double angle = argv[2].as_real();
+		gstd::script_real posX = argv[0].as_real();
+		gstd::script_real posY = argv[1].as_real();
+		gstd::script_real angle = argv[2].as_real();
 		int length = argv[3].as_real();
 		int width = argv[4].as_real();
 		int deleteFrame = (int)argv[5].as_real();
@@ -1746,7 +1746,7 @@ gstd::value StgStageScript::Func_CreateStraightLaserA1(gstd::script_machine* mac
 		obj->SetDelay(delay);
 		obj->SetOwnerType(typeOwner);
 	}
-	return value(machine->get_engine()->get_real_type(),(long double)id);
+	return value(machine->get_engine()->get_real_type(),(gstd::script_real)id);
 }
 gstd::value StgStageScript::Func_CreateCurveLaserA1(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
@@ -1759,10 +1759,10 @@ gstd::value StgStageScript::Func_CreateCurveLaserA1(gstd::script_machine* machin
 	if(id != ID_INVALID)
 	{
 		stageController->GetShotManager()->AddShot(obj);
-		long double posX = argv[0].as_real();
-		long double posY = argv[1].as_real();
-		long double speed = argv[2].as_real();
-		long double angle = argv[3].as_real();
+		gstd::script_real posX = argv[0].as_real();
+		gstd::script_real posY = argv[1].as_real();
+		gstd::script_real speed = argv[2].as_real();
+		gstd::script_real angle = argv[3].as_real();
 		int length = argv[4].as_real();
 		int width = argv[5].as_real();
 		int idShot = (int)argv[6].as_real();
@@ -1781,7 +1781,7 @@ gstd::value StgStageScript::Func_CreateCurveLaserA1(gstd::script_machine* machin
 		obj->SetOwnerType(typeOwner);
 	}
 	
-	return value(machine->get_engine()->get_real_type(),(long double)id);
+	return value(machine->get_engine()->get_real_type(),(gstd::script_real)id);
 }
 
 gstd::value StgStageScript::Func_SetShotIntersectionCircle(gstd::script_machine* machine, int argc, gstd::value const * argv)
@@ -1798,7 +1798,7 @@ gstd::value StgStageScript::Func_SetShotIntersectionCircle(gstd::script_machine*
 	int radius = (int)argv[2].as_real();
 	DxCircle circle(px, py, radius);
 
-	//“–‚½‚è”»’è
+	//å½“ãŸã‚Šåˆ¤å®š
 	ref_count_ptr<StgIntersectionTarget_Circle>::unsync target = 
 		ref_count_ptr<StgIntersectionTarget_Circle>::unsync::DownCast(intersectionManager->GetPoolObject(StgIntersectionTarget::SHAPE_CIRCLE));
 	target->SetTargetType(typeTarget);
@@ -1824,7 +1824,7 @@ gstd::value StgStageScript::Func_SetShotIntersectionLine(gstd::script_machine* m
 	int width = (int)argv[4].as_real();
 	DxWidthLine line(px1, py1, px2, py2, width);
 
-	//“–‚½‚è”»’è
+	//å½“ãŸã‚Šåˆ¤å®š
 	ref_count_ptr<StgIntersectionTarget_Line>::unsync target = 
 		ref_count_ptr<StgIntersectionTarget_Line>::unsync::DownCast(intersectionManager->GetPoolObject(StgIntersectionTarget::SHAPE_LINE));
 	target->SetTargetType(typeTarget);
@@ -1846,7 +1846,7 @@ gstd::value StgStageScript::Func_GetShotIdInCircleA1(gstd::script_machine* machi
 	int typeOwner = script->GetScriptType() == TYPE_PLAYER ? StgShotObject::OWNER_ENEMY : StgShotObject::OWNER_PLAYER;
 
 	std::vector<int> listID = shotManager->GetShotIdInCircle(typeOwner, px, py, radius);
-	std::vector<long double> listRes;
+	std::vector<gstd::script_real> listRes;
 	for(int iID = 0 ; iID < listID.size() ; iID++)
 		listRes.push_back(listID[iID]);
 	gstd::value res = script->CreateRealArrayValue(listRes);
@@ -1873,7 +1873,7 @@ gstd::value StgStageScript::Func_GetShotIdInCircleA2(gstd::script_machine* machi
 	}
 
 	std::vector<int> listID = shotManager->GetShotIdInCircle(typeOwner, px, py, radius);
-	std::vector<long double> listRes;
+	std::vector<gstd::script_real> listRes;
 	for(int iID = 0 ; iID < listID.size() ; iID++)
 		listRes.push_back(listID[iID]);
 	gstd::value res = script->CreateRealArrayValue(listRes);
@@ -1896,7 +1896,7 @@ gstd::value StgStageScript::Func_GetShotCount(gstd::script_machine* machine, int
 	}
 	
 	int res = shotManager->GetShotCount(typeOwner);
-	return value(machine->get_engine()->get_real_type(),(long double)res);
+	return value(machine->get_engine()->get_real_type(),(gstd::script_real)res);
 }
 gstd::value StgStageScript::Func_SetShotAutoDeleteClip(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
@@ -1940,7 +1940,7 @@ gstd::value StgStageScript::Func_GetShotDataInfoA1(gstd::script_machine* machine
 		case INFO_RECT:
 		{
 			RECT rect = shotData->GetRect(0);
-			std::vector<long double> list;
+			std::vector<gstd::script_real> list;
 			list.push_back(rect.left);
 			list.push_back(rect.top);
 			list.push_back(rect.right);
@@ -1956,7 +1956,7 @@ gstd::value StgStageScript::Func_GetShotDataInfoA1(gstd::script_machine* machine
 			int colorG = ColorAccess::GetColorG(color);
 			int colorB = ColorAccess::GetColorB(color);
 
-			std::vector<long double> list;
+			std::vector<gstd::script_real> list;
 			list.push_back(colorR);
 			list.push_back(colorG);
 			list.push_back(colorB);
@@ -1967,7 +1967,7 @@ gstd::value StgStageScript::Func_GetShotDataInfoA1(gstd::script_machine* machine
 		case INFO_BLEND:
 		{
 			int blendType = shotData->GetRenderType();
-			res = value(machine->get_engine()->get_real_type(),(long double)blendType);
+			res = value(machine->get_engine()->get_real_type(),(gstd::script_real)blendType);
 			break;
 		}
 
@@ -1980,7 +1980,7 @@ gstd::value StgStageScript::Func_GetShotDataInfoA1(gstd::script_machine* machine
 				DxCircle circle = listCircle->at(0);
 				radius = circle.GetR();
 			}
-			res = value(machine->get_engine()->get_real_type(),(long double)radius);
+			res = value(machine->get_engine()->get_real_type(),(gstd::script_real)radius);
 			break;
 		}
 
@@ -1991,7 +1991,7 @@ gstd::value StgStageScript::Func_GetShotDataInfoA1(gstd::script_machine* machine
 			for(int iCircle = 0 ; iCircle < listCircle->size() ; iCircle++)
 			{
 				DxCircle circle = listCircle->at(iCircle);
-				std::vector<long double> list;
+				std::vector<gstd::script_real> list;
 				list.push_back(circle.GetR());
 				list.push_back(circle.GetX());
 				list.push_back(circle.GetY());
@@ -2024,7 +2024,7 @@ gstd::value StgStageScript::Func_StartShotScript(gstd::script_machine* machine, 
 	return value();
 }
 
-//STG‹¤’ÊŠÖ”FƒAƒCƒeƒ€
+//STGå…±é€šé–¢æ•°ï¼šã‚¢ã‚¤ãƒ†ãƒ 
 gstd::value StgStageScript::Func_CreateItemA1(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
 	StgStageScript* script = (StgStageScript*)machine->data;
@@ -2046,7 +2046,7 @@ gstd::value StgStageScript::Func_CreateItemA1(gstd::script_machine* machine, int
 		obj->SetScore(score);
 		obj->SetToPosition(to);
 	}
-	return value(machine->get_engine()->get_real_type(),(long double)id);
+	return value(machine->get_engine()->get_real_type(),(gstd::script_real)id);
 }
 gstd::value StgStageScript::Func_CreateItemA2(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
@@ -2069,7 +2069,7 @@ gstd::value StgStageScript::Func_CreateItemA2(gstd::script_machine* machine, int
 		obj->SetScore(score);
 		obj->SetToPosition(to);
 	}
-	return value(machine->get_engine()->get_real_type(),(long double)id);
+	return value(machine->get_engine()->get_real_type(),(gstd::script_real)id);
 }
 gstd::value StgStageScript::Func_CreateItemU1(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
@@ -2097,7 +2097,7 @@ gstd::value StgStageScript::Func_CreateItemU1(gstd::script_machine* machine, int
 		obj->SetImageID(itemID);
 		obj->SetMoveType(StgMovePattern_Item::MOVE_TOPOSITION_A);
 	}
-	return value(machine->get_engine()->get_real_type(),(long double)id);
+	return value(machine->get_engine()->get_real_type(),(gstd::script_real)id);
 }
 gstd::value StgStageScript::Func_CreateItemU2(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
@@ -2124,7 +2124,7 @@ gstd::value StgStageScript::Func_CreateItemU2(gstd::script_machine* machine, int
 		obj->SetImageID(itemID);
 		obj->SetMoveType(StgMovePattern_Item::MOVE_TOPOSITION_A);
 	}
-	return value(machine->get_engine()->get_real_type(),(long double)id);
+	return value(machine->get_engine()->get_real_type(),(gstd::script_real)id);
 }
 gstd::value StgStageScript::Func_CreateItemScore(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
@@ -2132,7 +2132,7 @@ gstd::value StgStageScript::Func_CreateItemScore(gstd::script_machine* machine, 
 	StgStageController* stageController = script->stageController_;
 	StgItemManager* itemManager = stageController->GetItemManager();
 
-	long double score = argv[0].as_real();
+	gstd::script_real score = argv[0].as_real();
 	int posX = (int)argv[1].as_real();
 	int posY = (int)argv[2].as_real();
 
@@ -2146,7 +2146,7 @@ gstd::value StgStageScript::Func_CreateItemScore(gstd::script_machine* machine, 
 		obj->SetScore(score);
 	}
 
-	return value(machine->get_engine()->get_real_type(),(long double)id);
+	return value(machine->get_engine()->get_real_type(),(gstd::script_real)id);
 }
 gstd::value StgStageScript::Func_CollectAllItems(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
@@ -2242,7 +2242,7 @@ gstd::value StgStageScript::Func_ReloadItemData(gstd::script_machine* machine, i
 	return value(machine->get_engine()->get_boolean_type(), res);
 }
 
-//STG‹¤’ÊŠÖ”F‚»‚Ì‘¼
+//STGå…±é€šé–¢æ•°ï¼šãã®ä»–
 gstd::value StgStageScript::Func_StartSlow(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
 	StgStageScript* script = (StgStageScript*)machine->data;
@@ -2326,7 +2326,7 @@ gstd::value StgStageScript::Func_IsIntersected_Obj_Obj(gstd::script_machine* mac
 }
 
 
-//STD‹¤’ÊŠÖ”FˆÚ“®ƒIƒuƒWƒFƒNƒg‘€ì
+//STDå…±é€šé–¢æ•°ï¼šç§»å‹•ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆæ“ä½œ
 gstd::value StgStageScript::Func_ObjMove_SetX(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
 	StgStageScript* script = (StgStageScript*)machine->data;
@@ -2682,7 +2682,7 @@ gstd::value StgStageScript::Func_ObjMove_GetX(gstd::script_machine* machine, int
 	if(obj == NULL)return script->CreateRealValue(0);
 
 	double pos = obj->GetPositionX();
-	return value(machine->get_engine()->get_real_type(),(long double)pos);
+	return value(machine->get_engine()->get_real_type(),(gstd::script_real)pos);
 }
 gstd::value StgStageScript::Func_ObjMove_GetY(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
@@ -2692,30 +2692,30 @@ gstd::value StgStageScript::Func_ObjMove_GetY(gstd::script_machine* machine, int
 	if(obj == NULL)return script->CreateRealValue(0);
 
 	double pos = obj->GetPositionY();
-	return value(machine->get_engine()->get_real_type(),(long double)pos);
+	return value(machine->get_engine()->get_real_type(),(gstd::script_real)pos);
 }
 gstd::value StgStageScript::Func_ObjMove_GetSpeed(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
 	StgStageScript* script = (StgStageScript*)machine->data;
 	int id = (int)argv[0].as_real();
 	StgMoveObject* obj = dynamic_cast<StgMoveObject*>(script->GetObjectPointer(id));
-	if(obj == NULL)return value(machine->get_engine()->get_real_type(),(long double)0);
+	if(obj == NULL)return value(machine->get_engine()->get_real_type(),(gstd::script_real)0);
 
 	double speed = obj->GetSpeed();
-	return value(machine->get_engine()->get_real_type(),(long double)speed);
+	return value(machine->get_engine()->get_real_type(),(gstd::script_real)speed);
 }
 gstd::value StgStageScript::Func_ObjMove_GetAngle(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
 	StgStageScript* script = (StgStageScript*)machine->data;
 	int id = (int)argv[0].as_real();
 	StgMoveObject* obj = dynamic_cast<StgMoveObject*>(script->GetObjectPointer(id));
-	if(obj == NULL)return value(machine->get_engine()->get_real_type(),(long double)0);
+	if(obj == NULL)return value(machine->get_engine()->get_real_type(),(gstd::script_real)0);
 
 	double angle = obj->GetDirectionAngle();
-	return value(machine->get_engine()->get_real_type(),(long double)angle);
+	return value(machine->get_engine()->get_real_type(),(gstd::script_real)angle);
 }
 
-//STG‹¤’ÊŠÖ”F“GƒIƒuƒWƒFƒNƒg‘€ì
+//STGå…±é€šé–¢æ•°ï¼šæ•µã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆæ“ä½œ
 gstd::value StgStageScript::Func_ObjEnemy_Create(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
 	StgStageScript* script = (StgStageScript*)machine->data;
@@ -2733,12 +2733,12 @@ gstd::value StgStageScript::Func_ObjEnemy_Create(gstd::script_machine* machine, 
 		ref_count_ptr<StgEnemyBossSceneObject>::unsync objScene = enemyManager->GetBossSceneObject();
 		if(objScene == NULL)
 		{
-			throw gstd::wexception(L"EnemyBossScene‚ªì¬‚³‚ê‚Ä‚¢‚Ü‚¹‚ñ");
+			throw gstd::wexception(L"EnemyBossSceneãŒä½œæˆã•ã‚Œã¦ã„ã¾ã›ã‚“");
 		}
 		
 		ref_count_ptr<StgEnemyBossSceneData>::unsync data = objScene->GetActiveData();
 		int id = data->GetEnemyBossIdInCreate();
-		return value(machine->get_engine()->get_real_type(), (long double)id);
+		return value(machine->get_engine()->get_real_type(), (gstd::script_real)id);
 	}
 
 	int id = ID_INVALID;
@@ -2747,7 +2747,7 @@ gstd::value StgStageScript::Func_ObjEnemy_Create(gstd::script_machine* machine, 
 		obj->SetObjectManager(script->objManager_.GetPointer());
 		id = script->AddObject(obj, false);
 	}
-	return value(machine->get_engine()->get_real_type(), (long double)id);
+	return value(machine->get_engine()->get_real_type(), (gstd::script_real)id);
 }
 gstd::value StgStageScript::Func_ObjEnemy_Regist(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
@@ -2784,7 +2784,7 @@ gstd::value StgStageScript::Func_ObjEnemy_GetInfo(gstd::script_machine* machine,
 			case INFO_DAMAGE_RATE_SHOT:
 			case INFO_DAMAGE_RATE_SPELL:
 			case INFO_SHOT_HIT_COUNT:
-				return value(machine->get_engine()->get_real_type(), (long double)0);
+				return value(machine->get_engine()->get_real_type(), (gstd::script_real)0);
 		}
 		return value();
 	}
@@ -2792,13 +2792,13 @@ gstd::value StgStageScript::Func_ObjEnemy_GetInfo(gstd::script_machine* machine,
 	switch(type)
 	{
 		case INFO_LIFE:
-			return value(machine->get_engine()->get_real_type(), (long double)obj->GetLife());
+			return value(machine->get_engine()->get_real_type(), (gstd::script_real)obj->GetLife());
 		case INFO_DAMAGE_RATE_SHOT:
-			return value(machine->get_engine()->get_real_type(), (long double)obj->GetShotDamageRate());
+			return value(machine->get_engine()->get_real_type(), (gstd::script_real)obj->GetShotDamageRate());
 		case INFO_DAMAGE_RATE_SPELL:
-			return value(machine->get_engine()->get_real_type(), (long double)obj->GetSpellDamageRate());
+			return value(machine->get_engine()->get_real_type(), (gstd::script_real)obj->GetSpellDamageRate());
 		case INFO_SHOT_HIT_COUNT:
-			return value(machine->get_engine()->get_real_type(), (long double)obj->GetIntersectedPlayerShotCount());
+			return value(machine->get_engine()->get_real_type(), (gstd::script_real)obj->GetIntersectedPlayerShotCount());
 	}
 
 	return value();
@@ -2857,7 +2857,7 @@ gstd::value StgStageScript::Func_ObjEnemy_AddIntersectionCircleA(gstd::script_ma
 
 	DxCircle circle(px, py, radius);
 
-	//“–‚½‚è”»’è
+	//å½“ãŸã‚Šåˆ¤å®š
 	ref_count_weak_ptr<StgEnemyObject>::unsync wObj = obj;
 	ref_count_ptr<StgIntersectionTarget_Circle>::unsync target = 
 		ref_count_ptr<StgIntersectionTarget_Circle>::unsync::DownCast(intersectionManager->GetPoolObject(StgIntersectionTarget::SHAPE_CIRCLE));
@@ -2885,7 +2885,7 @@ gstd::value StgStageScript::Func_ObjEnemy_SetIntersectionCircleToShot(gstd::scri
 
 	DxCircle circle(px, py, radius);
 
-	//“–‚½‚è”»’è
+	//å½“ãŸã‚Šåˆ¤å®š
 	ref_count_weak_ptr<StgEnemyObject>::unsync wObj = obj;
 	ref_count_ptr<StgIntersectionTarget_Circle>::unsync target = 
 		ref_count_ptr<StgIntersectionTarget_Circle>::unsync::DownCast(intersectionManager->GetPoolObject(StgIntersectionTarget::SHAPE_CIRCLE));
@@ -2913,7 +2913,7 @@ gstd::value StgStageScript::Func_ObjEnemy_SetIntersectionCircleToPlayer(gstd::sc
 
 	DxCircle circle(px, py, radius);
 
-	//“–‚½‚è”»’è
+	//å½“ãŸã‚Šåˆ¤å®š
 	ref_count_weak_ptr<StgEnemyObject>::unsync wObj = obj;
 	ref_count_ptr<StgIntersectionTarget_Circle>::unsync target = 
 		ref_count_ptr<StgIntersectionTarget_Circle>::unsync::DownCast(intersectionManager->GetPoolObject(StgIntersectionTarget::SHAPE_CIRCLE));
@@ -2925,7 +2925,7 @@ gstd::value StgStageScript::Func_ObjEnemy_SetIntersectionCircleToPlayer(gstd::sc
 	return value();
 }
 
-//STG‹¤’ÊŠÖ”F“Gƒ{ƒXƒV[ƒ“ƒIƒuƒWƒFƒNƒg‘€ì
+//STGå…±é€šé–¢æ•°ï¼šæ•µãƒœã‚¹ã‚·ãƒ¼ãƒ³ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆæ“ä½œ
 gstd::value StgStageScript::Func_ObjEnemyBossScene_Create(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
 	StgStageScript* script = (StgStageScript*)machine->data;
@@ -2941,7 +2941,7 @@ gstd::value StgStageScript::Func_ObjEnemyBossScene_Create(gstd::script_machine* 
 		obj->SetObjectManager(script->objManager_.GetPointer());
 		id = script->AddObject(obj, false);
 	}
-	return value(machine->get_engine()->get_real_type(), (long double)id);
+	return value(machine->get_engine()->get_real_type(), (gstd::script_real)id);
 }
 gstd::value StgStageScript::Func_ObjEnemyBossScene_Regist(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
@@ -3018,9 +3018,12 @@ gstd::value StgStageScript::Func_ObjEnemyBossScene_GetInfo(gstd::script_machine*
 			case INFO_PLAYER_SPELL_COUNT:
 			case INFO_CURRENT_LIFE:
 			case INFO_CURRENT_LIFE_MAX:
-				return value(machine->get_engine()->get_real_type(), (long double)0);
+				return value(machine->get_engine()->get_real_type(), (gstd::script_real)0);
 			case INFO_ACTIVE_STEP_LIFE_RATE_LIST:
-				return script->CreateRealArrayValue(std::vector<long double>());
+				{
+				std::vector<gstd::script_real> empty;
+				return script->CreateRealArrayValue(empty);
+			}
 
 		}
 		return value();
@@ -3049,7 +3052,7 @@ gstd::value StgStageScript::Func_ObjEnemyBossScene_GetInfo(gstd::script_machine*
 		}
 		case INFO_TIMER:
 		{
-			long double res = 0;
+			gstd::script_real res = 0;
 			if(sceneData != NULL)
 			{
 				int timer = sceneData->GetSpellTimer();
@@ -3060,7 +3063,7 @@ gstd::value StgStageScript::Func_ObjEnemyBossScene_GetInfo(gstd::script_machine*
 		}
 		case INFO_TIMERF:
 		{
-			long double res = 0;
+			gstd::script_real res = 0;
 			if(sceneData != NULL)
 			{
 				res = sceneData->GetSpellTimer();
@@ -3069,7 +3072,7 @@ gstd::value StgStageScript::Func_ObjEnemyBossScene_GetInfo(gstd::script_machine*
 		}
 		case INFO_ORGTIMERF:
 		{
-			long double res = 0;
+			gstd::script_real res = 0;
 			if(sceneData != NULL)
 			{
 				res = sceneData->GetOriginalSpellTimer();
@@ -3078,7 +3081,7 @@ gstd::value StgStageScript::Func_ObjEnemyBossScene_GetInfo(gstd::script_machine*
 		}
 		case INFO_SPELL_SCORE:
 		{
-			long double res = 0;
+			gstd::script_real res = 0;
 			if(sceneData != NULL)
 			{
 				res = sceneData->GetCurrentSpellScore();
@@ -3095,7 +3098,7 @@ gstd::value StgStageScript::Func_ObjEnemyBossScene_GetInfo(gstd::script_machine*
 			return script->CreateRealValue(obj->GetActiveStepTotalLife());
 		case INFO_ACTIVE_STEP_LIFE_RATE_LIST:
 		{
-			std::vector<long double> listLD;
+			std::vector<gstd::script_real> listLD;
 			std::vector<double> listD = obj->GetActiveStepLifeRateList();
 			for(int iLife = 0 ; iLife < listD.size() ; iLife++)
 				listLD.push_back(listD[iLife]);
@@ -3109,21 +3112,21 @@ gstd::value StgStageScript::Func_ObjEnemyBossScene_GetInfo(gstd::script_machine*
 		}
 		case INFO_PLAYER_SHOOTDOWN_COUNT:
 		{
-			long double res = 0;
+			gstd::script_real res = 0;
 			if(sceneData != NULL)
 				res = sceneData->GetPlayerShootDownCount();
 			return script->CreateRealValue(res);
 		}
 		case INFO_PLAYER_SPELL_COUNT:
 		{
-			long double res = 0;
+			gstd::script_real res = 0;
 			if(sceneData != NULL)
 				res = sceneData->GetPlayerSpellCount();
 			return script->CreateRealValue(res);
 		}
 		case INFO_CURRENT_LIFE:
 		{
-			long double res = 0;
+			gstd::script_real res = 0;
 			if(sceneData != NULL)
 			{
 				int dataIndex = obj->GetDataIndex();
@@ -3133,7 +3136,7 @@ gstd::value StgStageScript::Func_ObjEnemyBossScene_GetInfo(gstd::script_machine*
 		}
 		case INFO_CURRENT_LIFE_MAX:
 		{
-			long double res = 0;
+			gstd::script_real res = 0;
 			if(sceneData != NULL)
 			{
 				int dataIndex = obj->GetDataIndex();
@@ -3178,7 +3181,7 @@ gstd::value StgStageScript::Func_ObjEnemyBossScene_StartSpell(gstd::script_machi
 	return value();
 }
 
-//STG‹¤’ÊŠÖ”F’eƒIƒuƒWƒFƒNƒg‘€ì
+//STGå…±é€šé–¢æ•°ï¼šå¼¾ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆæ“ä½œ
 gstd::value StgStageScript::Func_ObjShot_Create(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
 	StgStageScript* script = (StgStageScript*)machine->data;
@@ -3214,7 +3217,7 @@ gstd::value StgStageScript::Func_ObjShot_Create(gstd::script_machine* machine, i
 		obj->SetObjectManager(script->objManager_.GetPointer());
 		id = script->AddObject(obj, false);
 	}
-	return value(machine->get_engine()->get_real_type(), (long double)id);
+	return value(machine->get_engine()->get_real_type(), (gstd::script_real)id);
 }
 gstd::value StgStageScript::Func_ObjShot_Regist(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
@@ -3442,7 +3445,7 @@ gstd::value StgStageScript::Func_ObjShot_SetIntersectionCircleA1(gstd::script_ma
 	DxCircle circle(px, py, radius);
 	ref_count_weak_ptr<StgShotObject>::unsync wObj = obj;
 
-	//“–‚½‚è”»’è
+	//å½“ãŸã‚Šåˆ¤å®š
 	ref_count_ptr<StgIntersectionTarget_Circle>::unsync target = 
 		ref_count_ptr<StgIntersectionTarget_Circle>::unsync::DownCast(intersectionManager->GetPoolObject(StgIntersectionTarget::SHAPE_CIRCLE));
 	target->SetTargetType(typeTarget);
@@ -3473,7 +3476,7 @@ gstd::value StgStageScript::Func_ObjShot_SetIntersectionCircleA2(gstd::script_ma
 	DxCircle circle(px, py, radius);
 	ref_count_weak_ptr<StgShotObject>::unsync wObj = obj;
 
-	//“–‚½‚è”»’è
+	//å½“ãŸã‚Šåˆ¤å®š
 	ref_count_ptr<StgIntersectionTarget_Circle>::unsync target = 
 		ref_count_ptr<StgIntersectionTarget_Circle>::unsync::DownCast(intersectionManager->GetPoolObject(StgIntersectionTarget::SHAPE_CIRCLE));
 	target->SetTargetType(typeTarget);
@@ -3506,7 +3509,7 @@ gstd::value StgStageScript::Func_ObjShot_SetIntersectionLine(gstd::script_machin
 	int width = (int)argv[5].as_real();
 	DxWidthLine line(px1, py1, px2, py2, width);
 
-	//“–‚½‚è”»’è
+	//å½“ãŸã‚Šåˆ¤å®š
 	ref_count_weak_ptr<StgShotObject>::unsync wObjShot = obj;
 	ref_count_ptr<StgIntersectionTarget_Line>::unsync target = 
 		ref_count_ptr<StgIntersectionTarget_Line>::unsync::DownCast(intersectionManager->GetPoolObject(StgIntersectionTarget::SHAPE_LINE));
@@ -3554,7 +3557,7 @@ gstd::value StgStageScript::Func_ObjShot_GetDelay(gstd::script_machine* machine,
 	if(obj == NULL)return value();
 
 	int res = obj->GetDelay();
-	return value(machine->get_engine()->get_real_type(),(long double)res);
+	return value(machine->get_engine()->get_real_type(),(gstd::script_real)res);
 }
 gstd::value StgStageScript::Func_ObjShot_GetDamage(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
@@ -3565,7 +3568,7 @@ gstd::value StgStageScript::Func_ObjShot_GetDamage(gstd::script_machine* machine
 	if(obj == NULL)return value();
 
 	int res = obj->GetDamage();
-	return value(machine->get_engine()->get_real_type(),(long double)res);
+	return value(machine->get_engine()->get_real_type(),(gstd::script_real)res);
 }
 gstd::value StgStageScript::Func_ObjShot_GetPenetration(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
@@ -3576,7 +3579,7 @@ gstd::value StgStageScript::Func_ObjShot_GetPenetration(gstd::script_machine* ma
 	if(obj == NULL)return value();
 
 	int res = obj->GetLife();
-	return value(machine->get_engine()->get_real_type(),(long double)res);
+	return value(machine->get_engine()->get_real_type(),(gstd::script_real)res);
 }
 gstd::value StgStageScript::Func_ObjShot_IsSpellResist(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
@@ -3599,7 +3602,7 @@ gstd::value StgStageScript::Func_ObjShot_GetImageID(gstd::script_machine* machin
 	if(obj == NULL)return value();
 
 	int res = obj->GetShotDataID();
-	return value(machine->get_engine()->get_real_type(),(long double)res);
+	return value(machine->get_engine()->get_real_type(),(gstd::script_real)res);
 }
 
 
@@ -3684,7 +3687,7 @@ gstd::value StgStageScript::Func_ObjLaser_GetLength(gstd::script_machine* machin
 	if(obj == NULL)return script->CreateRealValue(0);
 
 	int length = obj->GetLength();
-	return value(machine->get_engine()->get_real_type(),(long double)length);
+	return value(machine->get_engine()->get_real_type(),(gstd::script_real)length);
 }
 gstd::value StgStageScript::Func_ObjLaser_GetRenderWidth(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
@@ -3694,7 +3697,7 @@ gstd::value StgStageScript::Func_ObjLaser_GetRenderWidth(gstd::script_machine* m
 	if(obj == NULL)return script->CreateRealValue(0);
 
 	int width = obj->GetRenderWidth();
-	return value(machine->get_engine()->get_real_type(),(long double)width);
+	return value(machine->get_engine()->get_real_type(),(gstd::script_real)width);
 }
 gstd::value StgStageScript::Func_ObjLaser_GetIntersectionWidth(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
@@ -3704,7 +3707,7 @@ gstd::value StgStageScript::Func_ObjLaser_GetIntersectionWidth(gstd::script_mach
 	if(obj == NULL)return script->CreateRealValue(0);
 
 	int width = obj->GetIntersectionWidth();
-	return value(machine->get_engine()->get_real_type(),(long double)width);
+	return value(machine->get_engine()->get_real_type(),(gstd::script_real)width);
 }
 gstd::value StgStageScript::Func_ObjStLaser_SetAngle(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
@@ -3726,7 +3729,7 @@ gstd::value StgStageScript::Func_ObjStLaser_GetAngle(gstd::script_machine* machi
 	if(obj == NULL)return script->CreateRealValue(0);
 
 	double angle = obj->GetLaserAngle();
-	return value(machine->get_engine()->get_real_type(),(long double)angle);
+	return value(machine->get_engine()->get_real_type(),(gstd::script_real)angle);
 }
 gstd::value StgStageScript::Func_ObjStLaser_SetSource(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
@@ -3755,7 +3758,7 @@ gstd::value StgStageScript::Func_ObjCrLaser_SetTipDecrement(gstd::script_machine
 	return value();
 }
 
-//STG‹¤’ÊŠÖ”FƒAƒCƒeƒ€ƒIƒuƒWƒFƒNƒg‘€ì
+//STGå…±é€šé–¢æ•°ï¼šã‚¢ã‚¤ãƒ†ãƒ ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆæ“ä½œ
 gstd::value StgStageScript::Func_ObjItem_Create(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
 	StgStageScript* script = (StgStageScript*)machine->data;
@@ -3775,7 +3778,7 @@ gstd::value StgStageScript::Func_ObjItem_Create(gstd::script_machine* machine, i
 		obj->SetObjectManager(script->objManager_.GetPointer());
 		id = script->AddObject(obj, false);
 	}
-	return value(machine->get_engine()->get_real_type(), (long double)id);
+	return value(machine->get_engine()->get_real_type(), (gstd::script_real)id);
 }
 gstd::value StgStageScript::Func_ObjItem_Regist(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
@@ -3859,7 +3862,7 @@ gstd::value StgStageScript::Func_ObjItem_GetInfo(gstd::script_machine* machine, 
 		switch(type)
 		{
 			case INFO_ITEM_SCORE:
-				return value(machine->get_engine()->get_real_type(), (long double)0);
+				return value(machine->get_engine()->get_real_type(), (gstd::script_real)0);
 		}
 		return value();
 	}
@@ -3867,13 +3870,13 @@ gstd::value StgStageScript::Func_ObjItem_GetInfo(gstd::script_machine* machine, 
 	switch(type)
 	{
 		case INFO_ITEM_SCORE:
-			return value(machine->get_engine()->get_real_type(), (long double)obj->GetScore());
+			return value(machine->get_engine()->get_real_type(), (gstd::script_real)obj->GetScore());
 	}
 
 	return value();
 }
 
-//STG‹¤’ÊŠÖ”F©‹@ƒIƒuƒWƒFƒNƒg‘€ì
+//STGå…±é€šé–¢æ•°ï¼šè‡ªæ©Ÿã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆæ“ä½œ
 gstd::value StgStageScript::Func_ObjPlayer_AddIntersectionCircleA1(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
 	DxScript* script = (DxScript*)machine->data;
@@ -3889,14 +3892,14 @@ gstd::value StgStageScript::Func_ObjPlayer_AddIntersectionCircleA1(gstd::script_
 
 	DxCircle circle(px, py, rHit);
 
-	//“–‚½‚è”»’è
+	//å½“ãŸã‚Šåˆ¤å®š
 	ref_count_weak_ptr<StgPlayerObject>::unsync wObj = obj;
 	ref_count_ptr<StgIntersectionTarget_Player>::unsync targetHit = new StgIntersectionTarget_Player(false);
 	targetHit->SetObject(wObj);
 	targetHit->SetCircle(circle);
 	obj->AddIntersectionRelativeTarget(targetHit);
 
-	//Graze”»’è
+	//Grazeåˆ¤å®š
 	circle.SetR(rHit + rGraze);
 	ref_count_ptr<StgIntersectionTarget_Player>::unsync targetGraze = new StgIntersectionTarget_Player(true);
 	targetGraze->SetObject(wObj);
@@ -3919,7 +3922,7 @@ gstd::value StgStageScript::Func_ObjPlayer_AddIntersectionCircleA2(gstd::script_
 
 	DxCircle circle(px, py, 0);
 
-	//Graze”»’è
+	//Grazeåˆ¤å®š
 	ref_count_weak_ptr<StgPlayerObject>::unsync wObj = obj;
 	circle.SetR(rGraze);
 	ref_count_ptr<StgIntersectionTarget_Player>::unsync targetGraze = new StgIntersectionTarget_Player(true);
@@ -3941,7 +3944,7 @@ gstd::value StgStageScript::Func_ObjPlayer_ClearIntersection(gstd::script_machin
 	return value();
 }
 
-//STG‹¤’ÊŠÖ”F“–‚½‚è”»’èƒIƒuƒWƒFƒNƒg‘€ì
+//STGå…±é€šé–¢æ•°ï¼šå½“ãŸã‚Šåˆ¤å®šã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆæ“ä½œ
 gstd::value StgStageScript::Func_ObjCol_IsIntersected(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
 	DxScript* script = (DxScript*)machine->data;
@@ -3968,7 +3971,7 @@ gstd::value StgStageScript::Func_ObjCol_GetListOfIntersectedEnemyID(gstd::script
 	if(obj == NULL)return value();
 	
 	std::vector<int>& list = obj->GetIntersectedIdList();
-	std::vector<long double> listLD;
+	std::vector<gstd::script_real> listLD;
 	for(int iList = 0 ; iList < list.size() ; iList++)
 	{
 		int idObject = list[iList];
@@ -3988,10 +3991,10 @@ gstd::value StgStageScript::Func_ObjCol_GetIntersectedCount(gstd::script_machine
 	ref_count_ptr<StgIntersectionObject>::unsync obj = 
 		ref_count_ptr<StgIntersectionObject>::unsync::DownCast(script->GetObject(id));
 	if(obj == NULL)
-		return value(machine->get_engine()->get_real_type(), (long double)0);
+		return value(machine->get_engine()->get_real_type(), (gstd::script_real)0);
 	
 	std::vector<int>& list = obj->GetIntersectedIdList();
-	long double res = list.size();
+	gstd::script_real res = list.size();
 	return value(machine->get_engine()->get_real_type(), res);
 }
 
@@ -4000,10 +4003,10 @@ gstd::value StgStageScript::Func_ObjCol_GetIntersectedCount(gstd::script_machine
 **********************************************************/
 function const stgSystemFunction[] =  
 {
-	//ŠÖ”F
+	//é–¢æ•°ï¼š
 
 
-	//’è”
+	//å®šæ•°
 	{"__stgSystemFunction__",constant<0>::func, 0},
 };
 StgStageSystemScript::StgStageSystemScript(StgStageController* stageController) : StgStageScript(stageController)
@@ -4020,7 +4023,7 @@ StgStageSystemScript::~StgStageSystemScript()
 **********************************************************/
 function const stgItemFunction[] =  
 {
-	//’è”
+	//å®šæ•°
 	{"EV_GET_ITEM", constant<StgStageItemScript::EV_GET_ITEM>::func, 0},
 	{"EV_DELETE_SHOT_TO_ITEM", constant<StgStageItemScript::EV_DELETE_SHOT_TO_ITEM>::func, 0},
 
@@ -4040,7 +4043,7 @@ StgStageItemScript::~StgStageItemScript()
 **********************************************************/
 function const stgShotFunction[] =  
 {
-	//’è”
+	//å®šæ•°
 	{"EV_DELETE_SHOT_IMMEDIATE", constant<StgStageScript::EV_DELETE_SHOT_IMMEDIATE>::func, 0},
 	{"EV_DELETE_SHOT_TO_ITEM", constant<StgStageScript::EV_DELETE_SHOT_TO_ITEM>::func, 0},
 	{"EV_DELETE_SHOT_FADE", constant<StgStageScript::EV_DELETE_SHOT_FADE>::func, 0},
@@ -4074,14 +4077,14 @@ gstd::value StgStageShotScript::Func_SetShotDeleteEventEnable(gstd::script_machi
 **********************************************************/
 function const stgPlayerFunction[] =  
 {
-	//ŠÖ”F
+	//é–¢æ•°ï¼š
 	{"CreatePlayerShotA1", StgStagePlayerScript::Func_CreatePlayerShotA1, 7},
 	{"CallSpell", StgStagePlayerScript::Func_CallSpell, 0},
 	{"LoadPlayerShotData", StgStagePlayerScript::Func_LoadPlayerShotData, 1},
 	{"ReloadPlayerShotData", StgStagePlayerScript::Func_ReloadPlayerShotData, 1},
 	{"GetSpellManageObject", StgStagePlayerScript::Func_GetSpellManageObject, 0},
 
-	//©‹@ê—pŠÖ”FƒXƒyƒ‹ƒIƒuƒWƒFƒNƒg‘€ì
+	//è‡ªæ©Ÿå°‚ç”¨é–¢æ•°ï¼šã‚¹ãƒšãƒ«ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆæ“ä½œ
 	{"ObjSpell_Create", StgStagePlayerScript::Func_ObjSpell_Create, 0},
 	{"ObjSpell_Regist", StgStagePlayerScript::Func_ObjSpell_Regist, 1},
 	{"ObjSpell_SetDamage", StgStagePlayerScript::Func_ObjSpell_SetDamage, 2},
@@ -4090,7 +4093,7 @@ function const stgPlayerFunction[] =
 	{"ObjSpell_SetIntersectionCircle", StgStagePlayerScript::Func_ObjSpell_SetIntersectionCircle, 4},
 	{"ObjSpell_SetIntersectionLine", StgStagePlayerScript::Func_ObjSpell_SetIntersectionLine, 6},
 
-	//’è”
+	//å®šæ•°
 	{"EV_REQUEST_SPELL", constant<StgStagePlayerScript::EV_REQUEST_SPELL>::func, 0},
 	{"EV_GRAZE", constant<StgStagePlayerScript::EV_GRAZE>::func, 0},
 	{"EV_HIT", constant<StgStagePlayerScript::EV_HIT>::func, 0},
@@ -4106,7 +4109,7 @@ StgStagePlayerScript::~StgStagePlayerScript()
 {
 }
 
-//©‹@ê—pŠÖ”
+//è‡ªæ©Ÿå°‚ç”¨é–¢æ•°
 gstd::value StgStagePlayerScript::Func_CreatePlayerShotA1(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
 	StgStagePlayerScript* script = (StgStagePlayerScript*)machine->data;
@@ -4121,10 +4124,10 @@ gstd::value StgStagePlayerScript::Func_CreatePlayerShotA1(gstd::script_machine* 
 	if(id != ID_INVALID)
 	{
 		stageController->GetShotManager()->AddShot(obj);
-		long double posX = argv[0].as_real();
-		long double posY = argv[1].as_real();
-		long double speed = argv[2].as_real();
-		long double angle = argv[3].as_real();
+		gstd::script_real posX = argv[0].as_real();
+		gstd::script_real posY = argv[1].as_real();
+		gstd::script_real speed = argv[2].as_real();
+		gstd::script_real angle = argv[3].as_real();
 		double damage = (double)argv[4].as_real();
 		double life = (double)argv[5].as_real();
 		int idShot = (int)argv[6].as_real();
@@ -4139,7 +4142,7 @@ gstd::value StgStagePlayerScript::Func_CreatePlayerShotA1(gstd::script_machine* 
 		obj->SetShotDataID(idShot);
 	}
 	
-	return value(machine->get_engine()->get_real_type(),(long double)id);
+	return value(machine->get_engine()->get_real_type(),(gstd::script_real)id);
 }
 gstd::value StgStagePlayerScript::Func_CallSpell(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
@@ -4192,10 +4195,10 @@ gstd::value StgStagePlayerScript::Func_GetSpellManageObject(gstd::script_machine
 			id = objManage->GetObjectID();
 		}
 	}
-	return value(machine->get_engine()->get_real_type(), (long double)id);
+	return value(machine->get_engine()->get_real_type(), (gstd::script_real)id);
 }
 
-//©‹@ê—pŠÖ”FƒXƒyƒ‹ƒIƒuƒWƒFƒNƒg‘€ì
+//è‡ªæ©Ÿå°‚ç”¨é–¢æ•°ï¼šã‚¹ãƒšãƒ«ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆæ“ä½œ
 gstd::value StgStagePlayerScript::Func_ObjSpell_Create(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
 	StgStagePlayerScript* script = (StgStagePlayerScript*)machine->data;
@@ -4210,7 +4213,7 @@ gstd::value StgStagePlayerScript::Func_ObjSpell_Create(gstd::script_machine* mac
 		obj->SetObjectManager(script->objManager_.GetPointer());
 		id = script->AddObject(obj, false);
 	}
-	return value(machine->get_engine()->get_real_type(), (long double)id);
+	return value(machine->get_engine()->get_real_type(), (gstd::script_real)id);
 }
 gstd::value StgStagePlayerScript::Func_ObjSpell_Regist(gstd::script_machine* machine, int argc, gstd::value const * argv)
 {
@@ -4286,7 +4289,7 @@ gstd::value StgStagePlayerScript::Func_ObjSpell_SetIntersectionCircle(gstd::scri
 	int radius = (int)argv[3].as_real();
 	DxCircle circle(px, py, radius);
 
-	//“–‚½‚è”»’è
+	//å½“ãŸã‚Šåˆ¤å®š
 	ref_count_weak_ptr<StgPlayerSpellObject>::unsync wObjSpell = objSpell;
 	ref_count_ptr<StgIntersectionTarget_Circle>::unsync target = 
 		ref_count_ptr<StgIntersectionTarget_Circle>::unsync::DownCast(intersectionManager->GetPoolObject(StgIntersectionTarget::SHAPE_CIRCLE));
@@ -4317,7 +4320,7 @@ gstd::value StgStagePlayerScript::Func_ObjSpell_SetIntersectionLine(gstd::script
 	int width = (int)argv[5].as_real();
 	DxWidthLine line(px1, py1, px2, py2, width);
 
-	//“–‚½‚è”»’è
+	//å½“ãŸã‚Šåˆ¤å®š
 	ref_count_weak_ptr<StgPlayerSpellObject>::unsync wObjSpell = objSpell;
 	ref_count_ptr<StgIntersectionTarget_Line>::unsync target = 
 		ref_count_ptr<StgIntersectionTarget_Line>::unsync::DownCast(intersectionManager->GetPoolObject(StgIntersectionTarget::SHAPE_LINE));

@@ -1,15 +1,15 @@
 #ifndef __GSTD_SMART_POINTER__
 #define __GSTD_SMART_POINTER__
 
-#include"GstdConstant.hpp"
+#include "GstdConstant.hpp"
 
-//‰º‹L‚ğQl
+//ä¸‹è¨˜ã‚’å‚è€ƒ
 //http://marupeke296.com/CPP_SmartPointer.html
 
-namespace gstd
-{
-	//================================================================
-	//ƒXƒ}[ƒgƒ|ƒCƒ“ƒ^”r‘¼
+namespace gstd {
+
+//================================================================
+//ã‚¹ãƒãƒ¼ãƒˆãƒã‚¤ãƒ³ã‚¿æ’ä»–
 	/*
 	class ref_count_ptr_lock
 	{
@@ -32,514 +32,528 @@ namespace gstd
 				::LeaveCriticalSection(&cs_);
 			}
 	};
-	static ref_count_ptr_lock REF_COUNT_PTR_LOCK;//”r‘¼ƒIƒuƒWƒFƒNƒg
+	static ref_count_ptr_lock REF_COUNT_PTR_LOCK;//æ’ä»–ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆ
 	*/
 
+//================================================================
+//ã‚¹ãƒãƒ¼ãƒˆãƒã‚¤ãƒ³ã‚¿æƒ…å ±
+template <class T>
+struct ref_count_ptr_info {
+	long* countRef_; // å‚ç…§ã‚«ã‚¦ãƒ³ã‚¿ã¸ã®ãƒã‚¤ãƒ³ã‚¿
+	long* countWeak_; // å‚ç…§ã‚«ã‚¦ãƒ³ã‚¿ã¸ã®ãƒã‚¤ãƒ³ã‚¿
+	T* pPtr_; // Tå‹ã®ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã®ãƒã‚¤ãƒ³ã‚¿
 
-	//================================================================
-	//ƒXƒ}[ƒgƒ|ƒCƒ“ƒ^î•ñ
-	template <class T>
-	struct ref_count_ptr_info
+	ref_count_ptr_info()
 	{
-		long *countRef_; // QÆƒJƒEƒ“ƒ^‚Ö‚Ìƒ|ƒCƒ“ƒ^
-		long *countWeak_; // QÆƒJƒEƒ“ƒ^‚Ö‚Ìƒ|ƒCƒ“ƒ^
-		T* pPtr_; // TŒ^‚ÌƒIƒuƒWƒFƒNƒg‚Ìƒ|ƒCƒ“ƒ^
+		countRef_ = NULL;
+		countWeak_ = NULL;
+		pPtr_ = NULL;
+	}
+};
 
-		ref_count_ptr_info()
-		{
-			countRef_ = NULL;
-			countWeak_ = NULL;
-			pPtr_ = NULL;
+//================================================================
+//ref_count_ptr
+// inline void operator delete(volatile void *p)
+// {
+// 	operator delete((volatile void*)(p));
+// }
+template <class T, bool SYNC>
+class ref_count_weak_ptr;
+
+template <class T, bool SYNC = true>
+class ref_count_ptr {
+	friend ref_count_weak_ptr<T, SYNC>;
+
+public:
+	typedef ref_count_ptr<T, false> unsync; //æ’ä»–ãªã—ç‰ˆ
+
+public:
+	ref_count_ptr()
+	{
+		SetPointer(NULL);
+	}
+	// ãƒ‡ãƒ•ã‚©ãƒ«ãƒˆã‚³ãƒ³ã‚¹ãƒˆãƒ©ã‚¯ã‚¿
+	//explicit å¿…è¦?
+	ref_count_ptr(T* src, long add = 0)
+	{
+		SetPointer(src, add);
+	}
+
+	// ã‚³ãƒ”ãƒ¼ã‚³ãƒ³ã‚¹ãƒˆãƒ©ã‚¯ã‚¿
+	ref_count_ptr(const ref_count_ptr<T, SYNC>& src)
+	{
+		// ç›¸æ‰‹ã®ãƒã‚¤ãƒ³ã‚¿ã‚’ã‚³ãƒ”ãƒ¼
+		info_ = src.info_;
+
+		// è‡ªåˆ†è‡ªèº«ã®å‚ç…§ã‚«ã‚¦ãƒ³ã‚¿ã‚’å¢—åŠ 
+		_AddRef();
+	}
+
+	// ã‚³ãƒ”ãƒ¼ã‚³ãƒ³ã‚¹ãƒˆãƒ©ã‚¯ã‚¿ï¼ˆæš—é»™çš„ã‚¢ãƒƒãƒ—ã‚­ãƒ£ã‚¹ãƒˆä»˜ãï¼‰
+	template <class T2>
+	ref_count_ptr(const ref_count_ptr<T2, SYNC>& src)
+	{
+		// ç›¸æ‰‹ã®ãƒã‚¤ãƒ³ã‚¿ã‚’ã‚³ãƒ”ãƒ¼
+		info_.countRef_ = src._GetReferenceCountPointer();
+		info_.countWeak_ = src._GetWeakCountPointer();
+		info_.pPtr_ = src.GetPointer();
+
+		// è‡ªåˆ†è‡ªèº«ã®å‚ç…§ã‚«ã‚¦ãƒ³ã‚¿ã‚’å¢—åŠ 
+		_AddRef();
+	}
+
+	// ãƒ‡ã‚¹ãƒˆãƒ©ã‚¯ã‚¿
+	~ref_count_ptr()
+	{
+		_Release();
+	}
+
+	// =ä»£å…¥æ¼”ç®—å­
+	ref_count_ptr<T, SYNC>& operator=(T* src)
+	{
+		if (src == info_.pPtr_)
+			return (*this);
+		SetPointer(src);
+		return (*this);
+	}
+
+	// =ä»£å…¥æ¼”ç®—å­
+	ref_count_ptr<T, SYNC>& operator=(const ref_count_ptr<T, SYNC>& src)
+	{
+		// è‡ªåˆ†è‡ªèº«ã¸ã®ä»£å…¥ã¯ä¸æ­£ã§æ„å‘³ãŒç„¡ã„ã®ã§
+		// è¡Œã‚ãªã„ã€‚
+		if (src.info_.pPtr_ == info_.pPtr_)
+			return (*this);
+
+		// è‡ªåˆ†ã¯ä»–äººã«ãªã£ã¦ã—ã¾ã†ã®ã§
+		// å‚ç…§ã‚«ã‚¦ãƒ³ã‚¿ã‚’1ã¤æ¸›å°‘
+		_Release();
+
+		// ç›¸æ‰‹ã®ãƒã‚¤ãƒ³ã‚¿ã‚’ã‚³ãƒ”ãƒ¼
+		info_ = src.info_;
+
+		// æ–°ã—ã„è‡ªåˆ†è‡ªèº«ã®å‚ç…§ã‚«ã‚¦ãƒ³ã‚¿ã‚’å¢—åŠ 
+		_AddRef();
+
+		return (*this);
+	}
+
+	// =ä»£å…¥æ¼”ç®—å­ï¼ˆæ˜ç¤ºçš„ã‚¢ãƒƒãƒ—ã‚­ãƒ£ã‚¹ãƒˆä»˜ãï¼‰
+	template <class T2>
+	ref_count_ptr& operator=(const ref_count_ptr<T2, SYNC>& src)
+	{
+		// è‡ªåˆ†è‡ªèº«ã¸ã®ä»£å…¥ã¯ä¸æ­£ã§æ„å‘³ãŒç„¡ã„ã®ã§
+		// è¡Œã‚ãªã„ã€‚
+		if (src.GetPointer() == info_.pPtr_)
+			return (*this);
+
+		// è‡ªåˆ†ã¯ä»–äººã«ãªã£ã¦ã—ã¾ã†ã®ã§
+		// å‚ç…§ã‚«ã‚¦ãƒ³ã‚¿ã‚’1ã¤æ¸›å°‘
+		_Release();
+
+		// ç›¸æ‰‹ã®ãƒã‚¤ãƒ³ã‚¿ã‚’ã‚³ãƒ”ãƒ¼
+		info_.countRef_ = src._GetReferenceCountPointer();
+		info_.countWeak_ = src._GetWeakCountPointer();
+		info_.pPtr_ = src.GetPointer();
+
+		// æ–°ã—ã„è‡ªåˆ†è‡ªèº«ã®å‚ç…§ã‚«ã‚¦ãƒ³ã‚¿ã‚’å¢—åŠ 
+		_AddRef();
+
+		return (*this);
+	}
+
+	// *é–“æ¥æ¼”ç®—å­
+	T& operator*() { return *info_.pPtr_; }
+
+	// ->ãƒ¡ãƒ³ãƒé¸æŠæ¼”ç®—å­
+	T* operator->() { return info_.pPtr_; }
+
+	// []é…åˆ—å‚ç…§æ¼”ç®—å­
+	T& operator[](int n) { return info_.pPtr_[n]; }
+
+	// ==æ¯”è¼ƒæ¼”ç®—å­
+	bool operator==(const T* p)
+	{
+		return info_.pPtr_ == p;
+	}
+	bool operator==(const ref_count_ptr<T, SYNC>& p) const
+	{
+		return info_.pPtr_ == p.info_.pPtr_;
+	}
+	template <class D>
+	bool operator==(ref_count_ptr<D, SYNC>& p) const
+	{
+		return info_.pPtr_ == p.GetPointer();
+	}
+
+	// !=æ¯”è¼ƒæ¼”ç®—å­
+	bool operator!=(const T* p)
+	{
+		return info_.pPtr_ != p;
+	}
+	bool operator!=(const ref_count_ptr<T, SYNC>& p) const
+	{
+		return info_.pPtr_ != p.info_.pPtr_;
+	}
+	template <class D>
+	bool operator!=(ref_count_ptr<D, SYNC>& p) const
+	{
+		return info_.pPtr_ != p.info_.pPtr_;
+	}
+
+	// ãƒã‚¤ãƒ³ã‚¿ã®æ˜ç¤ºçš„ãªç™»éŒ²
+	void SetPointer(T* src = NULL, long add = 0)
+	{
+		// å‚ç…§ã‚«ã‚¦ãƒ³ã‚¿ã‚’æ¸›ã‚‰ã—ãŸå¾Œã«å†åˆæœŸåŒ–
+		_Release();
+		if (src == NULL) {
+			info_.countRef_ = NULL;
+			info_.countWeak_ = NULL;
+		} else {
+			info_.countRef_ = new long;
+			*info_.countRef_ = add;
+			info_.countWeak_ = new long;
+			*info_.countWeak_ = add;
 		}
-	};
+		info_.pPtr_ = src;
+		_AddRef();
+	}
 
+	// ãƒã‚¤ãƒ³ã‚¿ã®è²¸ã—å‡ºã—
+	inline T* GetPointer() const { return info_.pPtr_; }
 
-	//================================================================
-	//ref_count_ptr
-	//inline void operator delete(volatile void *p)
-	//{ 
-	//	operator delete((volatile void*)(p)); 
-	//}
-	template <class T, bool SYNC>
-	class ref_count_weak_ptr;
-
-	template <class T, bool SYNC = true>
-	class ref_count_ptr
+	// å‚ç…§ã‚«ã‚¦ãƒ³ã‚¿ã¸ã®ãƒã‚¤ãƒ³ã‚¿ã‚’å–å¾—
+	inline long* _GetReferenceCountPointer() const { return info_.countRef_; } //ã“ã®é–¢æ•°ã¯å¤–éƒ¨ã‹ã‚‰ã—ã‚ˆã†ã—ãªã„ã“ã¨
+	inline long* _GetWeakCountPointer() const { return info_.countWeak_; } //ã“ã®é–¢æ•°ã¯å¤–éƒ¨ã‹ã‚‰ã—ã‚ˆã†ã—ãªã„ã“ã¨
+	int GetReferenceCount()
 	{
-		friend ref_count_weak_ptr<T, SYNC>;
-		public:
-			typedef ref_count_ptr<T, false> unsync;//”r‘¼‚È‚µ”Å
+		int res = info_.countRef_ != NULL ? (int)*info_.countRef_ : 0;
+		return res;
+	}
 
-		private:
-			ref_count_ptr_info<T> info_;
-
-			// QÆƒJƒEƒ“ƒ^‘‰Á
-			void _AddRef()
-			{
-				if(info_.countRef_ == NULL)return;
-
-				if(SYNC)
-				{
-					InterlockedIncrement(info_.countRef_);
-					InterlockedIncrement(info_.countWeak_);
-				}
-				else
-				{
-					++(*info_.countRef_);
-					++(*info_.countWeak_);
-				}
-			}
-
-			// QÆƒJƒEƒ“ƒ^Œ¸­
-			void _Release()
-			{
-				if(info_.countRef_ == NULL)return;
-
-				if(SYNC)
-				{
-					if(InterlockedDecrement(info_.countRef_) == 0)
-					{
-						delete[] info_.pPtr_;info_.pPtr_=NULL;
-					}
-					if(InterlockedDecrement(info_.countWeak_) == 0)
-					{
-						delete info_.countRef_;info_.countRef_=NULL;
-						delete info_.countWeak_;info_.countWeak_=NULL;
-					}
-				}
-				else
-				{
-					if(--(*info_.countRef_) == 0)
-					{
-						delete[] info_.pPtr_;info_.pPtr_=NULL;
-					}
-					if(--(*info_.countWeak_) == 0)
-					{
-						delete info_.countRef_;info_.countRef_=NULL;
-						delete info_.countWeak_;info_.countWeak_=NULL;
-					}
-				}
-			}
-
-		public:
-			ref_count_ptr()
-			{
-				SetPointer(NULL);
-			}
-			// ƒfƒtƒHƒ‹ƒgƒRƒ“ƒXƒgƒ‰ƒNƒ^
-			//explicit •K—v?
-			ref_count_ptr(T* src, long add = 0)
-			{
-				SetPointer(src, add);
-			}
-
-			// ƒRƒs[ƒRƒ“ƒXƒgƒ‰ƒNƒ^
-			ref_count_ptr(const ref_count_ptr<T, SYNC> &src)
-			{
-				// ‘Šè‚Ìƒ|ƒCƒ“ƒ^‚ğƒRƒs[
-				info_ = src.info_;
-
-				// ©•ª©g‚ÌQÆƒJƒEƒ“ƒ^‚ğ‘‰Á
-				_AddRef();
-			}
-
-			// ƒRƒs[ƒRƒ“ƒXƒgƒ‰ƒNƒ^iˆÃ–Ù“IƒAƒbƒvƒLƒƒƒXƒg•t‚«j
-			template<class T2> ref_count_ptr(ref_count_ptr<T2, SYNC> &src)
-			{
-				// ‘Šè‚Ìƒ|ƒCƒ“ƒ^‚ğƒRƒs[
-				info_.countRef_ = src._GetReferenceCountPointer();
-				info_.countWeak_ = src._GetWeakCountPointer();
-				info_.pPtr_ = src.GetPointer();
-
-				// ©•ª©g‚ÌQÆƒJƒEƒ“ƒ^‚ğ‘‰Á
-				_AddRef();
-			}
-
-			// ƒfƒXƒgƒ‰ƒNƒ^
-			~ref_count_ptr()
-			{
-				_Release();
-			}
-
-			// =‘ã“ü‰‰Zq
-			ref_count_ptr<T, SYNC>& operator =(T *src)
-			{
-				if(src == info_.pPtr_)
-					return (*this);
-				SetPointer(src);
-				return (*this);
-			}
-
-			// =‘ã“ü‰‰Zq
-			ref_count_ptr<T, SYNC>& operator =(const ref_count_ptr<T, SYNC> &src)
-			{
-				// ©•ª©g‚Ö‚Ì‘ã“ü‚Í•s³‚ÅˆÓ–¡‚ª–³‚¢‚Ì‚Å
-				// s‚í‚È‚¢B
-				if(src.info_.pPtr_ == info_.pPtr_)
-					return (*this);
-
-				// ©•ª‚Í‘¼l‚É‚È‚Á‚Ä‚µ‚Ü‚¤‚Ì‚Å
-				// QÆƒJƒEƒ“ƒ^‚ğ1‚ÂŒ¸­
-				_Release();
-
-				// ‘Šè‚Ìƒ|ƒCƒ“ƒ^‚ğƒRƒs[
-				info_ = src.info_;
-
-				// V‚µ‚¢©•ª©g‚ÌQÆƒJƒEƒ“ƒ^‚ğ‘‰Á
-				_AddRef();
-
-				return (*this);
-			}
-
-			// =‘ã“ü‰‰Zqi–¾¦“IƒAƒbƒvƒLƒƒƒXƒg•t‚«j
-			template<class T2> ref_count_ptr& operator =(ref_count_ptr<T2, SYNC> &src)
-			{
-				// ©•ª©g‚Ö‚Ì‘ã“ü‚Í•s³‚ÅˆÓ–¡‚ª–³‚¢‚Ì‚Å
-				// s‚í‚È‚¢B
-				if(src.GetPointer() == info_.pPtr_)
-					return (*this);
-
-				// ©•ª‚Í‘¼l‚É‚È‚Á‚Ä‚µ‚Ü‚¤‚Ì‚Å
-				// QÆƒJƒEƒ“ƒ^‚ğ1‚ÂŒ¸­
-				_Release();
-
-				// ‘Šè‚Ìƒ|ƒCƒ“ƒ^‚ğƒRƒs[
-				info_.countRef_ = src._GetReferenceCountPointer();
-				info_.countWeak_ = src._GetWeakCountPointer();
-				info_.pPtr_ = src.GetPointer();
-
-				// V‚µ‚¢©•ª©g‚ÌQÆƒJƒEƒ“ƒ^‚ğ‘‰Á
-				_AddRef();
-
-				return (*this);
-			}
-
-			// *ŠÔÚ‰‰Zq
-			T& operator *(){ return *info_.pPtr_;}
-
-			// ->ƒƒ“ƒo‘I‘ğ‰‰Zq
-			T* operator ->(){ return info_.pPtr_;}
-
-			// []”z—ñQÆ‰‰Zq
-			T& operator [](int n){ return info_.pPtr_[n];}
-
-			// ==”äŠr‰‰Zq
-			bool operator ==(const T* p)
-			{
-				return info_.pPtr_ == p;
-			}
-			bool operator ==(const ref_count_ptr<T, SYNC>& p)const
-			{
-				return info_.pPtr_ == p.info_.pPtr_;
-			}
-			template< class D >
-			bool operator ==(ref_count_ptr<D, SYNC>& p)const
-			{
-				return info_.pPtr_ == p.GetPointer();
-			}
-
-			// !=”äŠr‰‰Zq
-			bool operator !=(const T* p)
-			{
-				return info_.pPtr_ != p;
-			}
-			bool operator !=(const ref_count_ptr<T, SYNC>& p)const
-			{
-				return info_.pPtr_ != p.info_.pPtr_;
-			}
-			template< class D >
-			bool operator !=(ref_count_ptr<D, SYNC>& p)const
-			{
-				return info_.pPtr_ != p.info_.pPtr_;
-			}
-
-			// ƒ|ƒCƒ“ƒ^‚Ì–¾¦“I‚È“o˜^
-			void SetPointer(T* src = NULL, long add = 0)
-			{
-				// QÆƒJƒEƒ“ƒ^‚ğŒ¸‚ç‚µ‚½Œã‚ÉÄ‰Šú‰»
-				_Release();
-				if(src == NULL)
-				{
-					info_.countRef_ = NULL;
-					info_.countWeak_ = NULL;
-				}
-				else 
-				{
-					info_.countRef_ = new long;
-					*info_.countRef_ = add;
-					info_.countWeak_ = new long;
-					*info_.countWeak_ = add;
-				}
-				info_.pPtr_ = src;
-				_AddRef();
-			}
-
-			// ƒ|ƒCƒ“ƒ^‚Ì‘İ‚µo‚µ
-			inline T* GetPointer(){return info_.pPtr_;}
-
-			// QÆƒJƒEƒ“ƒ^‚Ö‚Ìƒ|ƒCƒ“ƒ^‚ğæ“¾
-			inline long* _GetReferenceCountPointer(){return info_.countRef_;}//‚±‚ÌŠÖ”‚ÍŠO•”‚©‚ç‚µ‚æ‚¤‚µ‚È‚¢‚±‚Æ
-			inline long* _GetWeakCountPointer(){return info_.countWeak_;}//‚±‚ÌŠÖ”‚ÍŠO•”‚©‚ç‚µ‚æ‚¤‚µ‚È‚¢‚±‚Æ
-			int GetReferenceCount(){int res = info_.countRef_ != NULL ? (int)*info_.countRef_ : 0;return res;}
-
-			template <class T2>
-			static ref_count_ptr<T, SYNC> DownCast(ref_count_ptr<T2, SYNC> &src)
-			{
-				// ˆø”‚ÌƒXƒ}[ƒgƒ|ƒCƒ“ƒ^‚ª‚Âƒ|ƒCƒ“ƒ^‚ªA
-				// ©•ª‚Ì“o˜^‚µ‚Ä‚¢‚éƒ|ƒCƒ“ƒ^‚É
-				// ƒ_ƒEƒ“ƒLƒƒƒXƒg‰Â”\‚Èê‡‚ÍƒIƒuƒWƒFƒNƒg‚ğ•Ô‚·
-				ref_count_ptr<T, SYNC> res;
-				T* castPtr = dynamic_cast<T*>(src.GetPointer());
-				if(castPtr != NULL)
-				{
-					// ƒ_ƒEƒ“ƒLƒƒƒXƒg‰Â”\
-					res._Release();//Œ»İ‚ÌQÆ‚ğ”jŠü‚·‚é•K—v‚ª‚ ‚é
-					res.info_.countRef_ = src._GetReferenceCountPointer();
-					res.info_.countWeak_ = src._GetWeakCountPointer();
-					res.info_.pPtr_ = castPtr;
-					res._AddRef();
-				}
-				return res;
-			}
-	};
-
-	//================================================================
-	//ref_count_weak_ptr
-	template <class T, bool SYNC = true>
-	class ref_count_weak_ptr
+	template <class T2>
+	static ref_count_ptr<T, SYNC> DownCast(const ref_count_ptr<T2, SYNC>& src)
 	{
-		public:
-			typedef ref_count_weak_ptr<T, false> unsync;//”r‘¼‚È‚µ”Å
+		// å¼•æ•°ã®ã‚¹ãƒãƒ¼ãƒˆãƒã‚¤ãƒ³ã‚¿ãŒæŒã¤ãƒã‚¤ãƒ³ã‚¿ãŒã€
+		// è‡ªåˆ†ã®ç™»éŒ²ã—ã¦ã„ã‚‹ãƒã‚¤ãƒ³ã‚¿ã«
+		// ãƒ€ã‚¦ãƒ³ã‚­ãƒ£ã‚¹ãƒˆå¯èƒ½ãªå ´åˆã¯ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã‚’è¿”ã™
+		ref_count_ptr<T, SYNC> res;
+		T* castPtr = dynamic_cast<T*>(src.GetPointer());
+		if (castPtr != NULL) {
+			// ãƒ€ã‚¦ãƒ³ã‚­ãƒ£ã‚¹ãƒˆå¯èƒ½
+			res._Release(); //ç¾åœ¨ã®å‚ç…§ã‚’ç ´æ£„ã™ã‚‹å¿…è¦ãŒã‚ã‚‹
+			res.info_.countRef_ = src._GetReferenceCountPointer();
+			res.info_.countWeak_ = src._GetWeakCountPointer();
+			res.info_.pPtr_ = castPtr;
+			res._AddRef();
+		}
+		return res;
+	}
 
-		private:
-			ref_count_ptr_info<T> info_;
+private:
+	ref_count_ptr_info<T> info_;
 
-			// QÆƒJƒEƒ“ƒ^‘‰Á
-			void _AddRef()
-			{
-				if(info_.countRef_ == NULL)return;
+	// å‚ç…§ã‚«ã‚¦ãƒ³ã‚¿å¢—åŠ 
+	void _AddRef()
+	{
+		if (info_.countRef_ == NULL)
+			return;
 
-				if(SYNC)
-				{
-					InterlockedIncrement(info_.countWeak_);
-				}
-				else
-				{
-					++(*info_.countWeak_);
-				}
+		if (SYNC) {
+			InterlockedIncrement(info_.countRef_);
+			InterlockedIncrement(info_.countWeak_);
+		} else {
+			++(*info_.countRef_);
+			++(*info_.countWeak_);
+		}
+	}
+
+	// å‚ç…§ã‚«ã‚¦ãƒ³ã‚¿æ¸›å°‘
+	void _Release()
+	{
+		if (info_.countRef_ == NULL)
+			return;
+
+		if (SYNC) {
+			if (InterlockedDecrement(info_.countRef_) == 0) {
+#ifdef __EMSCRIPTEN__
+				// Every Web ref_count_ptr owns a scalar new T. delete[] reads an
+				// array cookie that does not exist under the Clang/Wasm ABI.
+				// The native-only GDI BYTE[] buffer is outside this branch.
+				delete info_.pPtr_;
+#else
+				delete[] info_.pPtr_;
+#endif
+				info_.pPtr_ = NULL;
 			}
-
-			// QÆƒJƒEƒ“ƒ^Œ¸­
-			void _Release()
-			{
-				if(info_.countRef_ == NULL)return;
-
-				if(SYNC)
-				{
-					if(InterlockedDecrement(info_.countWeak_) == 0)
-					{
-						delete info_.countRef_;info_.countRef_=NULL;
-						delete info_.countWeak_;info_.countWeak_=NULL;
-					}
-				}
-				else
-				{
-					if(--(*info_.countWeak_) == 0)
-					{
-						delete info_.countRef_;info_.countRef_=NULL;
-						delete info_.countWeak_;info_.countWeak_=NULL;
-					}
-				}
-			}
-
-		public:
-			ref_count_weak_ptr()
-			{
-			}
-			ref_count_weak_ptr(T* src)
-			{
-				if(src != NULL)
-					throw std::exception("ref_count_weak_ptrƒRƒ“ƒXƒgƒ‰ƒNƒ^‚É”ñNULL‚ğ‘ã“ü‚µ‚æ‚¤‚Æ‚µ‚Ü‚µ‚½");
-			}
-			// ƒRƒs[ƒRƒ“ƒXƒgƒ‰ƒNƒ^
-			ref_count_weak_ptr(const ref_count_weak_ptr<T, SYNC> &src)
-			{
-				// ‘Šè‚Ìƒ|ƒCƒ“ƒ^‚ğƒRƒs[
-				info_ = src.info_;
-
-				// ©•ª©g‚ÌQÆƒJƒEƒ“ƒ^‚ğ‘‰Á
-				_AddRef();
-			}
-
-			// ƒRƒs[ƒRƒ“ƒXƒgƒ‰ƒNƒ^iˆÃ–Ù“IƒAƒbƒvƒLƒƒƒXƒg•t‚«j
-			template<class T2> ref_count_weak_ptr(ref_count_weak_ptr<T2, SYNC> &src)
-			{
-				// ‘Šè‚Ìƒ|ƒCƒ“ƒ^‚ğƒRƒs[
-				info_.countRef_ = src._GetReferenceCountPointer();
-				info_.countWeak_ = src._GetWeakCountPointer();
-				info_.pPtr_ = src.GetPointer();
-
-				// ©•ª©g‚ÌQÆƒJƒEƒ“ƒ^‚ğ‘‰Á
-				_AddRef();
-			}
-
-			template<class T2> ref_count_weak_ptr(ref_count_ptr<T2, SYNC> &src)
-			{
-				info_ = src.info_;
-				_AddRef();
-			}
-
-			// ƒfƒXƒgƒ‰ƒNƒ^
-			~ref_count_weak_ptr()
-			{
-				_Release();
-			}
-
-			// =‘ã“ü‰‰Zq
-			ref_count_weak_ptr<T, SYNC>& operator =(T *src)
-			{
-				if(src != NULL)
-					throw std::exception("ref_count_weak_ptr =‚É”ñNULL‚ğ‘ã“ü‚µ‚æ‚¤‚Æ‚µ‚Ü‚µ‚½");
-				_Release();
-				info_.pPtr_ = src;
+			if (InterlockedDecrement(info_.countWeak_) == 0) {
+				delete info_.countRef_;
 				info_.countRef_ = NULL;
+				delete info_.countWeak_;
 				info_.countWeak_ = NULL;
-				return (*this);
 			}
-			ref_count_weak_ptr<T, SYNC>& operator =(const ref_count_weak_ptr<T, SYNC> &src)
-			{
-				// ©•ª©g‚Ö‚Ì‘ã“ü‚Í•s³‚ÅˆÓ–¡‚ª–³‚¢‚Ì‚Å
-				// s‚í‚È‚¢B
-				if(src.info_.pPtr_ == info_.pPtr_)
-					return (*this);
-
-				// ©•ª‚Í‘¼l‚É‚È‚Á‚Ä‚µ‚Ü‚¤‚Ì‚Å
-				// QÆƒJƒEƒ“ƒ^‚ğ1‚ÂŒ¸­
-				_Release();
-
-				// ‘Šè‚Ìƒ|ƒCƒ“ƒ^‚ğƒRƒs[
-				info_ = src.info_;
-
-				// V‚µ‚¢©•ª©g‚ÌQÆƒJƒEƒ“ƒ^‚ğ‘‰Á
-				_AddRef();
-
-				return (*this);
+		} else {
+			if (--(*info_.countRef_) == 0) {
+#ifdef __EMSCRIPTEN__
+				delete info_.pPtr_;
+#else
+				delete[] info_.pPtr_;
+#endif
+				info_.pPtr_ = NULL;
 			}
-
-			// =‘ã“ü‰‰Zq
-			ref_count_weak_ptr<T, SYNC>& operator =(const ref_count_ptr<T, SYNC> &src)
-			{
-				// ©•ª©g‚Ö‚Ì‘ã“ü‚Í•s³‚ÅˆÓ–¡‚ª–³‚¢‚Ì‚Å
-				// s‚í‚È‚¢B
-				if(src.info_.pPtr_== info_.pPtr_)
-					return (*this);
-
-				// ©•ª‚Í‘¼l‚É‚È‚Á‚Ä‚µ‚Ü‚¤‚Ì‚Å
-				// QÆƒJƒEƒ“ƒ^‚ğ1‚ÂŒ¸­
-				_Release();
-
-				// ‘Šè‚Ìƒ|ƒCƒ“ƒ^‚ğƒRƒs[
-				info_.countRef_ = src.info_.countRef_;
-				info_.countWeak_ = src.info_.countWeak_;
-				info_.pPtr_ = src.info_.pPtr_;
-
-				// V‚µ‚¢©•ª©g‚ÌQÆƒJƒEƒ“ƒ^‚ğ‘‰Á
-				_AddRef();
-
-				return (*this);
+			if (--(*info_.countWeak_) == 0) {
+				delete info_.countRef_;
+				info_.countRef_ = NULL;
+				delete info_.countWeak_;
+				info_.countWeak_ = NULL;
 			}
+		}
+	}
+};
 
-			// =‘ã“ü‰‰Zqi–¾¦“IƒAƒbƒvƒLƒƒƒXƒg•t‚«j
-			template<class T2> ref_count_weak_ptr& operator =(ref_count_weak_ptr<T2, SYNC> &src)
-			{
-				// ©•ª©g‚Ö‚Ì‘ã“ü‚Í•s³‚ÅˆÓ–¡‚ª–³‚¢‚Ì‚Å
-				// s‚í‚È‚¢B
-				if(src.GetPointer() == info_.pPtr_)
-					return (*this);
+//================================================================
+//ref_count_weak_ptr
+template <class T, bool SYNC = true>
+class ref_count_weak_ptr {
+public:
+	typedef ref_count_weak_ptr<T, false> unsync; //æ’ä»–ãªã—ç‰ˆ
 
-				// ©•ª‚Í‘¼l‚É‚È‚Á‚Ä‚µ‚Ü‚¤‚Ì‚Å
-				// QÆƒJƒEƒ“ƒ^‚ğ1‚ÂŒ¸­
-				_Release();
+public:
+	ref_count_weak_ptr()
+	{
+	}
+	ref_count_weak_ptr(T* src)
+	{
+		if (src != NULL)
+			throw std::runtime_error("ref_count_weak_ptrã‚³ãƒ³ã‚¹ãƒˆãƒ©ã‚¯ã‚¿ã«éNULLã‚’ä»£å…¥ã—ã‚ˆã†ã¨ã—ã¾ã—ãŸ");
+	}
+	// ã‚³ãƒ”ãƒ¼ã‚³ãƒ³ã‚¹ãƒˆãƒ©ã‚¯ã‚¿
+	ref_count_weak_ptr(const ref_count_weak_ptr<T, SYNC>& src)
+	{
+		// ç›¸æ‰‹ã®ãƒã‚¤ãƒ³ã‚¿ã‚’ã‚³ãƒ”ãƒ¼
+		info_ = src.info_;
 
-				// ‘Šè‚Ìƒ|ƒCƒ“ƒ^‚ğƒRƒs[
-				info_.countRef_ = src._GetReferenceCountPointer();
-				info_.countWeak_ = src._GetWeakCountPointer();
-				info_.pPtr_ = src.GetPointer();
+		// è‡ªåˆ†è‡ªèº«ã®å‚ç…§ã‚«ã‚¦ãƒ³ã‚¿ã‚’å¢—åŠ 
+		_AddRef();
+	}
 
-				// V‚µ‚¢©•ª©g‚ÌQÆƒJƒEƒ“ƒ^‚ğ‘‰Á
-				_AddRef();
+	// ã‚³ãƒ”ãƒ¼ã‚³ãƒ³ã‚¹ãƒˆãƒ©ã‚¯ã‚¿ï¼ˆæš—é»™çš„ã‚¢ãƒƒãƒ—ã‚­ãƒ£ã‚¹ãƒˆä»˜ãï¼‰
+	template <class T2>
+	ref_count_weak_ptr(const ref_count_weak_ptr<T2, SYNC>& src)
+	{
+		// ç›¸æ‰‹ã®ãƒã‚¤ãƒ³ã‚¿ã‚’ã‚³ãƒ”ãƒ¼
+		info_.countRef_ = src._GetReferenceCountPointer();
+		info_.countWeak_ = src._GetWeakCountPointer();
+		info_.pPtr_ = src.GetPointer();
 
-				return (*this);
+		// è‡ªåˆ†è‡ªèº«ã®å‚ç…§ã‚«ã‚¦ãƒ³ã‚¿ã‚’å¢—åŠ 
+		_AddRef();
+	}
+
+	template <class T2>
+	ref_count_weak_ptr(const ref_count_ptr<T2, SYNC>& src)
+	{
+		info_.countRef_ = src._GetReferenceCountPointer();
+		info_.countWeak_ = src._GetWeakCountPointer();
+		info_.pPtr_ = src.GetPointer();
+		_AddRef();
+	}
+
+	// ãƒ‡ã‚¹ãƒˆãƒ©ã‚¯ã‚¿
+	~ref_count_weak_ptr()
+	{
+		_Release();
+	}
+
+	// =ä»£å…¥æ¼”ç®—å­
+	ref_count_weak_ptr<T, SYNC>& operator=(T* src)
+	{
+		if (src != NULL)
+			throw std::runtime_error("ref_count_weak_ptr =ã«éNULLã‚’ä»£å…¥ã—ã‚ˆã†ã¨ã—ã¾ã—ãŸ");
+		_Release();
+		info_.pPtr_ = src;
+		info_.countRef_ = NULL;
+		info_.countWeak_ = NULL;
+		return (*this);
+	}
+	ref_count_weak_ptr<T, SYNC>& operator=(const ref_count_weak_ptr<T, SYNC>& src)
+	{
+		// è‡ªåˆ†è‡ªèº«ã¸ã®ä»£å…¥ã¯ä¸æ­£ã§æ„å‘³ãŒç„¡ã„ã®ã§
+		// è¡Œã‚ãªã„ã€‚
+		if (src.info_.pPtr_ == info_.pPtr_)
+			return (*this);
+
+		// è‡ªåˆ†ã¯ä»–äººã«ãªã£ã¦ã—ã¾ã†ã®ã§
+		// å‚ç…§ã‚«ã‚¦ãƒ³ã‚¿ã‚’1ã¤æ¸›å°‘
+		_Release();
+
+		// ç›¸æ‰‹ã®ãƒã‚¤ãƒ³ã‚¿ã‚’ã‚³ãƒ”ãƒ¼
+		info_ = src.info_;
+
+		// æ–°ã—ã„è‡ªåˆ†è‡ªèº«ã®å‚ç…§ã‚«ã‚¦ãƒ³ã‚¿ã‚’å¢—åŠ 
+		_AddRef();
+
+		return (*this);
+	}
+
+	// =ä»£å…¥æ¼”ç®—å­
+	ref_count_weak_ptr<T, SYNC>& operator=(const ref_count_ptr<T, SYNC>& src)
+	{
+		// è‡ªåˆ†è‡ªèº«ã¸ã®ä»£å…¥ã¯ä¸æ­£ã§æ„å‘³ãŒç„¡ã„ã®ã§
+		// è¡Œã‚ãªã„ã€‚
+		if (src.info_.pPtr_ == info_.pPtr_)
+			return (*this);
+
+		// è‡ªåˆ†ã¯ä»–äººã«ãªã£ã¦ã—ã¾ã†ã®ã§
+		// å‚ç…§ã‚«ã‚¦ãƒ³ã‚¿ã‚’1ã¤æ¸›å°‘
+		_Release();
+
+		// ç›¸æ‰‹ã®ãƒã‚¤ãƒ³ã‚¿ã‚’ã‚³ãƒ”ãƒ¼
+		info_.countRef_ = src.info_.countRef_;
+		info_.countWeak_ = src.info_.countWeak_;
+		info_.pPtr_ = src.info_.pPtr_;
+
+		// æ–°ã—ã„è‡ªåˆ†è‡ªèº«ã®å‚ç…§ã‚«ã‚¦ãƒ³ã‚¿ã‚’å¢—åŠ 
+		_AddRef();
+
+		return (*this);
+	}
+
+	// =ä»£å…¥æ¼”ç®—å­ï¼ˆæ˜ç¤ºçš„ã‚¢ãƒƒãƒ—ã‚­ãƒ£ã‚¹ãƒˆä»˜ãï¼‰
+	template <class T2>
+	ref_count_weak_ptr& operator=(const ref_count_weak_ptr<T2, SYNC>& src)
+	{
+		// è‡ªåˆ†è‡ªèº«ã¸ã®ä»£å…¥ã¯ä¸æ­£ã§æ„å‘³ãŒç„¡ã„ã®ã§
+		// è¡Œã‚ãªã„ã€‚
+		if (src.GetPointer() == info_.pPtr_)
+			return (*this);
+
+		// è‡ªåˆ†ã¯ä»–äººã«ãªã£ã¦ã—ã¾ã†ã®ã§
+		// å‚ç…§ã‚«ã‚¦ãƒ³ã‚¿ã‚’1ã¤æ¸›å°‘
+		_Release();
+
+		// ç›¸æ‰‹ã®ãƒã‚¤ãƒ³ã‚¿ã‚’ã‚³ãƒ”ãƒ¼
+		info_.countRef_ = src._GetReferenceCountPointer();
+		info_.countWeak_ = src._GetWeakCountPointer();
+		info_.pPtr_ = src.GetPointer();
+
+		// æ–°ã—ã„è‡ªåˆ†è‡ªèº«ã®å‚ç…§ã‚«ã‚¦ãƒ³ã‚¿ã‚’å¢—åŠ 
+		_AddRef();
+
+		return (*this);
+	}
+
+	// *é–“æ¥æ¼”ç®—å­
+	T& operator*() { return *info_.pPtr_; }
+
+	// ->ãƒ¡ãƒ³ãƒé¸æŠæ¼”ç®—å­
+	T* operator->() { return info_.pPtr_; }
+
+	// []é…åˆ—å‚ç…§æ¼”ç®—å­
+	T& operator[](int n) { return info_.pPtr_[n]; }
+
+	// ==æ¯”è¼ƒæ¼”ç®—å­
+	bool operator==(const T* p)
+	{
+		return IsExists() ? (info_.pPtr_ == p) : (NULL == p);
+	}
+	bool operator==(const ref_count_weak_ptr<T, SYNC>& p) const
+	{
+		return IsExists() ? (info_.pPtr_ == p.info_.pPtr_) : (NULL == p.info_.pPtr_);
+	}
+	template <class D>
+	bool operator==(ref_count_weak_ptr<D, SYNC>& p) const
+	{
+		return IsExists() ? (info_.pPtr_ == p.GetPointer()) : (NULL == p.GetPointer());
+	}
+
+	// !=æ¯”è¼ƒæ¼”ç®—å­
+	bool operator!=(const T* p)
+	{
+		return IsExists() ? (info_.pPtr_ != p) : (NULL != p);
+	}
+	bool operator!=(const ref_count_weak_ptr<T, SYNC>& p) const
+	{
+		return IsExists() ? (info_.pPtr_ != p.info_.pPtr_) : (NULL != p.info_.pPtr_);
+	}
+	template <class D>
+	bool operator!=(ref_count_weak_ptr<D, SYNC>& p) const
+	{
+		return IsExists() ? (info_.pPtr_ != p.GetPointer()) : (NULL != p.GetPointer());
+	}
+
+	// ãƒã‚¤ãƒ³ã‚¿ã®è²¸ã—å‡ºã—
+	inline T* GetPointer() const { return IsExists() ? info_.pPtr_ : NULL; }
+
+	// å‚ç…§ã‚«ã‚¦ãƒ³ã‚¿ã¸ã®ãƒã‚¤ãƒ³ã‚¿ã‚’å–å¾—
+	inline long* _GetReferenceCountPointer() const { return info_.countRef_; } //ã“ã®é–¢æ•°ã¯å¤–éƒ¨ã‹ã‚‰ã—ã‚ˆã†ã—ãªã„ã“ã¨
+	inline long* _GetWeakCountPointer() const { return info_.countWeak_; } //ã“ã®é–¢æ•°ã¯å¤–éƒ¨ã‹ã‚‰ã—ã‚ˆã†ã—ãªã„ã“ã¨
+	int GetReferenceCount()
+	{
+		int res = info_.countRef_ != NULL ? (int)*info_.countRef_ : 0;
+		return res;
+	}
+	bool IsExists() const { return info_.countRef_ != NULL ? (*info_.countRef_ > 0) : false; }
+
+	template <class T2>
+	static ref_count_weak_ptr<T, SYNC> DownCast(const ref_count_weak_ptr<T2, SYNC>& src)
+	{
+		// å¼•æ•°ã®ã‚¹ãƒãƒ¼ãƒˆãƒã‚¤ãƒ³ã‚¿ãŒæŒã¤ãƒã‚¤ãƒ³ã‚¿ãŒã€
+		// è‡ªåˆ†ã®ç™»éŒ²ã—ã¦ã„ã‚‹ãƒã‚¤ãƒ³ã‚¿ã«
+		// ãƒ€ã‚¦ãƒ³ã‚­ãƒ£ã‚¹ãƒˆå¯èƒ½ãªå ´åˆã¯ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã‚’è¿”ã™
+		ref_count_weak_ptr<T, SYNC> res;
+		T* castPtr = dynamic_cast<T*>(src.GetPointer());
+		if (castPtr != NULL) {
+			// ãƒ€ã‚¦ãƒ³ã‚­ãƒ£ã‚¹ãƒˆå¯èƒ½
+			res._Release(); //ç¾åœ¨ã®å‚ç…§ã‚’ç ´æ£„ã™ã‚‹å¿…è¦ãŒã‚ã‚‹
+			res.info_.countRef_ = src._GetReferenceCountPointer();
+			res.info_.countWeak_ = src._GetWeakCountPointer();
+			res.info_.pPtr_ = castPtr;
+			res._AddRef();
+		}
+		return res;
+	}
+
+private:
+	ref_count_ptr_info<T> info_;
+
+	// å‚ç…§ã‚«ã‚¦ãƒ³ã‚¿å¢—åŠ 
+	void _AddRef()
+	{
+		if (info_.countRef_ == NULL)
+			return;
+
+		if (SYNC) {
+			InterlockedIncrement(info_.countWeak_);
+		} else {
+			++(*info_.countWeak_);
+		}
+	}
+
+	// å‚ç…§ã‚«ã‚¦ãƒ³ã‚¿æ¸›å°‘
+	void _Release()
+	{
+		if (info_.countRef_ == NULL)
+			return;
+
+		if (SYNC) {
+			if (InterlockedDecrement(info_.countWeak_) == 0) {
+				delete info_.countRef_;
+				info_.countRef_ = NULL;
+				delete info_.countWeak_;
+				info_.countWeak_ = NULL;
 			}
-
-			// *ŠÔÚ‰‰Zq
-			T& operator *(){ return *info_.pPtr_;}
-
-			// ->ƒƒ“ƒo‘I‘ğ‰‰Zq
-			T* operator ->(){ return info_.pPtr_;}
-
-			// []”z—ñQÆ‰‰Zq
-			T& operator [](int n){ return info_.pPtr_[n];}
-
-			// ==”äŠr‰‰Zq
-			bool operator ==(const T* p)
-			{
-				return IsExists() ? (info_.pPtr_ == p) : (NULL == p);
+		} else {
+			if (--(*info_.countWeak_) == 0) {
+				delete info_.countRef_;
+				info_.countRef_ = NULL;
+				delete info_.countWeak_;
+				info_.countWeak_ = NULL;
 			}
-			bool operator ==(const ref_count_weak_ptr<T, SYNC>& p)const
-			{
-				return IsExists() ? (info_.pPtr_ == p.info_.pPtr_) : (NULL == p.info_.pPtr_);
-			}
-			template< class D >
-			bool operator ==(ref_count_weak_ptr<D, SYNC>& p)const
-			{
-				return IsExists() ? (info_.pPtr_ == p.GetPointer() ) : (NULL == p.GetPointer());
-			}
+		}
+	}
+};
 
-			// !=”äŠr‰‰Zq
-			bool operator !=(const T* p)
-			{
-				return IsExists() ? (info_.pPtr_ != p) : (NULL != p);
-			}
-			bool operator !=(const ref_count_weak_ptr<T, SYNC>& p)const
-			{
-				return IsExists() ? (info_.pPtr_ != p.info_.pPtr_) : (NULL != p.info_.pPtr_);
-			}
-			template< class D >
-			bool operator !=(ref_count_weak_ptr<D, SYNC>& p)const
-			{
-				return IsExists() ? (info_.pPtr_ != p.GetPointer() ) : (NULL != p.GetPointer());
-			}
-
-			// ƒ|ƒCƒ“ƒ^‚Ì‘İ‚µo‚µ
-			inline T* GetPointer(){return IsExists() ? info_.pPtr_ : NULL;}
-
-			// QÆƒJƒEƒ“ƒ^‚Ö‚Ìƒ|ƒCƒ“ƒ^‚ğæ“¾
-			inline long* _GetReferenceCountPointer(){return info_.countRef_;}//‚±‚ÌŠÖ”‚ÍŠO•”‚©‚ç‚µ‚æ‚¤‚µ‚È‚¢‚±‚Æ
-			inline long* _GetWeakCountPointer(){return info_.countWeak_;}//‚±‚ÌŠÖ”‚ÍŠO•”‚©‚ç‚µ‚æ‚¤‚µ‚È‚¢‚±‚Æ
-			int GetReferenceCount(){int res = info_.countRef_ != NULL ? (int)*info_.countRef_ : 0;return res;}
-			bool IsExists(){return info_.countRef_ != NULL ? (*info_.countRef_ > 0) : false;}
-
-			template <class T2>
-			static ref_count_weak_ptr<T, SYNC> DownCast(ref_count_weak_ptr<T2, SYNC> &src)
-			{
-				// ˆø”‚ÌƒXƒ}[ƒgƒ|ƒCƒ“ƒ^‚ª‚Âƒ|ƒCƒ“ƒ^‚ªA
-				// ©•ª‚Ì“o˜^‚µ‚Ä‚¢‚éƒ|ƒCƒ“ƒ^‚É
-				// ƒ_ƒEƒ“ƒLƒƒƒXƒg‰Â”\‚Èê‡‚ÍƒIƒuƒWƒFƒNƒg‚ğ•Ô‚·
-				ref_count_weak_ptr<T, SYNC> res;
-				T* castPtr = dynamic_cast<T*>(src.GetPointer());
-				if(castPtr != NULL)
-				{
-					// ƒ_ƒEƒ“ƒLƒƒƒXƒg‰Â”\
-					res._Release();//Œ»İ‚ÌQÆ‚ğ”jŠü‚·‚é•K—v‚ª‚ ‚é
-					res.info_.countRef_ = src._GetReferenceCountPointer();
-					res.info_.countWeak_ = src._GetWeakCountPointer();
-					res.info_.pPtr_ = castPtr;
-					res._AddRef();
-				}
-				return res;
-			}
-	};
-}
+} // namespace gstd
 
 #endif

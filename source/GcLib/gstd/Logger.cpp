@@ -1,4 +1,7 @@
-#include"Logger.hpp"
+#include "Logger.hpp"
+#ifdef __EMSCRIPTEN__
+#include "../portable/Utf16.hpp"
+#endif
 
 using namespace gstd;
 
@@ -8,19 +11,18 @@ using namespace gstd;
 Logger* Logger::top_ = NULL;
 Logger::Logger()
 {
-
 }
 Logger::~Logger()
 {
 	listLogger_.clear();
-	if(top_ == this)top_ = NULL;
+	if (top_ == this)
+		top_ = NULL;
 }
 void Logger::_WriteChild(SYSTEMTIME& time, std::wstring str)
 {
 	_Write(time, str);
-	std::list<ref_count_ptr<Logger> >::iterator itr = listLogger_.begin();
-	for(;itr!=listLogger_.end();itr++)
-	{
+	std::list<ref_count_ptr<Logger>>::iterator itr = listLogger_.begin();
+	for (; itr != listLogger_.end(); itr++) {
 		(*itr)->_Write(time, str);
 	}
 }
@@ -32,22 +34,21 @@ void Logger::Write(std::wstring str)
 	this->_WriteChild(systemTime, str);
 }
 
-
 /**********************************************************
 //FileLogger
 **********************************************************/
 FileLogger::FileLogger()
 {
-	sizeMax_ = 10*1024*1024;//10MB
+	sizeMax_ = 10 * 1024 * 1024; // 10MB
 }
 
 FileLogger::~FileLogger()
 {
-
 }
 void FileLogger::Clear()
 {
-	if(!bEnable_)return;
+	if (!bEnable_)
+		return;
 
 	File file1(path_);
 	file1.Delete();
@@ -63,22 +64,19 @@ bool FileLogger::Initialize(bool bEnable)
 bool FileLogger::Initialize(std::wstring path, bool bEnable)
 {
 	bEnable_ = bEnable;
-	if(path.size() == 0)
-	{
-		path = PathProperty::GetModuleDirectory()+
-			PathProperty::GetModuleName() + 
-			std::wstring(L".log");
+	if (path.size() == 0) {
+		path = PathProperty::GetModuleDirectory() + PathProperty::GetModuleName() + std::wstring(L".log");
 	}
 	return this->SetPath(path);
 }
 bool FileLogger::SetPath(std::wstring path)
 {
-	if(!bEnable_)return false;
+	if (!bEnable_)
+		return false;
 
 	path_ = path;
 	File file(path);
-	if(file.IsExists() == false)
-	{
+	if (file.IsExists() == false) {
 		file.CreateDirectory();
 		_CreateFile(file);
 	}
@@ -90,49 +88,60 @@ void FileLogger::_CreateFile(File& file)
 {
 	file.Create();
 
-	//BOMiByte Order Markj
+	//BOMï¼ˆByte Order Markï¼‰
 	file.WriteCharacter((unsigned char)0xFF);
 	file.WriteCharacter((unsigned char)0xFE);
 }
 void FileLogger::_Write(SYSTEMTIME& time, std::wstring str)
 {
-	if(!bEnable_)return;
+	if (!bEnable_)
+		return;
 
 	{
 		Lock lock(lock_);
-		std::wstring strTime = 
-			StringUtility::Format(L"%.4d/%.2d/%.2d %.2d:%.2d:%.2d.%.3d ",time.wYear, time.wMonth, time.wDay, time.wHour, time.wMinute, time.wSecond, time.wMilliseconds);
+		std::wstring strTime = StringUtility::Format(L"%.4d/%.2d/%.2d %.2d:%.2d:%.2d.%.3d ", time.wYear, time.wMonth, time.wDay, time.wHour, time.wMinute, time.wSecond, time.wMilliseconds);
 
 		File file(path_);
-		if(!file.Open(File::WRITE))return;
+		if (!file.Open(File::WRITE))
+			return;
 
 		std::wstring out = strTime;
 		out += str;
 		out += L"\r\n";
-		
+
 		int pos = file.GetSize();
 		file.Seek(pos);
+#ifdef __EMSCRIPTEN__
+		auto encoded = portable::EncodeUtf16(out);
+		file.Write(encoded.data(), encoded.size());
+#else
 		file.Write(&out[0], StringUtility::GetByteSize(out));
+#endif
 
 		bool bOverSize = file.GetSize() > sizeMax_;
 		file.Close();
 
-		if(bOverSize)
-		{
+		if (bOverSize) {
+#ifdef __EMSCRIPTEN__
+			std::rename(StringUtility::ConvertWideToMulti(path_, CP_UTF8).c_str(),
+				StringUtility::ConvertWideToMulti(path2_, CP_UTF8).c_str());
+#else
 			::MoveFileEx(path_.c_str(), path2_.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);
+#endif
 			File file1(path_);
 			_CreateFile(file1);
 		}
 	}
 }
 
-
 /**********************************************************
 //WindowLogger
 **********************************************************/
+#ifdef __EMSCRIPTEN__
+#include "../portable/WindowLogger.cpp"
+#else
 WindowLogger::WindowLogger()
 {
-
 }
 WindowLogger::~WindowLogger()
 {
@@ -141,25 +150,24 @@ WindowLogger::~WindowLogger()
 	wndLogPanel_ = NULL;
 	wndStatus_ = NULL;
 	wndTab_ = NULL;
-	if(hWnd_ != NULL)
+	if (hWnd_ != NULL)
 		SendMessage(hWnd_, WM_ENDLOGGER, 0, 0);
-	if(threadWindow_ != NULL)
-	{
+	if (threadWindow_ != NULL) {
 		threadWindow_->Stop();
-		threadWindow_->Join(2000);//”O‚Ì‚½‚ß‚Éƒ^ƒCƒ€ƒAƒEƒgİ’è
+		threadWindow_->Join(2000); //å¿µã®ãŸã‚ã«ã‚¿ã‚¤ãƒ ã‚¢ã‚¦ãƒˆè¨­å®š
 	}
 }
 bool WindowLogger::Initialize(bool bEnable)
 {
 	bEnable_ = bEnable;
-	if(!bEnable)return true;
+	if (!bEnable)
+		return true;
 
 	threadWindow_ = new WindowThread(this);
 	threadWindow_->Start();
 
-	while(GetWindowHandle() == NULL)
-	{
-		Sleep(10);//ƒEƒBƒ“ƒhƒE‚ªì¬Š®—¹‚·‚é‚Ü‚Å‘Ò‹@
+	while (GetWindowHandle() == NULL) {
+		Sleep(10); //ã‚¦ã‚£ãƒ³ãƒ‰ã‚¦ãŒä½œæˆå®Œäº†ã™ã‚‹ã¾ã§å¾…æ©Ÿ
 	}
 
 	//LogPanel
@@ -178,47 +186,46 @@ void WindowLogger::SaveState()
 	RecordBuffer recordMain;
 	bool bRecordExists = recordMain.ReadFromFile(path);
 
-	int panelIndex = wndTab_->GetCurrentPage();
-	recordMain.SetRecordAsInteger("panelIndex", panelIndex);
+	if (wndTab_ != nullptr) {
+		int panelIndex = wndTab_->GetCurrentPage();
+		recordMain.SetRecordAsInteger("panelIndex", panelIndex);
 
-	RECT rcWnd;
-	ZeroMemory(&rcWnd, sizeof(RECT));
-	if(bRecordExists)
-		recordMain.GetRecord("windowRect", rcWnd);
-	if(IsWindowVisible())
-		GetWindowRect(hWnd_, &rcWnd);
-	recordMain.SetRecord("windowRect", rcWnd);
-	
-	RecordBuffer recordPanel;
-	int panelCount = wndTab_->GetPageCount();
-	for(int iPanel = 0 ; iPanel < panelCount ; iPanel++)
-	{
-		ref_count_ptr<WindowLogger::Panel> panel = 
-			ref_count_ptr<WindowLogger::Panel>::DownCast(wndTab_->GetPanel(iPanel));
-		if(panel == NULL)continue;
+		RECT rcWnd;
+		ZeroMemory(&rcWnd, sizeof(RECT));
+		if (bRecordExists)
+			recordMain.GetRecord("windowRect", rcWnd);
+		if (IsWindowVisible())
+			GetWindowRect(hWnd_, &rcWnd);
+		recordMain.SetRecord("windowRect", rcWnd);
 
-		panel->_WriteRecord(recordPanel);
+		RecordBuffer recordPanel;
+		int panelCount = wndTab_->GetPageCount();
+		for (int iPanel = 0; iPanel < panelCount; iPanel++) {
+			ref_count_ptr<WindowLogger::Panel> panel = ref_count_ptr<WindowLogger::Panel>::DownCast(wndTab_->GetPanel(iPanel));
+			if (panel == NULL)
+				continue;
+			panel->_WriteRecord(recordPanel);
+		}
+
+		recordMain.SetRecordAsRecordBuffer("panel", recordPanel);
+
+		recordMain.WriteToFile(path);
 	}
-
-	recordMain.SetRecordAsRecordBuffer("panel", recordPanel);
-
-	recordMain.WriteToFile(path);
 }
 void WindowLogger::LoadState()
 {
 	std::wstring path = PathProperty::GetModuleDirectory() + L"LogWindow.dat";
 	RecordBuffer recordMain;
-	if(!recordMain.ReadFromFile(path))return;
+	if (!recordMain.ReadFromFile(path))
+		return;
 
 	int panelIndex = recordMain.GetRecordAsInteger("panelIndex");
-	if(panelIndex >= 0 && panelIndex < wndTab_->GetPageCount())
+	if (panelIndex >= 0 && panelIndex < wndTab_->GetPageCount())
 		wndTab_->SetCurrentPage(panelIndex);
 
 	RECT rcWnd;
 	recordMain.GetRecord("windowRect", rcWnd);
-	if(rcWnd.left >= 0 && rcWnd.right > rcWnd.left &&
-		rcWnd.top >= 0 && rcWnd.bottom > rcWnd.top)
-	{
+	if (rcWnd.left >= 0 && rcWnd.right > rcWnd.left && rcWnd.top >= 0 && rcWnd.bottom > rcWnd.top) {
 		SetBounds(rcWnd.left, rcWnd.top, rcWnd.right - rcWnd.left, rcWnd.bottom - rcWnd.top);
 	}
 
@@ -226,11 +233,10 @@ void WindowLogger::LoadState()
 	recordMain.GetRecordAsRecordBuffer("panel", recordPanel);
 
 	int panelCount = wndTab_->GetPageCount();
-	for(int iPanel = 0 ; iPanel < panelCount ; iPanel++)
-	{
-		ref_count_ptr<WindowLogger::Panel> panel = 
-			ref_count_ptr<WindowLogger::Panel>::DownCast(wndTab_->GetPanel(iPanel));
-		if(panel == NULL)continue;
+	for (int iPanel = 0; iPanel < panelCount; iPanel++) {
+		ref_count_ptr<WindowLogger::Panel> panel = ref_count_ptr<WindowLogger::Panel>::DownCast(wndTab_->GetPanel(iPanel));
+		if (panel == NULL)
+			continue;
 
 		panel->_ReadRecord(recordPanel);
 	}
@@ -241,31 +247,31 @@ void WindowLogger::_CreateWindow()
 	std::wstring wName = L"LogWindow";
 
 	WNDCLASSEX wcex;
-	ZeroMemory(&wcex,sizeof(wcex));
-	wcex.cbSize=sizeof(WNDCLASSEX); 
-	wcex.lpfnWndProc=(WNDPROC)WindowBase::_StaticWindowProcedure;
-	wcex.hInstance=hInst;
-	wcex.hIcon=NULL;
-	wcex.hCursor=LoadCursor(NULL, IDC_ARROW);
-	wcex.hbrBackground=(HBRUSH)(COLOR_WINDOW);
-	wcex.lpszMenuName=NULL;
-	wcex.lpszClassName=wName.c_str();
-	wcex.hIconSm=NULL;
+	ZeroMemory(&wcex, sizeof(wcex));
+	wcex.cbSize = sizeof(WNDCLASSEX);
+	wcex.lpfnWndProc = (WNDPROC)WindowBase::_StaticWindowProcedure;
+	wcex.hInstance = hInst;
+	wcex.hIcon = NULL;
+	wcex.hCursor = LoadCursor(NULL, IDC_ARROW);
+	wcex.hbrBackground = (HBRUSH)(COLOR_WINDOW);
+	wcex.lpszMenuName = NULL;
+	wcex.lpszClassName = wName.c_str();
+	wcex.hIconSm = NULL;
 	RegisterClassEx(&wcex);
 
-   	hWnd_=::CreateWindow(wcex.lpszClassName,
+	hWnd_ = ::CreateWindow(wcex.lpszClassName,
 		wName.c_str(),
-		WS_OVERLAPPEDWINDOW  ,
-		0,0,640,480,NULL,(HMENU)NULL,hInst,NULL);
+		WS_OVERLAPPEDWINDOW,
+		0, 0, 640, 480, NULL, (HMENU)NULL, hInst, NULL);
 	::ShowWindow(hWnd_, SW_HIDE);
 	this->Attach(hWnd_);
 
-	//ƒ^ƒu
+	//ã‚¿ãƒ–
 	wndTab_ = new WTabControll();
 	wndTab_->Create(hWnd_);
 	HWND hTab = wndTab_->GetWindowHandle();
 
-	//ƒXƒe[ƒ^ƒXƒo[
+	//ã‚¹ãƒ†ãƒ¼ã‚¿ã‚¹ãƒãƒ¼
 	wndStatus_ = new WStatusBar();
 	wndStatus_->Create(hWnd_);
 	std::vector<int> sizeStatus;
@@ -273,12 +279,12 @@ void WindowLogger::_CreateWindow()
 	sizeStatus.push_back(sizeStatus[0] + 560);
 	wndStatus_->SetPartsSize(sizeStatus);
 
-	//î•ñæ“¾ƒXƒŒƒbƒh
+	//æƒ…å ±å–å¾—ã‚¹ãƒ¬ãƒƒãƒ‰
 	threadInfoCollect_ = new InfoCollectThread(wndStatus_);
 	threadInfoCollect_->Start();
 
-	//‰Šú‰»Š®—¹
-	this->SetBounds(32,32,280,480);
+	//åˆæœŸåŒ–å®Œäº†
+	this->SetBounds(32, 32, 280, 480);
 	wndTab_->ShowPage();
 
 	::UpdateWindow(hWnd_);
@@ -287,19 +293,19 @@ void WindowLogger::_Run()
 {
 	_CreateWindow();
 	MSG msg;
-	while(GetMessage(&msg, NULL, 0, 0))
-	{	//ƒƒbƒZ[ƒWƒ‹[ƒv
+	while (GetMessage(&msg, NULL, 0, 0)) { //ãƒ¡ãƒƒã‚»ãƒ¼ã‚¸ãƒ«ãƒ¼ãƒ—
 		TranslateMessage(&msg);
 		DispatchMessage(&msg);
 	}
 }
 void WindowLogger::_Write(SYSTEMTIME& systemTime, std::wstring str)
 {
-	if(hWnd_ == NULL)return;
+	if (hWnd_ == NULL)
+		return;
 
 	wchar_t timeStr[256];
 	swprintf(timeStr, L"%.4d/%.2d/%.2d %.2d:%.2d:%.2d.%.3d ",
-		systemTime.wYear, systemTime.wMonth, systemTime.wDay, 
+		systemTime.wYear, systemTime.wMonth, systemTime.wDay,
 		systemTime.wHour, systemTime.wMinute, systemTime.wSecond, systemTime.wMilliseconds);
 
 	std::wstring out = timeStr;
@@ -310,94 +316,85 @@ void WindowLogger::_Write(SYSTEMTIME& systemTime, std::wstring str)
 		wndLogPanel_->AddText(out);
 	}
 }
-LRESULT WindowLogger::_WindowProcedure(HWND hWnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
+LRESULT WindowLogger::_WindowProcedure(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-	switch (uMsg)
-	{
-		case WM_DESTROY:
-		{
-			::PostQuitMessage(0);
-			return FALSE;
-		}
-		case WM_CLOSE:
-		{
-			SaveState();
-			::ShowWindow(hWnd, SW_HIDE);
-			return FALSE;
-		}
-		case WM_SIZE:
-		{
-			RECT rect;
-			::GetClientRect(hWnd_, &rect);
-			int wx = rect.left;
-			int wy = rect.top;
-			int wWidth = rect.right-rect.left;
-			int wHeight = rect.bottom-rect.top;
+	switch (uMsg) {
+	case WM_DESTROY: {
+		::PostQuitMessage(0);
+		return FALSE;
+	}
+	case WM_CLOSE: {
+		SaveState();
+		::ShowWindow(hWnd, SW_HIDE);
+		return FALSE;
+	}
+	case WM_SIZE: {
+		RECT rect;
+		::GetClientRect(hWnd_, &rect);
+		int wx = rect.left;
+		int wy = rect.top;
+		int wWidth = rect.right - rect.left;
+		int wHeight = rect.bottom - rect.top;
 
-			wndStatus_->SetBounds(wParam, lParam);
-			wndTab_->SetBounds(wx+8, wy+4, wWidth-16, wHeight-32);
-			::InvalidateRect(wndTab_->GetWindowHandle(), NULL, TRUE);
+		wndStatus_->SetBounds(wParam, lParam);
+		wndTab_->SetBounds(wx + 8, wy + 4, wWidth - 16, wHeight - 32);
+		::InvalidateRect(wndTab_->GetWindowHandle(), NULL, TRUE);
 
+		return FALSE;
+	}
+	case WM_NOTIFY: {
+		switch (((NMHDR*)lParam)->code) {
+		case TCN_SELCHANGE:
+			wndTab_->ShowPage();
 			return FALSE;
 		}
-		case WM_NOTIFY:
+		break;
+	}
+	case WM_ENDLOGGER: {
+		::DestroyWindow(hWnd);
+		break;
+	}
+	case WM_ADDPANEL: {
 		{
-			switch (((NMHDR *)lParam)->code)
-			{
-				case TCN_SELCHANGE:
-					wndTab_->ShowPage();
-					return FALSE;
+			Lock lock(lock_);
+			std::list<AddPanelEvent>::iterator itr;
+			for (itr = listEventAddPanel_.begin(); itr != listEventAddPanel_.end(); itr++) {
+				AddPanelEvent event = *itr;
+				std::wstring name = event.name;
+				ref_count_ptr<Panel> panel = event.panel;
+
+				HWND hTab = wndTab_->GetWindowHandle();
+				panel->_AddedLogger(hTab);
+				wndTab_->AddTab(name, panel);
+
+				RECT rect;
+				::GetClientRect(hWnd_, &rect);
+				int wx = rect.left;
+				int wy = rect.top;
+				int wWidth = rect.right - rect.left;
+				int wHeight = rect.bottom - rect.top;
+				wndTab_->SetBounds(wx + 8, wy + 4, wWidth - 16, wHeight - 32);
+				wndTab_->LocateParts();
 			}
-			break;
+			listEventAddPanel_.clear();
 		}
-		case WM_ENDLOGGER:
-		{
-			::DestroyWindow(hWnd);
-			break;
-		}
-		case WM_ADDPANEL:
-		{
-			{
-				Lock lock(lock_);
-				std::list<AddPanelEvent>::iterator itr;
-				for(itr=listEventAddPanel_.begin(); itr != listEventAddPanel_.end();itr++)
-				{
-					AddPanelEvent event = *itr;
-					std::wstring name = event.name;
-					ref_count_ptr<Panel> panel = event.panel;
-
-					HWND hTab = wndTab_->GetWindowHandle();
-					panel->_AddedLogger(hTab);
-					wndTab_->AddTab(name, panel);
-
-					RECT rect;
-					::GetClientRect(hWnd_, &rect);
-					int wx = rect.left;
-					int wy = rect.top;
-					int wWidth = rect.right-rect.left;
-					int wHeight = rect.bottom-rect.top;
-					wndTab_->SetBounds(wx+8, wy+4, wWidth-16, wHeight-32);
-					wndTab_->LocateParts();
-				}
-				listEventAddPanel_.clear();
-			}
-			break;
-		}
+		break;
+	}
 	}
 	return _CallPreviousWindowProcedure(hWnd, uMsg, wParam, lParam);
-
 }
-
 
 void WindowLogger::SetInfo(int row, std::wstring textInfo, std::wstring textData)
 {
-	if(hWnd_ == NULL)return;
+	if (hWnd_ == NULL)
+		return;
 	wndInfoPanel_->SetInfo(row, textInfo, textData);
 }
 
 bool WindowLogger::AddPanel(ref_count_ptr<Panel> panel, std::wstring name)
 {
-	if(hWnd_ == NULL)return false;
+	if (hWnd_ == NULL)
+		return false;
 
 	AddPanelEvent event;
 	event.name = name;
@@ -409,15 +406,15 @@ bool WindowLogger::AddPanel(ref_count_ptr<Panel> panel, std::wstring name)
 
 	::SendMessage(hWnd_, WM_ADDPANEL, 0, 0);
 
-	while(panel->GetWindowHandle() == NULL)
-	{
-		Sleep(10);//ƒEƒBƒ“ƒhƒE‚ªì¬Š®—¹‚·‚é‚Ü‚Å‘Ò‹@
+	while (panel->GetWindowHandle() == NULL) {
+		Sleep(10); //ã‚¦ã‚£ãƒ³ãƒ‰ã‚¦ãŒä½œæˆå®Œäº†ã™ã‚‹ã¾ã§å¾…æ©Ÿ
 	}
 	return true;
 }
 void WindowLogger::ShowLogWindow()
 {
-	if(!bEnable_)return;
+	if (!bEnable_)
+		return;
 	ShowWindow(hWnd_, SW_SHOW);
 }
 void WindowLogger::InsertOpenCommandInSystemMenu(HWND hWnd)
@@ -432,7 +429,7 @@ void WindowLogger::InsertOpenCommandInSystemMenu(HWND hWnd)
 	mii.fMask = MIIM_ID | MIIM_TYPE;
 	mii.fType = MFT_STRING;
 	mii.wID = MENU_ID_OPEN;
-	mii.dwTypeData = L"ƒƒOƒEƒBƒ“ƒhƒE•\¦";
+	mii.dwTypeData = L"ãƒ­ã‚°ã‚¦ã‚£ãƒ³ãƒ‰ã‚¦è¡¨ç¤º";
 
 	InsertMenuItem(hMenu, 0, 1, &mii);
 }
@@ -451,20 +448,16 @@ void WindowLogger::WindowThread::_Run()
 //WindowLogger::LogPanel
 WindowLogger::LogPanel::LogPanel()
 {
-
 }
 WindowLogger::LogPanel::~LogPanel()
 {
-
 }
 bool WindowLogger::LogPanel::_AddedLogger(HWND hTab)
 {
 	Create(hTab);
 
 	gstd::WEditBox::Style styleEdit;
-	styleEdit.SetStyle(WS_CHILD | WS_VISIBLE |
-		ES_MULTILINE|ES_READONLY|ES_AUTOHSCROLL|ES_AUTOVSCROLL|
-		WS_HSCROLL | WS_VSCROLL);
+	styleEdit.SetStyle(WS_CHILD | WS_VISIBLE | ES_MULTILINE | ES_READONLY | ES_AUTOHSCROLL | ES_AUTOVSCROLL | WS_HSCROLL | WS_VSCROLL);
 	styleEdit.SetStyleEx(WS_EX_CLIENTEDGE);
 	wndEdit_.Create(hWnd_, styleEdit);
 	return true;
@@ -481,9 +474,8 @@ void WindowLogger::LogPanel::AddText(std::wstring text)
 {
 	HWND hEdit = wndEdit_.GetWindowHandle();
 	int pos = GetWindowTextLength(hEdit);
-	if(pos + wndEdit_.GetTextLength() >= wndEdit_.GetMaxTextLength())
-	{
-		//Å‘å•¶š”‚ğ’´‚¦‚½‚ç50%íœ
+	if (pos + wndEdit_.GetTextLength() >= wndEdit_.GetMaxTextLength()) {
+		//æœ€å¤§æ–‡å­—æ•°ã‚’è¶…ãˆãŸã‚‰50%å‰Šé™¤
 		std::wstring text = wndEdit_.GetText();
 		text = text.erase(0, text.size() / 2);
 		text += L"\r\n";
@@ -491,27 +483,24 @@ void WindowLogger::LogPanel::AddText(std::wstring text)
 
 		pos = GetWindowTextLength(hEdit);
 	}
-	::SendMessage( hEdit, EM_SETSEL, pos, pos );
-	::SendMessage( hEdit, EM_REPLACESEL, 0, (LPARAM)text.c_str() );
+	::SendMessage(hEdit, EM_SETSEL, pos, pos);
+	::SendMessage(hEdit, EM_REPLACESEL, 0, (LPARAM)text.c_str());
 }
 //WindowLogger::InfoPanel
 WindowLogger::InfoPanel::InfoPanel()
 {
-
 }
 WindowLogger::InfoPanel::~InfoPanel()
 {
-
 }
 bool WindowLogger::InfoPanel::_AddedLogger(HWND hTab)
 {
 	Create(hTab);
 
 	gstd::WListView::Style styleListView;
-	styleListView.SetStyle(WS_CHILD | WS_VISIBLE | 
-		LVS_REPORT | LVS_SHOWSELALWAYS | LVS_SINGLESEL| LVS_NOSORTHEADER);
+	styleListView.SetStyle(WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS | LVS_SINGLESEL | LVS_NOSORTHEADER);
 	styleListView.SetStyleEx(WS_EX_CLIENTEDGE);
-	styleListView.SetListViewStyleEx(LVS_EX_FULLROWSELECT|LVS_EX_GRIDLINES);
+	styleListView.SetListViewStyleEx(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
 	wndListView_.Create(hWnd_, styleListView);
 
 	wndListView_.AddColumn(120, ROW_INFO, L"Info");
@@ -545,30 +534,31 @@ WindowLogger::InfoCollectThread::~InfoCollectThread()
 }
 void WindowLogger::InfoCollectThread::_Run()
 {
-	//TODO –³Œø‚ÈƒXƒe[ƒ^ƒXƒo[‚ÉƒƒbƒZ[ƒW‚ğ
-	//     ‘—‚é‚Æ‚«AŒÅ‚Ü‚é‰Â”\«‚ ‚èB
+	//TODO ç„¡åŠ¹ãªã‚¹ãƒ†ãƒ¼ã‚¿ã‚¹ãƒãƒ¼ã«ãƒ¡ãƒƒã‚»ãƒ¼ã‚¸ã‚’
+	//     é€ã‚‹ã¨ãã€å›ºã¾ã‚‹å¯èƒ½æ€§ã‚ã‚Šã€‚
 	infoCpu_ = this->_GetCpuInformation();
 
-	while(this->GetStatus() == RUN)
-	{
+	while (this->GetStatus() == RUN) {
 		::Sleep(500);
 	}
-/*
+	/*
 	PROCESS_MEMORY_COUNTERS memoryCounter;
 	ZeroMemory(&memoryCounter, sizeof(PROCESS_MEMORY_COUNTERS));
 	DWORD dwProcessID = GetCurrentProcessId();
-	HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE ,dwProcessID);
-	while(this->GetStatus() == RUN)
-	{
+	HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, dwProcessID);
+	while (this->GetStatus() == RUN) {
 		GetProcessMemoryInfo(hProcess, &memoryCounter, sizeof(PROCESS_MEMORY_COUNTERS));
 		double pageFileUsage = memoryCounter.PagefileUsage / 1024. / 1024.;
 		std::string strMemory = StringUtility::Format("Memory [ %.2fMB ]", pageFileUsage);
-		if(this->GetStatus() == RUN)wndStatus_->SetText(STATUS_MEMORY, strMemory);
+		if (this->GetStatus() == RUN
+			wndStatus_->SetText(STATUS_MEMORY, strMemory);
 
 		double cpuPerformance=this->_GetCpuPerformance();
 		CpuInfo &ci=this->infoCpu_;
-		std::string strCpu = StringUtility::Format("%s %s [ %4.2fMHz (%3d %%) type:%d family:%d model:%d stepping:%d ]",ci.venderID,ci.cpuName.c_str(),ci.clock/1000/1000,(int)cpuPerformance,ci.type,ci.family,ci.model,ci.stepping);
-		if(this->GetStatus() == RUN)wndStatus_->SetText(STATUS_CPU, strCpu);
+		std::string strCpu = StringUtility::Format("%s %s [ %4.2fMHz (%3d %%) type:%d family:%d model:%d stepping:%d ]",
+				ci.venderID, ci.cpuName.c_str(), ci.clock/1000/1000, (int)cpuPerformance, ci.type, ci.family, ci.model, ci.stepping);
+		if (this->GetStatus() == RUN)
+			wndStatus_->SetText(STATUS_CPU, strCpu);
 
 		::Sleep(500);
 	}
@@ -581,195 +571,185 @@ WindowLogger::InfoCollectThread::CpuInfo WindowLogger::InfoCollectThread::_GetCp
 	char VenderID[13];
 	char name[17];
 	int eax1cpuid_supported;
-	int	eax_flags;
-	int	edx_flags;
+	int eax_flags;
+	int edx_flags;
 	unsigned long CPUClock;
 	unsigned long start;
 
 	CpuInfo ci;
-	ZeroMemory(&ci,sizeof(CpuInfo));
+	ZeroMemory(&ci, sizeof(CpuInfo));
 
-	try
-	{
-		/*CPUID–½—ß‚ğƒTƒ|[ƒg‚µ‚Ä‚¢‚é‚©’²‚×‚éB
-		iPentiumˆÈ~‚ÌCPU‚È‚ç‚ÎƒTƒ|[ƒg‚µ‚Ä‚¢‚é‚ç‚µ‚¢cj
-		ƒtƒ‰ƒOƒŒƒWƒXƒ^‚Ì‚Q‚Pƒrƒbƒg–Ú‚ğ•Ï‚¦‚é‚±‚Æ‚ª‚Å‚«‚ê‚ÎƒTƒ|[ƒg‚µ‚Ä‚¢‚éB*/
+	try {
+		/*CPUIDå‘½ä»¤ã‚’ã‚µãƒãƒ¼ãƒˆã—ã¦ã„ã‚‹ã‹èª¿ã¹ã‚‹ã€‚
+		ï¼ˆPentiumä»¥é™ã®CPUãªã‚‰ã°ã‚µãƒãƒ¼ãƒˆã—ã¦ã„ã‚‹ã‚‰ã—ã„â€¦ï¼‰
+		ãƒ•ãƒ©ã‚°ãƒ¬ã‚¸ã‚¹ã‚¿ã®ï¼’ï¼‘ãƒ“ãƒƒãƒˆç›®ã‚’å¤‰ãˆã‚‹ã“ã¨ãŒã§ãã‚Œã°ã‚µãƒãƒ¼ãƒˆã—ã¦ã„ã‚‹ã€‚*/
 		_asm
 		{
-			pushfd                ; ƒtƒ‰ƒOƒŒƒWƒXƒ^‚Ì“à—e‚ğƒXƒ^ƒbƒN‚É•Û‘¶
-			pushfd                ; ƒtƒ‰ƒOƒŒƒWƒXƒ^‚Ì“à—e‚ğƒXƒ^ƒbƒN‚É“ü‚ê‚é
-			pop eax	              ; ƒXƒ^ƒbƒN‚Ì“à—e‚ğeaxƒŒƒWƒXƒ^‚Éæ‚èo‚·
-			xor eax,00200000h     ; eaxƒŒƒWƒXƒ^‚Ì21ƒrƒbƒg–Ú‚ğƒrƒbƒg”½“]Ac‚è‚Í‚»‚Ì‚Ü‚Ü
-			push eax              ; eaxƒŒƒWƒXƒ^‚Ì“à—e‚ğƒXƒ^ƒbƒN‚É“ü‚ê‚é
-			popfd                 ; ƒXƒ^ƒbƒN‚Ì“à—e‚ğƒtƒ‰ƒOƒŒƒWƒXƒ^‚Éæ‚èo‚·
-			pushfd                ; ƒtƒ‰ƒOƒŒƒWƒXƒ^‚Ì“à—e‚ğƒXƒ^ƒbƒN‚É“ü‚ê‚é
-			pop ebx               ; ƒXƒ^ƒbƒN‚Ì“à—e‚ğebxƒŒƒWƒXƒ^‚Éæ‚èo‚·
-			popfd                 ; ƒtƒ‰ƒOƒŒƒWƒXƒ^‚Ì“à—e‚ğ•œŒ³
-			cmp eax,ebx           ; ”äŠr
-			je supported          ; “™‚µ‚¢‚È‚ç‚ÎƒWƒƒƒ“ƒv
-			mov cpuid_supported,0 ; •Ï”‘ã“ü
-			jmp exitasm           ; –³ğŒƒWƒƒƒ“ƒv
+			pushfd                ; ãƒ•ãƒ©ã‚°ãƒ¬ã‚¸ã‚¹ã‚¿ã®å†…å®¹ã‚’ã‚¹ã‚¿ãƒƒã‚¯ã«ä¿å­˜
+			pushfd                ; ãƒ•ãƒ©ã‚°ãƒ¬ã‚¸ã‚¹ã‚¿ã®å†…å®¹ã‚’ã‚¹ã‚¿ãƒƒã‚¯ã«å…¥ã‚Œã‚‹
+			pop eax	              ; ã‚¹ã‚¿ãƒƒã‚¯ã®å†…å®¹ã‚’eaxãƒ¬ã‚¸ã‚¹ã‚¿ã«å–ã‚Šå‡ºã™
+			xor eax,00200000h     ; eaxãƒ¬ã‚¸ã‚¹ã‚¿ã®21ãƒ“ãƒƒãƒˆç›®ã‚’ãƒ“ãƒƒãƒˆåè»¢ã€æ®‹ã‚Šã¯ãã®ã¾ã¾
+			push eax              ; eaxãƒ¬ã‚¸ã‚¹ã‚¿ã®å†…å®¹ã‚’ã‚¹ã‚¿ãƒƒã‚¯ã«å…¥ã‚Œã‚‹
+			popfd                 ; ã‚¹ã‚¿ãƒƒã‚¯ã®å†…å®¹ã‚’ãƒ•ãƒ©ã‚°ãƒ¬ã‚¸ã‚¹ã‚¿ã«å–ã‚Šå‡ºã™
+			pushfd                ; ãƒ•ãƒ©ã‚°ãƒ¬ã‚¸ã‚¹ã‚¿ã®å†…å®¹ã‚’ã‚¹ã‚¿ãƒƒã‚¯ã«å…¥ã‚Œã‚‹
+			pop ebx               ; ã‚¹ã‚¿ãƒƒã‚¯ã®å†…å®¹ã‚’ebxãƒ¬ã‚¸ã‚¹ã‚¿ã«å–ã‚Šå‡ºã™
+			popfd                 ; ãƒ•ãƒ©ã‚°ãƒ¬ã‚¸ã‚¹ã‚¿ã®å†…å®¹ã‚’å¾©å…ƒ
+			cmp eax,ebx           ; æ¯”è¼ƒ
+			je supported          ; ç­‰ã—ã„ãªã‚‰ã°ã‚¸ãƒ£ãƒ³ãƒ—
+			mov cpuid_supported,0 ; å¤‰æ•°ä»£å…¥
+			jmp exitasm           ; ç„¡æ¡ä»¶ã‚¸ãƒ£ãƒ³ãƒ—
 
 			supported:
-				mov cpuid_supported,1	; •Ï”‘ã“ü
+				mov cpuid_supported,1	; å¤‰æ•°ä»£å…¥
 			exitasm:
 		};
 
-		if(!cpuid_supported)
-		{//CPUID –½—ß‚ğƒTƒ|[ƒg‚µ‚Ä‚È‚¢
+		if (!cpuid_supported) { //CPUID å‘½ä»¤ã‚’ã‚µãƒãƒ¼ãƒˆã—ã¦ãªã„
 			throw gstd::wexception();
 		}
 
-		/*eax=0‚ÅCPUID‚ğŒÄ‚Ño‚µA
-		Eƒxƒ“ƒ_[ID‚Ìæ“¾iƒxƒ“ƒ_[ID‚Íebx -> edx -> ecx‚Ì‡‚ÉƒRƒs[‚³‚ê‚Ü‚·j
-		Eƒxƒ“ƒ_[ID‚ªAuthenticAMD‚È‚çCPU–¼‚ğæ“¾
-		Eeax=1‚Ì‚Æ‚«CPUID–½—ß‚ªƒTƒ|[ƒg‚³‚ê‚Ä‚¢‚é‚©‚Ì’²¸
-		‚ğ‚µ‚Ü‚·B*/
+		/*eax=0ã§CPUIDã‚’å‘¼ã³å‡ºã—ã€
+		ãƒ»ãƒ™ãƒ³ãƒ€ãƒ¼IDã®å–å¾—ï¼ˆãƒ™ãƒ³ãƒ€ãƒ¼IDã¯ebx -> edx -> ecxã®é †ã«ã‚³ãƒ”ãƒ¼ã•ã‚Œã¾ã™ï¼‰
+		ãƒ»ãƒ™ãƒ³ãƒ€ãƒ¼IDãŒAuthenticAMDãªã‚‰CPUåã‚’å–å¾—
+		ãƒ»eax=1ã®ã¨ãCPUIDå‘½ä»¤ãŒã‚µãƒãƒ¼ãƒˆã•ã‚Œã¦ã„ã‚‹ã‹ã®èª¿æŸ»
+		ã‚’ã—ã¾ã™ã€‚*/
 		_asm
 		{
 			mov	eax,0
 			cpuid
-			mov DWORD PTR [VenderID+0], ebx  ; Še’l‚ğƒoƒbƒtƒ@‚ÉƒRƒs[
+			mov DWORD PTR [VenderID+0], ebx  ; å„å€¤ã‚’ãƒãƒƒãƒ•ã‚¡ã«ã‚³ãƒ”ãƒ¼
 			mov DWORD PTR [VenderID+4], edx
 			mov DWORD PTR [VenderID+8], ecx
-			mov BYTE PTR [VenderID+12], 0    ; ÅŒã‚ÉNULL‚ğ“ü‚ê‚é
+			mov BYTE PTR [VenderID+12], 0    ; æœ€å¾Œã«NULLã‚’å…¥ã‚Œã‚‹
 			mov	eax1cpuid_supported,eax
 		};
 
-		//ƒxƒ“ƒ_[ID‚ğƒRƒs[
-		strcpy(ci.venderID,VenderID);
+		//ãƒ™ãƒ³ãƒ€ãƒ¼IDã‚’ã‚³ãƒ”ãƒ¼
+		strcpy(ci.venderID, VenderID);
 
-		//VenderID‚ªAuthenticAMD‚È‚çCPU–¼‚ğæ“¾‚Å‚«‚Ü‚·B
-		if(0 == strcmp(ci.venderID,"AuthenticAMD"))
-		{	
-			//CPU–¼‚ğæ“¾‚·‚é‚½‚ß‚Éeax=08000002h‚ÅCPUID‚ğŒÄ‚Ño‚µ‚Ü‚·B
+		//VenderIDãŒAuthenticAMDãªã‚‰CPUåã‚’å–å¾—ã§ãã¾ã™ã€‚
+		if (0 == strcmp(ci.venderID, "AuthenticAMD")) {
+			//CPUåã‚’å–å¾—ã™ã‚‹ãŸã‚ã«eax=08000002hã§CPUIDã‚’å‘¼ã³å‡ºã—ã¾ã™ã€‚
 			_asm
 			{
 				mov	eax,08000002h
 				cpuid
-				mov DWORD PTR [name+0 ], eax  ; Še’l‚ğƒoƒbƒtƒ@‚ÉƒRƒs[
+				mov DWORD PTR [name+0 ], eax  ; å„å€¤ã‚’ãƒãƒƒãƒ•ã‚¡ã«ã‚³ãƒ”ãƒ¼
 				mov DWORD PTR [name+4 ], ebx
 				mov DWORD PTR [name+8 ], ecx
 				mov DWORD PTR [name+12], edx
-				mov BYTE PTR [name+16], 0    ; ÅŒã‚ÉNULL‚ğ“ü‚ê‚é
+				mov BYTE PTR [name+16], 0    ; æœ€å¾Œã«NULLã‚’å…¥ã‚Œã‚‹
 			};
-			strcpy(ci.name,name);
+			strcpy(ci.name, name);
 
 			_asm
 			{
 				mov	eax,08000003h
 				cpuid
-				mov DWORD PTR [name+0 ], eax  ; Še’l‚ğƒoƒbƒtƒ@‚ÉƒRƒs[
+				mov DWORD PTR [name+0 ], eax  ; å„å€¤ã‚’ãƒãƒƒãƒ•ã‚¡ã«ã‚³ãƒ”ãƒ¼
 				mov DWORD PTR [name+4 ], ebx
 				mov DWORD PTR [name+8 ], ecx
 				mov DWORD PTR [name+12], edx
-				mov BYTE PTR [name+16], 0    ; ÅŒã‚ÉNULL‚ğ“ü‚ê‚é
+				mov BYTE PTR [name+16], 0    ; æœ€å¾Œã«NULLã‚’å…¥ã‚Œã‚‹
 			};
-			strcat(ci.name,name);
+			strcat(ci.name, name);
 
 			_asm
 			{
 				mov	eax,08000004h
 				cpuid
-				mov DWORD PTR [name+0 ], eax  ; Še’l‚ğƒoƒbƒtƒ@‚ÉƒRƒs[
+				mov DWORD PTR [name+0 ], eax  ; å„å€¤ã‚’ãƒãƒƒãƒ•ã‚¡ã«ã‚³ãƒ”ãƒ¼
 				mov DWORD PTR [name+4 ], ebx
 				mov DWORD PTR [name+8 ], ecx
 				mov DWORD PTR [name+12], edx
-				mov BYTE PTR [name+16], 0    ; ÅŒã‚ÉNULL‚ğ“ü‚ê‚é
+				mov BYTE PTR [name+16], 0    ; æœ€å¾Œã«NULLã‚’å…¥ã‚Œã‚‹
 			};
-			strcat(ci.name,name);
+			strcat(ci.name, name);
 		}
 
-		//ax=1‚Ì‚Æ‚«CPUID–½—ß‚ªƒTƒ|[ƒg‚³‚ê‚Ä‚¢‚é‚©‚Ì’²¸
-		if(1 > eax1cpuid_supported){
-			//eaxƒŒƒWƒXƒ^‚ª‚P‚Ì‚ÉCPUID–½—ß‚ªƒTƒ|[ƒg‚³‚ê‚Ä‚¢‚È‚¢
+		//ax=1ã®ã¨ãCPUIDå‘½ä»¤ãŒã‚µãƒãƒ¼ãƒˆã•ã‚Œã¦ã„ã‚‹ã‹ã®èª¿æŸ»
+		if (1 > eax1cpuid_supported) {
+			//eaxãƒ¬ã‚¸ã‚¹ã‚¿ãŒï¼‘ã®æ™‚ã«CPUIDå‘½ä»¤ãŒã‚µãƒãƒ¼ãƒˆã•ã‚Œã¦ã„ãªã„
 			throw gstd::wexception();
 		}
 
-		/*eaxƒŒƒWƒXƒ^‚É1‚ğ“ü‚ê‚ÄCPUID‚ğŒÄ‚Ño‚µA
-		ECPU‚Ìtype,family,Mode,stepping
-		EMMX–½—ß‚ÌƒTƒ|[ƒg
-		ESIMD–½—ß‚ÌƒTƒ|[ƒg
-		E3DNow!‚ÌƒTƒ|[ƒg
-		ERDTSC–½—ß‚ÌƒTƒ|[ƒgiƒTƒ|[ƒg‚µ‚Ä‚¢‚ê‚ÎƒNƒƒbƒNü”g”‚ğ‘ª’èj
-		‚ğ’²‚×‚Ü‚·B*/
+		/*eaxãƒ¬ã‚¸ã‚¹ã‚¿ã«1ã‚’å…¥ã‚Œã¦CPUIDã‚’å‘¼ã³å‡ºã—ã€
+		ãƒ»CPUã®type,family,Mode,stepping
+		ãƒ»MMXå‘½ä»¤ã®ã‚µãƒãƒ¼ãƒˆ
+		ãƒ»SIMDå‘½ä»¤ã®ã‚µãƒãƒ¼ãƒˆ
+		ãƒ»3DNow!ã®ã‚µãƒãƒ¼ãƒˆ
+		ãƒ»RDTSCå‘½ä»¤ã®ã‚µãƒãƒ¼ãƒˆï¼ˆã‚µãƒãƒ¼ãƒˆã—ã¦ã„ã‚Œã°ã‚¯ãƒ­ãƒƒã‚¯å‘¨æ³¢æ•°ã‚’æ¸¬å®šï¼‰
+		ã‚’èª¿ã¹ã¾ã™ã€‚*/
 		_asm
-		{
+			{
 			mov	eax,1
 			cpuid
 			mov eax_flags,eax
 			mov	edx_flags,edx
-		};
+			};
 
-		//CPU‚Ìtype,family,Mode,stepping‚ğ’²‚×‚é
-		ci.type     = (eax_flags >>12) & 0xF;
-		ci.family   = (eax_flags >> 8) & 0xF;
-		ci.model    = (eax_flags >> 4) & 0xF;
+		//CPUã®type,family,Mode,steppingã‚’èª¿ã¹ã‚‹
+		ci.type = (eax_flags >> 12) & 0xF;
+		ci.family = (eax_flags >> 8) & 0xF;
+		ci.model = (eax_flags >> 4) & 0xF;
 		ci.stepping = eax_flags & 0xF;
 
-		//MMX–½—ß‚ğƒTƒ|[ƒg‚µ‚Ä‚¢‚é‚©
-		ci.bMMXEnabled = (edx_flags & 0x00800000)? true: false;
+		//MMXå‘½ä»¤ã‚’ã‚µãƒãƒ¼ãƒˆã—ã¦ã„ã‚‹ã‹
+		ci.bMMXEnabled = (edx_flags & 0x00800000) ? true : false;
 
-		//SIMD–½—ß‚ğƒTƒ|[ƒg‚µ‚Ä‚¢‚é‚©
-		ci.bSIMDEnabled = (edx_flags & 0x02000000)? true: false;
+		//SIMDå‘½ä»¤ã‚’ã‚µãƒãƒ¼ãƒˆã—ã¦ã„ã‚‹ã‹
+		ci.bSIMDEnabled = (edx_flags & 0x02000000) ? true : false;
 
-		//AMD 3DNow!‚ğƒTƒ|[ƒg‚µ‚Ä‚¢‚é‚©
-		ci.bAMD3DNowEnabled = (edx_flags & 0x80000000)? true: false;
+		//AMD 3DNow!ã‚’ã‚µãƒãƒ¼ãƒˆã—ã¦ã„ã‚‹ã‹
+		ci.bAMD3DNowEnabled = (edx_flags & 0x80000000) ? true : false;
 
-		//RDTSC–½—ß‚ğƒTƒ|[ƒg‚µ‚Ä‚¢‚é‚©’²‚×‚é
-		if(edx_flags & 0x00000010)
-		{
-			//ƒTƒ|[ƒg‚µ‚Ä‚¢‚ê‚ÎƒNƒƒbƒNü”g”‚ğ‘ª’è
-			//RDTSR–½—ß‚ÍCPUƒRƒA‚ÌTime Stamp Counter‚ğeaxƒŒƒWƒXƒ^‚ÉŠi”[‚·‚é–½—ß‚Å‚·B
-			//Time Stamp Counter‚ÍCPU1ƒNƒƒbƒN‚²‚Æ‚ÉƒJƒEƒ“ƒgƒAƒbƒv‚µ‚Ä‚¢‚Ü‚·B
+		//RDTSCå‘½ä»¤ã‚’ã‚µãƒãƒ¼ãƒˆã—ã¦ã„ã‚‹ã‹èª¿ã¹ã‚‹
+		if (edx_flags & 0x00000010) {
+			//ã‚µãƒãƒ¼ãƒˆã—ã¦ã„ã‚Œã°ã‚¯ãƒ­ãƒƒã‚¯å‘¨æ³¢æ•°ã‚’æ¸¬å®š
+			//RDTSRå‘½ä»¤ã¯CPUã‚³ã‚¢ã®Time Stamp Counterã‚’eaxãƒ¬ã‚¸ã‚¹ã‚¿ã«æ ¼ç´ã™ã‚‹å‘½ä»¤ã§ã™ã€‚
+			//Time Stamp Counterã¯CPU1ã‚¯ãƒ­ãƒƒã‚¯ã”ã¨ã«ã‚«ã‚¦ãƒ³ãƒˆã‚¢ãƒƒãƒ—ã—ã¦ã„ã¾ã™ã€‚
 			_asm rdtsc;
 			_asm mov CPUClock, eax;
 			start = timeGetTime();
-			while(timeGetTime()-start < 1000);//1000ms‘Ò‚Â
-//			Sleep(1000);
+			while (timeGetTime() - start < 1000) {}; //1000mså¾…ã¤
+			//			Sleep(1000);
 			_asm rdtsc;
-			_asm sub eax,CPUClock;/*ˆø‚«Z*/
+			_asm sub eax, CPUClock; /*å¼•ãç®—*/
 			_asm mov CPUClock, eax;
-			ci.clock=(double)(CPUClock);
-		}
-		else
-		{
-			//RDTSC–½—ß‚ğƒTƒ|[ƒg‚µ‚Ä‚¢‚È‚¢B
+			ci.clock = (double)(CPUClock);
+		} else {
+			//RDTSCå‘½ä»¤ã‚’ã‚µãƒãƒ¼ãƒˆã—ã¦ã„ãªã„ã€‚
 			throw gstd::wexception();
 		}
 
-		ci.cpuName=ci.name;
-		if(strcmp(ci.venderID,"AuthenticAMD")==0)//AMD
+		ci.cpuName = ci.name;
+		if (strcmp(ci.venderID, "AuthenticAMD") == 0) //AMD
 		{
 			//if(ci.family==5&&ci.model==8)ci.cpuName="K6-2";
-			//else if(ci.family==5&&ci.model==9)ci.cpuName="K6-‡V";
+			//else if(ci.family==5&&ci.model==9)ci.cpuName="K6-â…¢";
 			//else if(ci.family==6&&ci.model==1)ci.cpuName="Athlon";
 			//else if(ci.family==6&&ci.model==2)ci.cpuName="Athlon";
 			//else if(ci.family==6&&ci.model==3)ci.cpuName="Athlon";
 			//else if(ci.family==6&&ci.model==4)ci.cpuName="Athlon";
 			//else if(ci.family==6&&ci.model==6)ci.cpuName="AthlonXp";
-		}
-		else if(strcmp(ci.venderID,"GenuineIntel")==0)//Intel
+		} else if (strcmp(ci.venderID, "GenuineIntel") == 0) //Intel
 		{
 			//if(ci.family==5&&ci.model==1)ci.cpuName="Pentium 60 / 66";
 			//else if(ci.family==5&&ci.model==2)ci.cpuName="Pentium";
 			//else if(ci.family==5&&ci.model==3)ci.cpuName="Pentium OverDrive for 486";
 			//else if(ci.family==5&&ci.model==4)ci.cpuName="MMX Pentium";
 			//else if(ci.family==6&&ci.model==1)ci.cpuName="Pentium Pro";
-			//else if(ci.family==6&&ci.model==3)ci.cpuName="Pentium‡U";
-			//else if(ci.family==6&&ci.model==5)ci.cpuName="Pentium‡U/Pentium‡UXeon/Celeron";
+			//else if(ci.family==6&&ci.model==3)ci.cpuName="Pentiumâ…¡";
+			//else if(ci.family==6&&ci.model==5)ci.cpuName="Pentiumâ…¡/Pentiumâ…¡Xeon/Celeron";
 			//else if(ci.family==6&&ci.model==6)ci.cpuName="Celeron";
-			//else if(ci.family==6&&ci.model==7)ci.cpuName="Pentium‡V/Petium‡VXeon";
-			//else if(ci.family==6&&ci.model==8)ci.cpuName="Pentium‡V/Petium‡VXeon/Celeron";
-			//else if(ci.family==6&&ci.model==9)ci.cpuName="Petium‡VXeon";
-			//else if(ci.family==6&&ci.model==10)ci.cpuName="Pentium‡UOverDrive";
+			//else if(ci.family==6&&ci.model==7)ci.cpuName="Pentiumâ…¢/Petiumâ…¢Xeon";
+			//else if(ci.family==6&&ci.model==8)ci.cpuName="Pentiumâ…¢/Petiumâ…¢Xeon/Celeron";
+			//else if(ci.family==6&&ci.model==9)ci.cpuName="Petiumâ…¢Xeon";
+			//else if(ci.family==6&&ci.model==10)ci.cpuName="Pentiumâ…¡OverDrive";
 			//else if(ci.family==15&&ci.model==0)ci.cpuName="Pentium4";
 		}
 
-	}
-	catch(...)
-	{
-
+	} catch (...) {
 	}
 	return ci;
 }
@@ -781,7 +761,7 @@ double WindowLogger::InfoCollectThread::_GetCpuPerformance()
 	PDH_FMT_COUNTERVALUE FmtValue;
 
 	PdhOpenQuery(NULL, 0, &hQuery);
-	PdhAddCounter(hQuery, L"\\Processor(_Total)\\% Processor Time", 0, &hCounter);	
+	PdhAddCounter(hQuery, L"\\Processor(_Total)\\% Processor Time", 0, &hCounter);
 	Sleep(500);
 	PdhCollectQueryData(hQuery);
 	Sleep(500);
@@ -790,3 +770,4 @@ double WindowLogger::InfoCollectThread::_GetCpuPerformance()
 	PdhCloseQuery(hQuery);
 	return FmtValue.doubleValue;
 }
+#endif // __EMSCRIPTEN__

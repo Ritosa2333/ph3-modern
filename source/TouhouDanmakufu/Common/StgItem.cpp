@@ -63,7 +63,7 @@ void StgItemManager::Work()
 
 				if(bCancelToPlayer_)
 				{
-					//©“®‰ñûƒLƒƒƒ“ƒZƒ‹
+					//è‡ªå‹•å›åã‚­ãƒ£ãƒ³ã‚»ãƒ«
 					obj->SetMoveToPlayer(false);
 				}
 				else if(obj->IsPermitMoveToPlayer())
@@ -71,7 +71,7 @@ void StgItemManager::Work()
 					bool bMoveToPlayer = false;
 					if(pAutoItemCollectY >= 0)
 					{
-						//ã•”©“®‰ñû
+						//ä¸Šéƒ¨è‡ªå‹•å›å
 						int typeMove = obj->GetMoveType();
 						if(!obj->IsMoveToPlayer() && py <= pAutoItemCollectY)
 							bMoveToPlayer = true;
@@ -79,7 +79,7 @@ void StgItemManager::Work()
 
 					if(listItemTypeToPlayer_.size() > 0)
 					{
-						//©‹@‚ÉƒAƒCƒeƒ€‚ğW‚ß‚é
+						//è‡ªæ©Ÿã«ã‚¢ã‚¤ãƒ†ãƒ ã‚’é›†ã‚ã‚‹
 						int typeItem = obj->GetItemType();
 						bool bFind = listItemTypeToPlayer_.find(typeItem) != listItemTypeToPlayer_.end();
 						if(bFind)
@@ -131,13 +131,13 @@ void StgItemManager::Render(int targetPriority)
 	graphics->SetCullingMode(D3DCULL_NONE);
 	graphics->SetLightingEnable(false);
 
-	//ƒtƒHƒO‚ğ‰ğœ‚·‚é
+	//ãƒ•ã‚©ã‚°ã‚’è§£é™¤ã™ã‚‹
 	DWORD bEnableFog = FALSE;
 	graphics->GetDevice()->GetRenderState(D3DRS_FOGENABLE, &bEnableFog);
 	if(bEnableFog)
 		graphics->SetFogEnable(false);
 
-	//Šg‘å—¦‚È‚ÇŒvZ
+	//æ‹¡å¤§ç‡ãªã©è¨ˆç®—
 	DxCamera2D* camera = graphics->GetCamera2D().GetPointer();
 	D3DXMATRIX matCamera = camera->GetMatrix();
 
@@ -277,7 +277,7 @@ bool StgItemDataList::AddItemDataList(std::wstring path, bool bReload)
 		while(scanner.HasNext())
 		{
 			Token& tok = scanner.Next();
-			if(tok.GetType() == Token::TK_EOF)//Eof‚Ì¯•Êq‚ª—ˆ‚½‚çƒtƒ@ƒCƒ‹‚Ì’²¸I—¹
+			if(tok.GetType() == Token::TK_EOF)//Eofã®è­˜åˆ¥å­ãŒæ¥ãŸã‚‰ãƒ•ã‚¡ã‚¤ãƒ«ã®èª¿æŸ»çµ‚äº†
 			{
 				break;
 			}
@@ -300,14 +300,14 @@ bool StgItemDataList::AddItemDataList(std::wstring path, bool bReload)
 			}
 		}
 
-		//ƒeƒNƒXƒ`ƒƒ“Ç‚İ‚İ
-		if(pathImage.size() == 0)throw gstd::wexception(L"‰æ‘œƒtƒ@ƒCƒ‹‚ªİ’è‚³‚ê‚Ä‚¢‚Ü‚¹‚ñB");
+		//ãƒ†ã‚¯ã‚¹ãƒãƒ£èª­ã¿è¾¼ã¿
+		if(pathImage.size() == 0)throw gstd::wexception(L"ç”»åƒãƒ•ã‚¡ã‚¤ãƒ«ãŒè¨­å®šã•ã‚Œã¦ã„ã¾ã›ã‚“ã€‚");
 		std::wstring dir = PathProperty::GetFileDirectory(path);
 		pathImage = StringUtility::Replace(pathImage, L"./", dir);
 
 		ref_count_ptr<Texture> texture = new Texture();
 		bool bTexture = texture->CreateFromFile(pathImage);
-		if(!bTexture)throw gstd::wexception(L"‰æ‘œƒtƒ@ƒCƒ‹‚ªŒ©‚Â‚©‚è‚Ü‚¹‚ñ‚Å‚µ‚½B");
+		if(!bTexture)throw gstd::wexception(L"ç”»åƒãƒ•ã‚¡ã‚¤ãƒ«ãŒè¦‹ã¤ã‹ã‚Šã¾ã›ã‚“ã§ã—ãŸã€‚");
 
 		int textureIndex = -1;
 		for(int iTexture = 0 ;iTexture < listTexture_.size() ; iTexture++)
@@ -342,18 +342,18 @@ bool StgItemDataList::AddItemDataList(std::wstring path, bool bReload)
 		}
 
 		listReadPath_.insert(path);
-		Logger::WriteTop(StringUtility::Format(L"ƒAƒCƒeƒ€ƒf[ƒ^‚ğ“Ç‚İ‚İ‚Ü‚µ‚½:%s", path.c_str()));
+		Logger::WriteTop(StringUtility::Format(L"ã‚¢ã‚¤ãƒ†ãƒ ãƒ‡ãƒ¼ã‚¿ã‚’èª­ã¿è¾¼ã¿ã¾ã—ãŸ:%s", path.c_str()));
 		res = true;
 	}
 	catch(gstd::wexception& e)
 	{
-		std::wstring log = StringUtility::Format(L"ƒAƒCƒeƒ€ƒf[ƒ^“Ç‚İ‚İ¸”s:%ds–Ú(%s)", scanner.GetCurrentLine(), e.what());
+		std::wstring log = StringUtility::Format(L"ã‚¢ã‚¤ãƒ†ãƒ ãƒ‡ãƒ¼ã‚¿èª­ã¿è¾¼ã¿å¤±æ•—:%dè¡Œç›®(%s)", scanner.GetCurrentLine(), e.what());
 		Logger::WriteTop(log);
 		res = NULL;
 	}
 	catch(...)
 	{
-		std::wstring log = StringUtility::Format(L"ƒAƒCƒeƒ€ƒf[ƒ^“Ç‚İ‚İ¸”s:%ds–Ú", scanner.GetCurrentLine());
+		std::wstring log = StringUtility::Format(L"ã‚¢ã‚¤ãƒ†ãƒ ãƒ‡ãƒ¼ã‚¿èª­ã¿è¾¼ã¿å¤±æ•—:%dè¡Œç›®", scanner.GetCurrentLine());
 		Logger::WriteTop(log);
 		res = NULL;
 	}
@@ -597,7 +597,7 @@ void StgItemRenderer::Render()
 
 	device->DrawPrimitiveUP(typePrimitive_, _GetPrimitiveCount(), vertex_.GetPointer(), strideVertexStreamZero_);
 
-	//•`‰æ‘ÎÛ‚ğƒNƒŠƒA‚·‚é
+	//æç”»å¯¾è±¡ã‚’ã‚¯ãƒªã‚¢ã™ã‚‹
 	countRenderVertex_ = 0;
 }
 void StgItemRenderer::AddVertex(VERTEX_TLX& vertex)
@@ -704,7 +704,7 @@ void StgItemObject::RenderOnItemManager(D3DXMATRIX mat)
 			break;
 		}
 
-		//ã‚É‚Í‚İo‚µ‚Ä‚¢‚é
+		//ä¸Šã«ã¯ã¿å‡ºã—ã¦ã„ã‚‹
 		double posY = posY_;
 		D3DCOLOR color = D3DCOLOR_ARGB(255, 255, 255, 255);
 		if(posY_ <= 0)
@@ -798,9 +798,9 @@ void StgItemObject::_CreateScoreItem()
 	objectManager->AddObject(obj);
 	itemManager->AddItem(obj);
 }
-void StgItemObject::_NotifyEventToPlayerScript(std::vector<long double>& listValue)
+void StgItemObject::_NotifyEventToPlayerScript(std::vector<gstd::script_real>& listValue)
 {
-	//©‹@ƒXƒNƒŠƒvƒg‚Ö’Ê’m
+	//è‡ªæ©Ÿã‚¹ã‚¯ãƒªãƒ—ãƒˆã¸é€šçŸ¥
 	ref_count_ptr<StgPlayerObject>::unsync player = stageController_->GetPlayerObject();
 	StgStagePlayerScript* scriptPlayer = player->GetPlayerScript();
 	std::vector<gstd::value> listScriptValue;
@@ -811,9 +811,9 @@ void StgItemObject::_NotifyEventToPlayerScript(std::vector<long double>& listVal
 
 	scriptPlayer->RequestEvent(StgStageItemScript::EV_GET_ITEM, listScriptValue);
 }
-void StgItemObject::_NotifyEventToItemScript(std::vector<long double>& listValue)
+void StgItemObject::_NotifyEventToItemScript(std::vector<gstd::script_real>& listValue)
 {
-	//ƒAƒCƒeƒ€ƒXƒNƒŠƒvƒg‚Ö’Ê’m
+	//ã‚¢ã‚¤ãƒ†ãƒ ã‚¹ã‚¯ãƒªãƒ—ãƒˆã¸é€šçŸ¥
 	StgStageScriptManager* stageScriptManager = stageController_->GetScriptManagerP();
 	_int64 idItemScript = stageScriptManager->GetItemScriptID();
 	if(idItemScript != StgControlScriptManager::ID_INVALID)
@@ -871,7 +871,7 @@ StgItemObject_1UP::StgItemObject_1UP(StgStageController* stageController) : StgI
 }
 void StgItemObject_1UP::Intersect(ref_count_ptr<StgIntersectionTarget>::unsync ownTarget, ref_count_ptr<StgIntersectionTarget>::unsync otherTarget)
 {
-	std::vector<long double> listValue;
+	std::vector<gstd::script_real> listValue;
 	listValue.push_back(typeItem_);
 	listValue.push_back(idObject_);
 	_NotifyEventToPlayerScript(listValue);
@@ -890,7 +890,7 @@ StgItemObject_Bomb::StgItemObject_Bomb(StgStageController* stageController) : St
 }
 void StgItemObject_Bomb::Intersect(ref_count_ptr<StgIntersectionTarget>::unsync ownTarget, ref_count_ptr<StgIntersectionTarget>::unsync otherTarget)
 {
-	std::vector<long double> listValue;
+	std::vector<gstd::script_real> listValue;
 	listValue.push_back(typeItem_);
 	listValue.push_back(idObject_);
 	_NotifyEventToPlayerScript(listValue);
@@ -914,7 +914,7 @@ void StgItemObject_Power::Intersect(ref_count_ptr<StgIntersectionTarget>::unsync
 		_CreateScoreItem();
 	stageController_->GetStageInformation()->AddScore(score_);
 
-	std::vector<long double> listValue;
+	std::vector<gstd::script_real> listValue;
 	listValue.push_back(typeItem_);
 	listValue.push_back(idObject_);
 	_NotifyEventToPlayerScript(listValue);
@@ -937,7 +937,7 @@ void StgItemObject_Point::Intersect(ref_count_ptr<StgIntersectionTarget>::unsync
 		_CreateScoreItem();
 	stageController_->GetStageInformation()->AddScore(score_);
 
-	std::vector<long double> listValue;
+	std::vector<gstd::script_real> listValue;
 	listValue.push_back(typeItem_);
 	listValue.push_back(idObject_);
 	_NotifyEventToPlayerScript(listValue);
@@ -1086,7 +1086,7 @@ void StgItemObject_User::RenderOnItemManager(D3DXMATRIX mat)
 	RECT rcSrc;
 	D3DCOLOR color;
 	{
-		//ã‚É‚Í‚İo‚µ‚Ä‚¢‚é
+		//ä¸Šã«ã¯ã¿å‡ºã—ã¦ã„ã‚‹
 		bool bOutY = false;
 		rcSrc = itemData->GetRect(frameWork_);
 		if(position_.y + (rcSrc.bottom - rcSrc.top) / 2 <= 0)
@@ -1130,7 +1130,7 @@ void StgItemObject_User::RenderOnItemManager(D3DXMATRIX mat)
 	if(width % 2 == 1)rcDest.right += 1;
 	if(height % 2 == 1)rcDest.bottom += 1;
 
-	//if(bIntersected_)color = D3DCOLOR_ARGB(255, 255, 0, 0);//ÚGƒeƒXƒg
+	//if(bIntersected_)color = D3DCOLOR_ARGB(255, 255, 0, 0);//æ¥è§¦ãƒ†ã‚¹ãƒˆ
 
 	VERTEX_TLX verts[4];
 	int srcX[] = {rcSrc.left, rcSrc.right, rcSrc.left, rcSrc.right};
@@ -1158,7 +1158,7 @@ void StgItemObject_User::Intersect(ref_count_ptr<StgIntersectionTarget>::unsync 
 		_CreateScoreItem();
 	stageController_->GetStageInformation()->AddScore(score_);
 
-	std::vector<long double> listValue;
+	std::vector<gstd::script_real> listValue;
 	listValue.push_back(typeItem_);
 	listValue.push_back(idObject_);
 	_NotifyEventToItemScript(listValue);

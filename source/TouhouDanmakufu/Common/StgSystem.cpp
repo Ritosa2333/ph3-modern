@@ -31,16 +31,16 @@ void StgSystemController::Start(ref_count_ptr<ScriptInformation> infoPlayer, ref
 	camera3D->SetProjectionMatrix(384, 448, 10, 2000);
 	camera2D->Reset();
 
-	//ƒLƒƒƒbƒVƒ…‚ğƒNƒŠƒA
+	//ã‚­ãƒ£ãƒƒã‚·ãƒ¥ã‚’ã‚¯ãƒªã‚¢
 	scriptEngineCache_->Clear();
 
-	//ƒL[İ’è
+	//ã‚­ãƒ¼è¨­å®š
 	EDirectInput* input = EDirectInput::GetInstance();
 	input->ResetVirtualKeyMap();
 
 	ref_count_ptr<ScriptInformation> infoMain = infoSystem_->GetMainScriptInformation();
 
-	//ƒA[ƒJƒCƒu
+	//ã‚¢ãƒ¼ã‚«ã‚¤ãƒ–
 	EFileManager* fileManager = EFileManager::GetInstance();
 	std::wstring archiveMain = infoMain->GetArchivePath();
 	if(archiveMain.size() > 0)
@@ -138,7 +138,7 @@ void StgSystemController::Work()
 		EFileManager* fileManager = EFileManager::GetInstance();
 		fileManager->ResetArchiveFile();
 
-		//I—¹
+		//çµ‚äº†
 		bool bRetry = false;
 		if(infoSystem_->IsError())
 		{
@@ -149,7 +149,7 @@ void StgSystemController::Work()
 			}
 			else
 			{
-				//ƒŠƒgƒ‰ƒC
+				//ãƒªãƒˆãƒ©ã‚¤
 				bRetry = true;
 			}
 		}
@@ -222,7 +222,7 @@ void StgSystemController::RenderScriptObject()
 
 	if(bPause && !bPackageMode)
 	{
-		//’â~
+		//åœæ­¢
 		stageController_->GetPauseManager()->Render();
 	}
 	else
@@ -259,7 +259,7 @@ void StgSystemController::RenderScriptObject()
 
 		if(bReplay)
 		{
-			//ƒŠƒvƒŒƒC’†
+			//ãƒªãƒ—ãƒ¬ã‚¤ä¸­
 /*
 			ref_count_ptr<StgStageInformation> infoStage = stageController_->GetStageInformation();
 			ref_count_ptr<ReplayInformation::StageData> replayStageData = infoStage->GetReplayData();
@@ -305,10 +305,10 @@ void StgSystemController::RenderScriptObject(int priMin, int priMax)
 		bPause = infoStage->IsPause();
 	}
 
-	//ˆÈ‰º‚Ìê‡‚ÉƒXƒe[ƒW•`‰æ—LŒø‚Æ‚·‚é
-	//EƒpƒbƒP[ƒWƒ‚[ƒh‚Å‚È‚¢(ˆê’â~‚àƒXƒe[ƒWˆ—‘¤‚Åˆ—‚·‚é‚½‚ß)
-	//EƒpƒbƒP[ƒWƒXƒNƒŠƒvƒg‚Ìê‡‚ÍAˆê’â~‚ğƒpƒbƒP[ƒWƒXƒNƒŠƒvƒg‚Åˆ—‚·‚é‚½‚ß
-	//@ˆê’â~’†‚ÍSTGƒV[ƒ“‚Í•`‰æ‘ÎÛŠO‚Æ‚·‚é
+	//ä»¥ä¸‹ã®å ´åˆã«ã‚¹ãƒ†ãƒ¼ã‚¸æç”»æœ‰åŠ¹ã¨ã™ã‚‹
+	//ãƒ»ãƒ‘ãƒƒã‚±ãƒ¼ã‚¸ãƒ¢ãƒ¼ãƒ‰ã§ãªã„(ä¸€æ™‚åœæ­¢ã‚‚ã‚¹ãƒ†ãƒ¼ã‚¸å‡¦ç†å´ã§å‡¦ç†ã™ã‚‹ãŸã‚)
+	//ãƒ»ãƒ‘ãƒƒã‚±ãƒ¼ã‚¸ã‚¹ã‚¯ãƒªãƒ—ãƒˆã®å ´åˆã¯ã€ä¸€æ™‚åœæ­¢ã‚’ãƒ‘ãƒƒã‚±ãƒ¼ã‚¸ã‚¹ã‚¯ãƒªãƒ—ãƒˆã§å‡¦ç†ã™ã‚‹ãŸã‚
+	//ã€€ä¸€æ™‚åœæ­¢ä¸­ã¯STGã‚·ãƒ¼ãƒ³ã¯æç”»å¯¾è±¡å¤–ã¨ã™ã‚‹
 	bool bValidStage = (scene == StgSystemInformation::SCENE_STG || !infoSystem_->IsPackageMode()) && 
 						stageController_ != NULL && !bPause;
 	if(bValidStage)
@@ -344,8 +344,8 @@ void StgSystemController::RenderScriptObject(int priMin, int priMax)
 		stageInfo = stageController_->GetStageInformation();
 		RECT rcStgFrame = stageInfo->GetStgFrameRect();
 
-		//pauseŒã‚ÉAƒtƒH[ƒJƒXƒŠƒZƒbƒg’l‚ªã‘‚«‚³‚ê‚Ä‚¢‚é‚±‚Æ‚ª‚ ‚é‚Ì‚Å
-		//STGƒV[ƒ“—p‚ÉƒŠƒZƒbƒg’l‚ğXV‚·‚é
+		//pauseå¾Œã«ã€ãƒ•ã‚©ãƒ¼ã‚«ã‚¹ãƒªã‚»ãƒƒãƒˆå€¤ãŒä¸Šæ›¸ãã•ã‚Œã¦ã„ã‚‹ã“ã¨ãŒã‚ã‚‹ã®ã§
+		//STGã‚·ãƒ¼ãƒ³ç”¨ã«ãƒªã‚»ãƒƒãƒˆå€¤ã‚’æ›´æ–°ã™ã‚‹
 		gstd::ref_count_ptr<D3DXVECTOR2> pos = new D3DXVECTOR2();
 		pos->x = (rcStgFrame.right - rcStgFrame.left) / 2;
 		pos->y = (rcStgFrame.bottom - rcStgFrame.top) / 2;
@@ -366,7 +366,7 @@ void StgSystemController::RenderScriptObject(int priMin, int priMax)
 		stageInfo->SetStgFrameRect(rect);
 		if(scene != StgSystemInformation::SCENE_STG)
 		{
-			//STGƒV[ƒ“‚Å‚È‚¢‚È‚çƒJƒƒ‰À•W‚ğƒŠƒZƒbƒg‚µ‚Ä‚¨‚­
+			//STGã‚·ãƒ¼ãƒ³ã§ãªã„ãªã‚‰ã‚«ãƒ¡ãƒ©åº§æ¨™ã‚’ãƒªã‚»ãƒƒãƒˆã—ã¦ãŠã
 			orgFocusPos = camera2D->GetFocusPosition();
 			focusPos = orgFocusPos;
 		}
@@ -395,7 +395,7 @@ void StgSystemController::RenderScriptObject(int priMin, int priMax)
 	focusPos.x -= stgWidth / 2;
 	focusPos.y -= stgHeight / 2;
 
-	//ƒtƒHƒOİ’è
+	//ãƒ•ã‚©ã‚°è¨­å®š
 	bool bFogEnable = false;
 	D3DCOLOR fogColor = D3DCOLOR_ARGB(255, 255, 255, 255);
 	float fogStart = 0;
@@ -417,7 +417,7 @@ void StgSystemController::RenderScriptObject(int priMin, int priMax)
 
 	graphics->SetVertexFog(bFogEnable, fogColor, fogStart, fogEnd);
 
-	//•`‰æŠJn‘OƒŠƒZƒbƒg
+	//æç”»é–‹å§‹å‰ãƒªã‚»ãƒƒãƒˆ
 	camera2D->SetEnable(false);
 	camera2D->Reset();
 	graphics->ResetViewPort();	
@@ -429,7 +429,7 @@ void StgSystemController::RenderScriptObject(int priMin, int priMax)
 	{
 		if(iPri >= priMinStgFrame && !bRunMinStgFrame)
 		{
-			//STGƒtƒŒ[ƒ€ŠJn
+			//STGãƒ•ãƒ¬ãƒ¼ãƒ é–‹å§‹
 			if(bValidStage && iPri < invalidPriMin)
 				graphics->ClearRenderTarget(rcStgFrame);
 
@@ -453,22 +453,22 @@ void StgSystemController::RenderScriptObject(int priMin, int priMax)
 
 		if(objectManagerStage != NULL && !bPause)
 		{
-			//ƒVƒF[ƒ_İ’è
+			//ã‚·ã‚§ãƒ¼ãƒ€è¨­å®š
 			ref_count_ptr<Shader> shader = objectManagerStage->GetShader(iPri);
 			if(shader != NULL)
 			{
 				shader->Begin();
 			}
 
-			//ƒXƒe[ƒW•`‰æ
+			//ã‚¹ãƒ†ãƒ¼ã‚¸æç”»
 			if(listShotValidPriority[iPri])
 			{
-				//’e•`‰æ
+				//å¼¾æç”»
 				stageController_->GetShotManager()->Render(iPri);
 			}
 			if(listItemValidPriority[iPri])
 			{
-				//ƒAƒCƒeƒ€•`‰æ
+				//ã‚¢ã‚¤ãƒ†ãƒ æç”»
 				stageController_->GetItemManager()->Render(iPri);
 			}
 
@@ -482,7 +482,7 @@ void StgSystemController::RenderScriptObject(int priMin, int priMax)
 						DxScriptMeshObject* objMesh = dynamic_cast<DxScriptMeshObject*>((*itr).GetPointer());
 						if(objMesh != NULL)
 						{
-							gstd::ref_count_ptr<DxMesh>& mesh = objMesh->GetMesh();
+							gstd::ref_count_ptr<DxMesh> mesh = objMesh->GetMesh();
 							if(mesh != NULL && mesh->IsCoordinate2D())
 							{
 								graphics->GetDevice()->Clear(0, NULL, D3DCLEAR_ZBUFFER, D3DCOLOR_XRGB(0,0,0), 1.0,0);
@@ -502,10 +502,10 @@ void StgSystemController::RenderScriptObject(int priMin, int priMax)
 			}
 		}
 
-		//ƒpƒbƒP[ƒW
+		//ãƒ‘ãƒƒã‚±ãƒ¼ã‚¸
 		if(objectManagerPackage != NULL)
 		{
-			//ƒVƒF[ƒ_İ’è
+			//ã‚·ã‚§ãƒ¼ãƒ€è¨­å®š
 			ref_count_ptr<Shader> shader = objectManagerPackage->GetShader(iPri);
 			if(shader != NULL)
 			{
@@ -522,7 +522,7 @@ void StgSystemController::RenderScriptObject(int priMin, int priMax)
 						DxScriptMeshObject* objMesh = dynamic_cast<DxScriptMeshObject*>((*itr).GetPointer());
 						if(objMesh != NULL)
 						{
-							gstd::ref_count_ptr<DxMesh>& mesh = objMesh->GetMesh();
+							gstd::ref_count_ptr<DxMesh> mesh = objMesh->GetMesh();
 							if(mesh != NULL && mesh->IsCoordinate2D())
 							{
 								graphics->GetDevice()->Clear(0, NULL, D3DCLEAR_ZBUFFER, D3DCOLOR_XRGB(0,0,0), 1.0,0);
@@ -548,7 +548,7 @@ void StgSystemController::RenderScriptObject(int priMin, int priMax)
 		}
 		if(iPri >= priMaxStgFrame && !bRunMaxStgFrame)
 		{
-			//STGƒtƒŒ[ƒ€I—¹
+			//STGãƒ•ãƒ¬ãƒ¼ãƒ çµ‚äº†
 			camera2D->SetEnable(false);
 			camera2D->Reset();
 			graphics->ResetViewPort();
@@ -592,7 +592,7 @@ void StgSystemController::_ControlScene()
 
 		if(infoStage->IsEnd())
 		{
-			//ŸƒXƒe[ƒW‚Ö
+			//æ¬¡ã‚¹ãƒ†ãƒ¼ã‚¸ã¸
 			stageController_->CloseScene();
 			if(infoSystem_->IsPackageMode())
 			{
@@ -629,8 +629,8 @@ void StgSystemController::_ControlScene()
 
 	if(infoSystem_->IsPackageMode())
 	{
-		//ƒV[ƒ“•Ï‰»‚É‚Í‘¦À‚ÉƒpƒbƒP[ƒWŠÇ—‹@”\‚ğÀs‚·‚é
-		//ƒpƒbƒP[ƒWƒXƒNƒŠƒvƒg“à‚Å‹N“®‚·‚éƒV[ƒ“‘JˆÚ‚Ì•`‰æ‚È‚Ç‚ª’Ç‚¢‚Â‚©‚È‚­‚È‚é‚½‚ß
+		//ã‚·ãƒ¼ãƒ³å¤‰åŒ–æ™‚ã«ã¯å³åº§ã«ãƒ‘ãƒƒã‚±ãƒ¼ã‚¸ç®¡ç†æ©Ÿèƒ½ã‚’å®Ÿè¡Œã™ã‚‹
+		//ãƒ‘ãƒƒã‚±ãƒ¼ã‚¸ã‚¹ã‚¯ãƒªãƒ—ãƒˆå†…ã§èµ·å‹•ã™ã‚‹ã‚·ãƒ¼ãƒ³é·ç§»ã®æç”»ãªã©ãŒè¿½ã„ã¤ã‹ãªããªã‚‹ãŸã‚
 		if(scene != infoSystem_->GetScene())
 		{
 			packageController_->Work();
@@ -640,7 +640,7 @@ void StgSystemController::_ControlScene()
 	ELogger* logger = ELogger::GetInstance();
 	if(logger->IsWindowVisible())
 	{
-		//ƒƒOŠÖ˜A
+		//ãƒ­ã‚°é–¢é€£
 		int taskCount = 0;
 		int objectCount = 0;
 		if(packageController_ != NULL)
@@ -722,13 +722,13 @@ ref_count_ptr<ReplayInformation> StgSystemController::CreateReplayInformation()
 {
 	ref_count_ptr<ReplayInformation> res = new ReplayInformation();
 
-	//ƒƒCƒ“ƒXƒNƒŠƒvƒgŠÖ˜A
+	//ãƒ¡ã‚¤ãƒ³ã‚¹ã‚¯ãƒªãƒ—ãƒˆé–¢é€£
 	ref_count_ptr<StgStageInformation> infoLastStage = stageController_->GetStageInformation();
 	ref_count_ptr<ScriptInformation> infoMain = infoSystem_->GetMainScriptInformation();
 	std::wstring pathMainScript = infoMain->GetScriptPath();
 	std::wstring nameMainScript = PathProperty::GetFileName(pathMainScript);
 
-	//©‹@ŠÖ˜A
+	//è‡ªæ©Ÿé–¢é€£
 	ref_count_ptr<ScriptInformation> infoPlayer = infoLastStage->GetPlayerScriptInformation();
 	std::wstring pathPlayerScript = infoPlayer->GetScriptPath();
 	std::wstring filenamePlayerScript = PathProperty::GetFileName(pathPlayerScript);
@@ -736,11 +736,11 @@ ref_count_ptr<ReplayInformation> StgSystemController::CreateReplayInformation()
 	res->SetPlayerScriptID(infoPlayer->GetID());
 	res->SetPlayerScriptReplayName(infoPlayer->GetReplayName());
 
-	//ƒVƒXƒeƒ€ŠÖ˜A
+	//ã‚·ã‚¹ãƒ†ãƒ é–¢é€£
 	_int64 totalScore = infoLastStage->GetScore();
 	double fpsAvarage = 0;
 
-	//ƒXƒe[ƒW
+	//ã‚¹ãƒ†ãƒ¼ã‚¸
 	if(infoSystem_->IsPackageMode())
 	{
 		ref_count_ptr<StgPackageInformation> infoPackage = packageController_->GetPackageInformation();

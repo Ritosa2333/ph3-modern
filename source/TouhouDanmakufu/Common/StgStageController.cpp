@@ -1,5 +1,8 @@
 #include"StgStageController.hpp"
 #include"StgSystem.hpp"
+#if defined(PH3_REPLAY_BOUNDARY) || defined(WOO_REPLAY_VERIFY)
+#include "../../../portable/replay/Boundary.hpp"
+#endif
 
 /**********************************************************
 //StgStageController
@@ -20,20 +23,20 @@ StgStageController::~StgStageController()
 }
 void StgStageController::Initialize(ref_count_ptr<StgStageStartData> startData)
 {
-	//FPU‰Šú‰»
+	//FPUåˆæœŸåŒ–
 	Math::InitializeFPU();
 
-	//ƒL[‰Šú‰»
+	//ã‚­ãƒ¼åˆæœŸåŒ–
 	EDirectInput* input = EDirectInput::GetInstance();
 	input->ClearKeyState();
 
-	//3DƒJƒƒ‰
+	//3Dã‚«ãƒ¡ãƒ©
 	DirectGraphics* graphics = DirectGraphics::GetBase();
 	ref_count_ptr<DxCamera> camera3D = graphics->GetCamera();
 	camera3D->Reset();
 	camera3D->SetProjectionMatrix(384, 448, 10, 2000);
 
-	//2DƒJƒƒ‰
+	//2Dã‚«ãƒ¡ãƒ©
 	gstd::ref_count_ptr<DxCamera2D> camera2D = graphics->GetCamera2D();
 	camera2D->Reset();
 
@@ -45,7 +48,7 @@ void StgStageController::Initialize(ref_count_ptr<StgStageStartData> startData)
 	infoStage_ = infoStage;
 	infoStage_->SetReplay(replayStageData != NULL);
 
-	//ƒŠƒvƒŒƒCƒL[İ’è
+	//ãƒªãƒ—ãƒ¬ã‚¤ã‚­ãƒ¼è¨­å®š
 	int replayState = infoStage_->IsReplay() ? KeyReplayManager::STATE_REPLAY : KeyReplayManager::STATE_RECORD;
 	keyReplayManager_ = new KeyReplayManager(EDirectInput::GetInstance());
 	keyReplayManager_->SetManageState(replayState);
@@ -72,12 +75,12 @@ void StgStageController::Initialize(ref_count_ptr<StgStageStartData> startData)
 		replayStageData = new ReplayInformation::StageData();
 	infoStage_->SetReplayData(replayStageData);
 
-	//ƒXƒe[ƒW—v‘f
+	//ã‚¹ãƒ†ãƒ¼ã‚¸è¦ç´ 
 	infoSlow_ = new PseudoSlowInformation();
 	ref_count_weak_ptr<PseudoSlowInformation> wPtr = infoSlow_;
 	EFpsController::GetInstance()->AddFpsControlObject(wPtr);
 
-	//‘OƒXƒe[ƒWî•ñ”½‰f
+	//å‰ã‚¹ãƒ†ãƒ¼ã‚¸æƒ…å ±åæ˜ 
 	if(prevStageData != NULL)
 	{
 		infoStage_->SetScore(prevStageData->GetScore());
@@ -86,14 +89,14 @@ void StgStageController::Initialize(ref_count_ptr<StgStageStartData> startData)
 	}
 
 
-	//ƒŠƒvƒŒƒCŠÖ˜A(ƒXƒNƒŠƒvƒg‰Šú‰»‘O)
+	//ãƒªãƒ—ãƒ¬ã‚¤é–¢é€£(ã‚¹ã‚¯ãƒªãƒ—ãƒˆåˆæœŸåŒ–å‰)
 	if(!infoStage_->IsReplay())
 	{
-		//—”
+		//ä¹±æ•°
 		int randSeed = infoStage_->GetMersenneTwister()->GetSeed();
 		replayStageData->SetRandSeed(randSeed);
 
-		//ƒXƒe[ƒWî•ñ
+		//ã‚¹ãƒ†ãƒ¼ã‚¸æƒ…å ±
 		ref_count_ptr<ScriptInformation> infoParent = systemController_->GetSystemInformation()->GetMainScriptInformation();
 		ref_count_ptr<ScriptInformation> infoMain = infoStage_->GetMainScriptInformation();
 		std::wstring pathParentScript = infoParent->GetScriptPath();
@@ -110,19 +113,19 @@ void StgStageController::Initialize(ref_count_ptr<StgStageStartData> startData)
 	}
 	else
 	{
-		//—”
+		//ä¹±æ•°
 		int randSeed = replayStageData->GetRandSeed();
 		infoStage_->GetMersenneTwister()->Initialize(randSeed);
 
-		//ƒŠƒvƒŒƒCƒL[
+		//ãƒªãƒ—ãƒ¬ã‚¤ã‚­ãƒ¼
 		keyReplayManager_->ReadRecord(*replayStageData->GetReplayKeyRecord());
 
-		//ƒXƒe[ƒWî•ñ
+		//ã‚¹ãƒ†ãƒ¼ã‚¸æƒ…å ±
 		infoStage_->SetScore(replayStageData->GetStartScore());
 		infoStage_->SetGraze(replayStageData->GetGraze());
 		infoStage_->SetPoint(replayStageData->GetPoint());
 
-		//©‹@İ’è
+		//è‡ªæ©Ÿè¨­å®š
 		prevPlayerInfo = new StgPlayerInformation();
 		prevPlayerInfo->SetLife(replayStageData->GetPlayerLife());
 		prevPlayerInfo->SetSpell(replayStageData->GetPlayerBombCount());
@@ -138,7 +141,7 @@ void StgStageController::Initialize(ref_count_ptr<StgStageStartData> startData)
 	intersectionManager_ = new StgIntersectionManager();
 	pauseManager_ = new StgPauseScene(systemController_);
 
-	//ƒpƒbƒP[ƒWƒXƒNƒŠƒvƒg‚Ìê‡‚ÍAƒXƒe[ƒWƒXƒNƒŠƒvƒg‚ÆŠÖ˜A•t‚¯‚é
+	//ãƒ‘ãƒƒã‚±ãƒ¼ã‚¸ã‚¹ã‚¯ãƒªãƒ—ãƒˆã®å ´åˆã¯ã€ã‚¹ãƒ†ãƒ¼ã‚¸ã‚¹ã‚¯ãƒªãƒ—ãƒˆã¨é–¢é€£ä»˜ã‘ã‚‹
 	StgPackageController* packageController = systemController_->GetPackageController();
 	if(packageController != NULL)
 	{
@@ -149,32 +152,32 @@ void StgStageController::Initialize(ref_count_ptr<StgStageStartData> startData)
 
 	gstd::ref_count_ptr<StgStageScriptObjectManager> objectManager = scriptManager_->GetObjectManager();
 
-	//ƒƒCƒ“ƒXƒNƒŠƒvƒgî•ñ
+	//ãƒ¡ã‚¤ãƒ³ã‚¹ã‚¯ãƒªãƒ—ãƒˆæƒ…å ±
 	ref_count_ptr<ScriptInformation> infoMain = infoStage_->GetMainScriptInformation();
 	std::wstring dirInfo = PathProperty::GetFileDirectory(infoMain->GetScriptPath());
 
-	ELogger::WriteTop(StringUtility::Format(L"ƒƒCƒ“ƒXƒNƒŠƒvƒg[%s]", infoMain->GetScriptPath().c_str()));
+	ELogger::WriteTop(StringUtility::Format(L"ãƒ¡ã‚¤ãƒ³ã‚¹ã‚¯ãƒªãƒ—ãƒˆ[%s]", infoMain->GetScriptPath().c_str()));
 
-	//ƒVƒXƒeƒ€ƒXƒNƒŠƒvƒg
+	//ã‚·ã‚¹ãƒ†ãƒ ã‚¹ã‚¯ãƒªãƒ—ãƒˆ
 	std::wstring pathSystemScript = infoMain->GetSystemPath();
 	if(pathSystemScript == ScriptInformation::DEFAULT)
 		pathSystemScript = EPathProperty::GetStgDefaultScriptDirectory() + L"Default_System.txt";
 	if(pathSystemScript.size() > 0)
 	{
 		pathSystemScript = EPathProperty::ExtendRelativeToFull(dirInfo, pathSystemScript);
-		ELogger::WriteTop(StringUtility::Format(L"ƒVƒXƒeƒ€ƒXƒNƒŠƒvƒg[%s]", pathSystemScript.c_str()));
+		ELogger::WriteTop(StringUtility::Format(L"ã‚·ã‚¹ãƒ†ãƒ ã‚¹ã‚¯ãƒªãƒ—ãƒˆ[%s]", pathSystemScript.c_str()));
 		_int64 idScript = scriptManager_->LoadScript(pathSystemScript, StgStageScript::TYPE_SYSTEM);
 		scriptManager_->StartScript(idScript);
 	}
 
-	//©‹@ƒXƒNƒŠƒvƒg
+	//è‡ªæ©Ÿã‚¹ã‚¯ãƒªãƒ—ãƒˆ
 	ref_count_ptr<StgPlayerObject>::unsync objPlayer = NULL;
 	ref_count_ptr<ScriptInformation> infoPlayer = infoStage_->GetPlayerScriptInformation();
 	std::wstring pathPlayerScript = infoPlayer->GetScriptPath();
 
 	if(pathPlayerScript.size() > 0)
 	{
-		ELogger::WriteTop(StringUtility::Format(L"©‹@ƒXƒNƒŠƒvƒg[%s]", pathPlayerScript.c_str()));
+		ELogger::WriteTop(StringUtility::Format(L"è‡ªæ©Ÿã‚¹ã‚¯ãƒªãƒ—ãƒˆ[%s]", pathPlayerScript.c_str()));
 		int idPlayer = objectManager->CreatePlayerObject();
 		objPlayer = ref_count_ptr<StgPlayerObject>::unsync::DownCast(GetMainRenderObject(idPlayer));
 
@@ -187,14 +190,14 @@ void StgStageController::Initialize(ref_count_ptr<StgStageStartData> startData)
 		scriptManager_->SetPlayerScriptID(idScript);
 		scriptManager_->StartScript(idScript);
 
-		//‘OƒXƒe[ƒWî•ñ”½‰f
+		//å‰ã‚¹ãƒ†ãƒ¼ã‚¸æƒ…å ±åæ˜ 
 		if(prevPlayerInfo != NULL)
 			objPlayer->SetPlayerInforamtion(prevPlayerInfo);
 	}
 	if(objPlayer != NULL)
 		infoStage_->SetPlayerObjectInformation(objPlayer->GetPlayerInformation());
 
-	//ƒƒCƒ“ƒXƒNƒŠƒvƒg
+	//ãƒ¡ã‚¤ãƒ³ã‚¹ã‚¯ãƒªãƒ—ãƒˆ
 	if(infoMain->GetType() == ScriptInformation::TYPE_SINGLE)
 	{
 		std::wstring pathMainScript = EPathProperty::GetSystemResourceDirectory() + L"script/System_SingleStage.txt";
@@ -218,19 +221,19 @@ void StgStageController::Initialize(ref_count_ptr<StgStageStartData> startData)
 		}
 	}
 
-	//”wŒiƒXƒNƒŠƒvƒg
+	//èƒŒæ™¯ã‚¹ã‚¯ãƒªãƒ—ãƒˆ
 	std::wstring pathBack = infoMain->GetBackgroundPath();
 	if(pathBack == ScriptInformation::DEFAULT)
 		pathBack = L"";
 	if(pathBack.size() > 0)
 	{
 		pathBack = EPathProperty::ExtendRelativeToFull(dirInfo, pathBack);
-		ELogger::WriteTop(StringUtility::Format(L"”wŒiƒXƒNƒŠƒvƒg[%s]", pathBack.c_str()));
+		ELogger::WriteTop(StringUtility::Format(L"èƒŒæ™¯ã‚¹ã‚¯ãƒªãƒ—ãƒˆ[%s]", pathBack.c_str()));
 		_int64 idScript = scriptManager_->LoadScript(pathBack, StgStageScript::TYPE_STAGE);
 		scriptManager_->StartScript(idScript);
 	}
 
-	//‰¹ºÄ¶
+	//éŸ³å£°å†ç”Ÿ
 	std::wstring pathBGM = infoMain->GetBgmPath();
 	if(pathBGM == ScriptInformation::DEFAULT)
 		pathBGM = L"";
@@ -248,10 +251,10 @@ void StgStageController::Initialize(ref_count_ptr<StgStageStartData> startData)
 		}
 	}
 
-	//ƒŠƒvƒŒƒCŠÖ˜A(ƒXƒNƒŠƒvƒg‰Šú‰»Œã)
+	//ãƒªãƒ—ãƒ¬ã‚¤é–¢é€£(ã‚¹ã‚¯ãƒªãƒ—ãƒˆåˆæœŸåŒ–å¾Œ)
 	if(!infoStage_->IsReplay())
 	{
-		//©‹@î•ñ
+		//è‡ªæ©Ÿæƒ…å ±
 		ref_count_ptr<StgPlayerObject>::unsync objPlayer = GetPlayerObject();
 		if(objPlayer != NULL)
 		{
@@ -268,25 +271,31 @@ void StgStageController::Initialize(ref_count_ptr<StgStageStartData> startData)
 	}
 
 	infoStage_->SetStageStartTime(timeGetTime());
+#if defined(PH3_REPLAY_BOUNDARY) || defined(WOO_REPLAY_VERIFY)
+	woo::replay::Boundary(this, true);
+#endif
 
 
 }
 void StgStageController::CloseScene()
 {
+#if defined(PH3_REPLAY_BOUNDARY) || defined(WOO_REPLAY_VERIFY)
+	woo::replay::Boundary(this, false);
+#endif
 	ref_count_weak_ptr<PseudoSlowInformation> wPtr = infoSlow_;
 	EFpsController::GetInstance()->RemoveFpsControlObject(wPtr);
 
-	//ƒŠƒvƒŒƒC
+	//ãƒªãƒ—ãƒ¬ã‚¤
 	if(!infoStage_->IsReplay())
 	{
-		//ƒL[
+		//ã‚­ãƒ¼
 		ref_count_ptr<RecordBuffer> recKey = new RecordBuffer();
 		keyReplayManager_->WriteRecord(*recKey.GetPointer());
 
 		ref_count_ptr<ReplayInformation::StageData> replayStageData = infoStage_->GetReplayData();
 		replayStageData->SetReplayKeyRecord(recKey);
 
-		//ÅIƒtƒŒ[ƒ€
+		//æœ€çµ‚ãƒ•ãƒ¬ãƒ¼ãƒ 
 		int stageFrame = infoStage_->GetCurrentFrame();
 		replayStageData->SetEndFrame(stageFrame);
 
@@ -346,7 +355,7 @@ void StgStageController::Work()
 	bool bPermitRetryKey = !input->IsTargetKeyCode(DIK_BACK);
 	if(!bPackageMode && bPermitRetryKey && input->GetKeyState(DIK_BACK) == KEY_PUSH)
 	{
-		//ƒŠƒgƒ‰ƒC
+		//ãƒªãƒˆãƒ©ã‚¤
 		if(!infoStage_->IsReplay())
 		{
 			ref_count_ptr<StgSystemInformation> infoSystem = systemController_->GetSystemInformation();
@@ -358,14 +367,14 @@ void StgStageController::Work()
 	bool bCurrentPause = infoStage_->IsPause();
 	if(bPackageMode && bCurrentPause)
 	{
-		//ƒpƒbƒP[ƒWƒ‚[ƒh‚Å’â~’†‚Ìê‡‚ÍAƒpƒbƒP[ƒWƒXƒNƒŠƒvƒg‚Åˆ—‚·‚é
+		//ãƒ‘ãƒƒã‚±ãƒ¼ã‚¸ãƒ¢ãƒ¼ãƒ‰ã§åœæ­¢ä¸­ã®å ´åˆã¯ã€ãƒ‘ãƒƒã‚±ãƒ¼ã‚¸ã‚¹ã‚¯ãƒªãƒ—ãƒˆã§å‡¦ç†ã™ã‚‹
 		return;
 	}
 
 	bool bPauseKey = (input->GetVirtualKeyState(EDirectInput::KEY_PAUSE) == KEY_PUSH);
 	if(bPauseKey && !bPackageMode)
 	{
-		//’â~ƒL[‰Ÿ‰º
+		//åœæ­¢ã‚­ãƒ¼æŠ¼ä¸‹
 		if(!bCurrentPause)
 			pauseManager_->Start();
 		else
@@ -375,20 +384,20 @@ void StgStageController::Work()
 	{
 		if(!bCurrentPause)
 		{
-			//ƒŠƒvƒŒƒCƒL[XV
+			//ãƒªãƒ—ãƒ¬ã‚¤ã‚­ãƒ¼æ›´æ–°
 			keyReplayManager_->Update();
 
-			//ƒXƒNƒŠƒvƒgˆ—‚ÅA©‹@A“GA’e‚Ì“®ì‚ªs‚í‚ê‚éB
+			//ã‚¹ã‚¯ãƒªãƒ—ãƒˆå‡¦ç†ã§ã€è‡ªæ©Ÿã€æ•µã€å¼¾ã®å‹•ä½œãŒè¡Œã‚ã‚Œã‚‹ã€‚
 			scriptManager_->Work(StgStageScript::TYPE_SYSTEM);
 			scriptManager_->Work(StgStageScript::TYPE_STAGE);
 			scriptManager_->Work(StgStageScript::TYPE_SHOT);
 			scriptManager_->Work(StgStageScript::TYPE_ITEM);
 
 			ref_count_ptr<StgPlayerObject>::unsync objPlayer = GetPlayerObject();
-			if(objPlayer != NULL)objPlayer->Move(); //©‹@‚¾‚¯æ‚ÉˆÚ“®
+			if(objPlayer != NULL)objPlayer->Move(); //è‡ªæ©Ÿã ã‘å…ˆã«ç§»å‹•
 			scriptManager_->Work(StgStageScript::TYPE_PLAYER);
 
-			//ƒIƒuƒWƒFƒNƒg“®ìˆ—
+			//ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆå‹•ä½œå‡¦ç†
 			if(infoStage_->IsEnd())return;
 			objectManagerMain_->WorkObject();
 
@@ -396,14 +405,14 @@ void StgStageController::Work()
 			shotManager_->Work();
 			itemManager_->Work();
 
-			//“–‚½‚è”»’èˆ—
+			//å½“ãŸã‚Šåˆ¤å®šå‡¦ç†
 			enemyManager_->RegistIntersectionTarget();
 			shotManager_->RegistIntersectionTarget();
 			intersectionManager_->Work();
 
 			if(!infoStage_->IsReplay())
 			{
-				//ƒŠƒvƒŒƒC—pî•ñXV
+				//ãƒªãƒ—ãƒ¬ã‚¤ç”¨æƒ…å ±æ›´æ–°
 				int stageFrame = infoStage_->GetCurrentFrame();
 				if(stageFrame % 60 == 0)
 				{
@@ -418,7 +427,7 @@ void StgStageController::Work()
 		}
 		else
 		{
-			//’â~’†
+			//åœæ­¢ä¸­
 			pauseManager_->Work();
 		}
 	}
@@ -426,7 +435,7 @@ void StgStageController::Work()
 	ELogger* logger = ELogger::GetInstance();
 	if(logger->IsWindowVisible())
 	{
-		//ƒƒOŠÖ˜A
+		//ãƒ­ã‚°é–¢é€£
 		logger->SetInfo(6, L"stg shot_count", StringUtility::Format(L"%d", shotManager_->GetShotCountAll()));
 		logger->SetInfo(7, L"stg enemy_count", StringUtility::Format(L"%d", enemyManager_->GetEnemyCount()));
 		logger->SetInfo(8, L"stg item_count", StringUtility::Format(L"%d", itemManager_->GetItemCount()));
@@ -441,12 +450,12 @@ void StgStageController::Render()
 
 		if(infoStage_->IsReplay())
 		{
-			//ƒŠƒvƒŒƒC’†
+			//ãƒªãƒ—ãƒ¬ã‚¤ä¸­
 		}
 	}
 	else
 	{
-		//’â~
+		//åœæ­¢
 		pauseManager_->Render();
 	}
 }

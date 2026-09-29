@@ -1,37 +1,52 @@
 #ifndef __TOUHOUDANMAKUFU_EXE_GCLIBIMPL__
 #define __TOUHOUDANMAKUFU_EXE_GCLIBIMPL__
 
-#include"Constant.hpp"
-#include"../Common/DnhGcLibImpl.hpp"
+#include "../Common/DnhGcLibImpl.hpp"
+#include "Constant.hpp"
 
 /**********************************************************
 //EApplication
 **********************************************************/
-class EApplication : public Singleton<EApplication>, public Application
-{
-		friend Singleton<EApplication>;
-		EApplication();
-	protected:
-		bool _Initialize();
-		bool _Loop();
-		bool _Finalize();
-	public:
-		~EApplication();
+class EApplication : public Singleton<EApplication>, public Application {
+	friend Singleton<EApplication>;
+
+private:
+	EApplication();
+
+protected:
+	bool _Initialize();
+	bool _Loop();
+	bool _Finalize();
+
+public:
+	~EApplication();
+	bool RunFrame();
+#ifdef __EMSCRIPTEN__
+	bool RunFrame(bool render);
+	bool DidBrowserFrameWork() const { return browserFrameWorked_; }
+	bool StartBrowser() { return Initialize() && _Initialize(); }
+private:
+	bool browserFrameWorked_ = false;
+	bool browserRenderEnabled_ = true;
+#endif
 };
 
 /**********************************************************
 //EDirectGraphics
 **********************************************************/
-class EDirectGraphics : public Singleton<EDirectGraphics>, public DirectGraphicsPrimaryWindow
-{
-		friend Singleton<EDirectGraphics>;
-		EDirectGraphics();
-	protected:
-		virtual LRESULT _WindowProcedure(HWND hWnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
-	public:
-		~EDirectGraphics();
-		virtual bool Initialize();
-		void SetRenderStateFor2D(int blend);
+class EDirectGraphics : public Singleton<EDirectGraphics>, public DirectGraphicsPrimaryWindow {
+	friend Singleton<EDirectGraphics>;
+
+private:
+	EDirectGraphics();
+
+protected:
+	virtual LRESULT _WindowProcedure(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+
+public:
+	~EDirectGraphics();
+	virtual bool Initialize();
+	void SetRenderStateFor2D(int blend);
 };
 
 #endif

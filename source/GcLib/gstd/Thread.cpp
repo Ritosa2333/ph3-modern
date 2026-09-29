@@ -1,76 +1,108 @@
-#include"Thread.hpp"
-#include"GstdUtility.hpp"
+#include "Thread.hpp"
+#include "GstdUtility.hpp"
 
 using namespace gstd;
 
+#ifdef __EMSCRIPTEN__
+// Browser jobs execute cooperatively on the calling main thread. Start does
+// real bounded work; there is no invented OS handle or fake running worker.
+Thread::Thread() : hThread_(NULL), idThread_(0), status_(STOP) {}
+Thread::~Thread() { Stop(); }
+unsigned int Thread::_StaticRun(LPVOID data) {
+	auto* thread = static_cast<Thread*>(data);
+	thread->status_ = RUN;
+	try { thread->_Run(); thread->status_ = STOP; }
+	catch (...) { thread->status_ = STOP; throw; }
+	return 0;
+}
+void Thread::Start() {
+	if (status_ != STOP) throw std::runtime_error("A cooperative job cannot restart itself");
+	_StaticRun(this);
+}
+void Thread::Stop() { if (status_ == RUN) status_ = REQUEST_STOP; }
+bool Thread::IsStop() { return status_ == STOP; }
+DWORD Thread::Join(int) {
+	if (status_ != STOP) throw std::runtime_error("Cannot block the Web main thread waiting for itself");
+	return WAIT_OBJECT_0;
+}
+CriticalSection::CriticalSection() : idThread_(0), countLock_(0) {}
+CriticalSection::~CriticalSection() = default;
+void CriticalSection::Enter() { cs_.lock(); ++countLock_; }
+void CriticalSection::Leave() {
+	if (countLock_ <= 0) throw std::runtime_error("Unbalanced Woo critical section");
+	--countLock_; cs_.unlock();
+}
+ThreadSignal::ThreadSignal(bool manual) : hEvent_(NULL), manualReset_(manual) {}
+ThreadSignal::~ThreadSignal() = default;
+DWORD ThreadSignal::Wait(int milliseconds) {
+	if (signaled_) { if (!manualReset_) signaled_ = false; return WAIT_OBJECT_0; }
+	if (milliseconds != 0) throw std::runtime_error("Blocking signal waits are not supported by the cooperative Web platform");
+	return WAIT_TIMEOUT;
+}
+void ThreadSignal::SetSignal(bool enabled) { signaled_ = enabled; }
+#else
 //================================================================
 //Thread
 Thread::Thread()
 {
-	hThread_=NULL;
-	idThread_=0;
-	status_=STOP;
+	hThread_ = NULL;
+	idThread_ = 0;
+	status_ = STOP;
 }
 Thread::~Thread()
 {
 	this->Stop();
 	this->Join();
-	if(hThread_ != NULL)
-	{
+	if (hThread_ != NULL) {
 		::CloseHandle(hThread_);
-		hThread_=NULL;
-		idThread_=0;
+		hThread_ = NULL;
+		idThread_ = 0;
 	}
 }
 unsigned int __stdcall Thread::_StaticRun(LPVOID data)
 {
-	try
-	{
+	try {
 		Thread* thread = reinterpret_cast<Thread*>(data);
-		thread->status_=RUN;
+		thread->status_ = RUN;
 		thread->_Run();
-		thread->status_=STOP;
-	}
-	catch(...)
-	{
-		//ÉGÉâÅ[ÇÕñ≥éã
+		thread->status_ = STOP;
+	} catch (...) {
+		//„Ç®„É©„Éº„ÅØÁÑ°Ë¶ñ
 	}
 	return 0;
 }
 void Thread::Start()
 {
-	if(status_ != STOP)
-	{
+	if (status_ != STOP) {
 		this->Stop();
 		this->Join();
 	}
 
-	hThread_ = (HANDLE)_beginthreadex(NULL, 0, _StaticRun, (void *)this, 0, &idThread_);
+	hThread_ = (HANDLE)_beginthreadex(NULL, 0, _StaticRun, (void*)this, 0, &idThread_);
 }
 void Thread::Stop()
 {
-	if(status_==RUN)status_=REQUEST_STOP;
+	if (status_ == RUN)
+		status_ = REQUEST_STOP;
 }
 bool Thread::IsStop()
 {
-	return hThread_==NULL || status_==STOP;
+	return hThread_ == NULL || status_ == STOP;
 }
 DWORD Thread::Join(int mills)
 {
 	DWORD res = WAIT_OBJECT_0;
 
-	if(hThread_ != NULL)
-	{
+	if (hThread_ != NULL) {
 		res = ::WaitForSingleObject(hThread_, mills);
 	}
 
-	if(hThread_ != NULL)
-	{
-		if(res != WAIT_TIMEOUT)
-			::CloseHandle(hThread_);//É^ÉCÉÄÉAÉEÉgÇÃèÍçáÉNÉçÅ[ÉYÇ≈Ç´Ç»Ç¢
-		hThread_=NULL;
-		idThread_=0;
-		status_=STOP;
+	if (hThread_ != NULL) {
+		if (res != WAIT_TIMEOUT)
+			::CloseHandle(hThread_); //„Çø„Ç§„É†„Ç¢„Ç¶„Éà„ÅÆÂ†¥Âêà„ÇØ„É≠„Éº„Ç∫„Åß„Åç„Å™„ÅÑ
+		hThread_ = NULL;
+		idThread_ = 0;
+		status_ = STOP;
 	}
 	return res;
 }
@@ -89,8 +121,7 @@ CriticalSection::~CriticalSection()
 }
 void CriticalSection::Enter()
 {
-	if(::GetCurrentThreadId() == idThread_)
-	{//ÉJÉåÉìÉgÉXÉåÉbÉh
+	if (::GetCurrentThreadId() == idThread_) { //„Ç´„É¨„É≥„Éà„Çπ„É¨„ÉÉ„Éâ
 		countLock_++;
 		return;
 	}
@@ -101,16 +132,14 @@ void CriticalSection::Enter()
 }
 void CriticalSection::Leave()
 {
-	if(::GetCurrentThreadId() == idThread_)
-	{
+	if (::GetCurrentThreadId() == idThread_) {
 		countLock_--;
-		if(countLock_ != 0)return;
-		if(countLock_<0)
-			throw std::exception("CriticalSectionÅFLockÇµÇƒÇ¢Ç‹ÇπÇÒ");
-	}
-	else
-	{
-		throw std::exception("CriticalSectionÅFLockÇµÇƒÇ¢Ç»Ç¢ÇÃÇ…UnlockÇµÇÊÇ§Ç∆ÇµÇ‹ÇµÇΩ");
+		if (countLock_ != 0)
+			return;
+		if (countLock_ < 0)
+			throw std::runtime_error("CriticalSectionÔºöLock„Åó„Å¶„ÅÑ„Åæ„Åõ„Çì");
+	} else {
+		throw std::runtime_error("CriticalSectionÔºöLock„Åó„Å¶„ÅÑ„Å™„ÅÑ„ÅÆ„Å´Unlock„Åó„Çà„ÅÜ„Å®„Åó„Åæ„Åó„Åü");
 	}
 	idThread_ = NULL;
 	::LeaveCriticalSection(&cs_);
@@ -121,7 +150,7 @@ void CriticalSection::Leave()
 ThreadSignal::ThreadSignal(bool bManualReset)
 {
 	BOOL bManual = bManualReset ? TRUE : FALSE;
-	hEvent_ = ::CreateEvent( NULL, bManual, FALSE, NULL );
+	hEvent_ = ::CreateEvent(NULL, bManual, FALSE, NULL);
 }
 ThreadSignal::~ThreadSignal()
 {
@@ -131,8 +160,7 @@ DWORD ThreadSignal::Wait(int mills)
 {
 	DWORD res = WAIT_OBJECT_0;
 
-	if(hEvent_ != NULL)
-	{
+	if (hEvent_ != NULL) {
 		res = ::WaitForSingleObject(hEvent_, mills);
 	}
 
@@ -140,12 +168,10 @@ DWORD ThreadSignal::Wait(int mills)
 }
 void ThreadSignal::SetSignal(bool bOn)
 {
-	if(bOn)
-	{
+	if (bOn) {
 		::SetEvent(hEvent_);
-	}
-	else
-	{
+	} else {
 		::ResetEvent(hEvent_);
 	}
 }
+#endif

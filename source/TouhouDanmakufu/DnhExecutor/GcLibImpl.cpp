@@ -1,47 +1,52 @@
-#include"GcLibImpl.hpp"
-#include"System.hpp"
-#include"StgScene.hpp"
+#include "GcLibImpl.hpp"
+#include "StgScene.hpp"
+#include "System.hpp"
+
+#ifdef __EMSCRIPTEN__
+#include <SDL3/SDL.h>
+#endif
 
 /**********************************************************
 //EApplication
 **********************************************************/
 EApplication::EApplication()
 {
-
 }
 EApplication::~EApplication()
 {
-
 }
 bool EApplication::_Initialize()
 {
 	ELogger* logger = ELogger::GetInstance();
-	Logger::WriteTop(L"ƒAƒvƒŠƒP[ƒVƒ‡ƒ“‰Šú‰»");
+	Logger::WriteTop(L"ã‚¢ãƒ—ãƒªã‚±ãƒ¼ã‚·ãƒ§ãƒ³åˆæœŸåŒ–");
 
 	EFileManager* fileManager = EFileManager::CreateInstance();
 	fileManager->Initialize();
 
 	EFpsController* fpsController = EFpsController::CreateInstance();
 
-	std::wstring appName = L"“Œ•û’e–‹•— ph3 ";
+	std::wstring appName = L"æ±æ–¹å¼¾å¹•é¢¨ ph3 ";
 	appName += DNH_VERSION;
 
 	DnhConfiguration* config = DnhConfiguration::CreateInstance();
 	std::wstring configWindowTitle = config->GetWindowTitle();
-	if(configWindowTitle.size() > 0)
+	if (configWindowTitle.size() > 0)
 		appName = configWindowTitle;
 
-	//ƒ}ƒEƒX•\Ž¦
-	if(!config->IsMouseVisible())
+	//ãƒžã‚¦ã‚¹è¡¨ç¤º
+	if (!config->IsMouseVisible())
 		WindowUtility::SetMouseVisible(false);
 
-	//DirectX‰Šú‰»
+	//DirectXåˆæœŸåŒ–
 	EDirectGraphics* graphics = EDirectGraphics::CreateInstance();
 	graphics->Initialize();
 	HWND hWndMain = graphics->GetWindowHandle();
+
+#ifndef __EMSCRIPTEN__
 	WindowLogger::InsertOpenCommandInSystemMenu(hWndMain);
 	::SetWindowText(hWndMain, appName.c_str());
 	::SetClassLong(hWndMain, GCL_HICON, (LONG)LoadIcon(GetApplicationHandle(), MAKEINTRESOURCE(IDI_ICON)));
+#endif
 
 	ErrorDialog::SetParentWindowHandle(hWndMain);
 
@@ -68,19 +73,23 @@ bool EApplication::_Initialize()
 
 	gstd::ref_count_ptr<gstd::TaskInfoPanel> panelTask = new gstd::TaskInfoPanel();
 	bool bAddTaskPanel = logger->AddPanel(panelTask, L"Task");
-	if(bAddTaskPanel)taskManager->SetInfoPanel(panelTask);
+	if (bAddTaskPanel)
+		taskManager->SetInfoPanel(panelTask);
 
 	gstd::ref_count_ptr<directx::TextureInfoPanel> panelTexture = new directx::TextureInfoPanel();
 	bool bTexturePanel = logger->AddPanel(panelTexture, L"Texture");
-	if(bTexturePanel)textureManager->SetInfoPanel(panelTexture);
+	if (bTexturePanel)
+		textureManager->SetInfoPanel(panelTexture);
 
 	gstd::ref_count_ptr<directx::DxMeshInfoPanel> panelMesh = new directx::DxMeshInfoPanel();
 	bool bMeshPanel = logger->AddPanel(panelMesh, L"Mesh");
-	if(bMeshPanel)meshManager->SetInfoPanel(panelMesh);
+	if (bMeshPanel)
+		meshManager->SetInfoPanel(panelMesh);
 
 	gstd::ref_count_ptr<directx::SoundInfoPanel> panelSound = new directx::SoundInfoPanel();
 	bool bSoundPanel = logger->AddPanel(panelSound, L"Sound");
-	if(bSoundPanel)soundManager->SetInfoPanel(panelSound);
+	if (bSoundPanel)
+		soundManager->SetInfoPanel(panelSound);
 
 	gstd::ref_count_ptr<gstd::ScriptCommonDataInfoPanel> panelCommonData = logger->GetScriptCommonDataInfoPanel();
 	logger->AddPanel(panelCommonData, L"Common Data");
@@ -88,8 +97,7 @@ bool EApplication::_Initialize()
 	gstd::ref_count_ptr<ScriptInfoPanel> panelScript = new ScriptInfoPanel();
 	logger->AddPanel(panelScript, L"Script");
 
-	if(config->IsLogWindow())
-	{
+	if (config->IsLogWindow()) {
 		logger->LoadState();
 		logger->SetWindowVisible(true);
 	}
@@ -97,54 +105,66 @@ bool EApplication::_Initialize()
 	SystemController* systemController = SystemController::CreateInstance();
 	systemController->Reset();
 
-	Logger::WriteTop(L"ƒAƒvƒŠƒP[ƒVƒ‡ƒ“‰Šú‰»Š®—¹");
+	Logger::WriteTop(L"ã‚¢ãƒ—ãƒªã‚±ãƒ¼ã‚·ãƒ§ãƒ³åˆæœŸåŒ–å®Œäº†");
 
 	return true;
 }
 bool EApplication::_Loop()
 {
+#ifdef __EMSCRIPTEN__
+	browserFrameWorked_ = false;
+#endif
 	ELogger* logger = ELogger::GetInstance();
 	ETaskManager* taskManager = ETaskManager::GetInstance();
 	EFpsController* fpsController = EFpsController::GetInstance();
 	EDirectGraphics* graphics = EDirectGraphics::GetInstance();
 
-	HWND hWndFocused = ::GetForegroundWindow();
-	HWND hWndGraphics = graphics->GetWindowHandle();
-	HWND hWndLogger = ELogger::GetInstance()->GetWindowHandle();
-	if(hWndFocused != hWndGraphics && hWndFocused != hWndLogger)
-	{
-		//”ñƒAƒNƒeƒBƒuŽž‚Í“®ì‚µ‚È‚¢
-		::Sleep(10);
-		return true;
-	}
-
 	EDirectInput* input = EDirectInput::GetInstance();
 	input->Update();
-	if(input->GetKeyState(DIK_LCONTROL) == KEY_HOLD &&
-		input->GetKeyState(DIK_LSHIFT) == KEY_HOLD &&
-		input->GetKeyState(DIK_R) == KEY_PUSH)
-	{
-		//ƒŠƒZƒbƒg
+#ifdef __EMSCRIPTEN__
+	SDL_Window* sdlFocused = SDL_GetKeyboardFocus();
+	HWND hWndFocused = reinterpret_cast<HWND>(sdlFocused);
+#else
+	HWND hWndFocused = ::GetForegroundWindow();
+#endif
+	HWND hWndGraphics = graphics->GetWindowHandle();
+	HWND hWndLogger = ELogger::GetInstance()->GetWindowHandle();
+	if (hWndFocused != hWndGraphics && hWndFocused != hWndLogger) {
+		return true;
+	}
+	if (input->GetKeyState(DIK_LCONTROL) == KEY_HOLD && input->GetKeyState(DIK_LSHIFT) == KEY_HOLD && input->GetKeyState(DIK_R) == KEY_PUSH) {
+		//ãƒªã‚»ãƒƒãƒˆ
 		SystemController* systemController = SystemController::CreateInstance();
 		systemController->Reset();
 	}
-	
+
+#ifdef __EMSCRIPTEN__
+	browserFrameWorked_ = true;
+#endif
 	taskManager->CallWorkFunction();
 
-	if(!fpsController->IsSkip())
-	{
+#ifdef __EMSCRIPTEN__
+	if (browserRenderEnabled_) {
+#else
+	if (!fpsController->IsSkip()) {
+#endif
 		graphics->BeginScene();
 		taskManager->CallRenderFunction();
 		graphics->EndScene();
 	}
 
+#ifdef __EMSCRIPTEN__
+	EDirectSoundManager::GetInstance()->Pump();
+#else
 	fpsController->Wait();
+#endif
 
-	//ƒƒOŠÖ˜A
+	//ãƒ­ã‚°é–¢é€£
+#ifndef __EMSCRIPTEN__
 	SYSTEMTIME time;
 	GetLocalTime(&time);
-	std::wstring fps = StringUtility::Format(L"WorkF%.2ffpsADrawF%.2ffps",
-		fpsController->GetCurrentWorkFps(), 
+	std::wstring fps = StringUtility::Format(L"Workï¼š%.2ffpsã€Drawï¼š%.2ffps",
+		fpsController->GetCurrentWorkFps(),
 		fpsController->GetCurrentRenderFps());
 	logger->SetInfo(0, L"fps", fps);
 
@@ -153,31 +173,40 @@ bool EApplication::_Loop()
 	int widthScreen = widthConfig * graphics->GetScreenWidthRatio();
 	int heightScreen = heightConfig * graphics->GetScreenHeightRatio();
 
-	std::wstring screen = StringUtility::Format(L"widthF%d/%dAheightF%d/%d",
-		widthScreen, widthConfig, 
+	std::wstring screen = StringUtility::Format(L"widthï¼š%d/%dã€heightï¼š%d/%d",
+		widthScreen, widthConfig,
 		heightScreen, heightConfig);
 	logger->SetInfo(1, L"screen", screen);
 
-	logger->SetInfo(2, L"font cache", 
-		StringUtility::Format(L"%d", EDxTextRenderer::GetInstance()->GetCacheCount() ));
-	
-	//‚‘¬“®ì
+	logger->SetInfo(2, L"font cache",
+		StringUtility::Format(L"%d", EDxTextRenderer::GetInstance()->GetCacheCount()));
+#endif
+
+	//é«˜é€Ÿå‹•ä½œ
 	int fastModeKey = fpsController->GetFastModeKey();
-	if(input->GetKeyState(fastModeKey) == KEY_HOLD)
-	{
-		if(!fpsController->IsFastMode())
+	if (input->GetKeyState(fastModeKey) == KEY_HOLD) {
+		if (!fpsController->IsFastMode())
 			fpsController->SetFastMode(true);
-	}
-	else if(input->GetKeyState(fastModeKey) == KEY_PULL || input->GetKeyState(fastModeKey) == KEY_FREE)
-	{
-		if(fpsController->IsFastMode())
+	} else if (input->GetKeyState(fastModeKey) == KEY_PULL || input->GetKeyState(fastModeKey) == KEY_FREE) {
+		if (fpsController->IsFastMode())
 			fpsController->SetFastMode(false);
 	}
 	return true;
 }
+bool EApplication::RunFrame()
+{
+	return _Loop();
+}
+#ifdef __EMSCRIPTEN__
+bool EApplication::RunFrame(bool render)
+{
+	browserRenderEnabled_ = render;
+	return _Loop();
+}
+#endif
 bool EApplication::_Finalize()
 {
-	Logger::WriteTop(L"ƒAƒvƒŠƒP[ƒVƒ‡ƒ“I—¹ˆ—ŠJŽn");
+	Logger::WriteTop(L"ã‚¢ãƒ—ãƒªã‚±ãƒ¼ã‚·ãƒ§ãƒ³çµ‚äº†å‡¦ç†é–‹å§‹");
 	SystemController::DeleteInstance();
 	ETaskManager::DeleteInstance();
 	EFileManager::GetInstance()->EndLoadThread();
@@ -194,19 +223,15 @@ bool EApplication::_Finalize()
 	ELogger* logger = ELogger::GetInstance();
 	logger->SaveState();
 
-	Logger::WriteTop(L"ƒAƒvƒŠƒP[ƒVƒ‡ƒ“I—¹ˆ—Š®—¹");
+	Logger::WriteTop(L"ã‚¢ãƒ—ãƒªã‚±ãƒ¼ã‚·ãƒ§ãƒ³çµ‚äº†å‡¦ç†å®Œäº†");
 	return true;
 }
-
-
-
 
 /**********************************************************
 //EDirectGraphics
 **********************************************************/
 EDirectGraphics::EDirectGraphics()
 {
-
 }
 EDirectGraphics::~EDirectGraphics()
 {
@@ -220,23 +245,20 @@ bool EDirectGraphics::Initialize()
 	int windowSize = dnhConfig->GetWindowSize();
 
 	bool bUserSize = screenWidth != 640 || screenHeight != 480;
-	if(!bUserSize)
-	{
-		if(windowSize == DnhConfiguration::WINDOW_SIZE_640x480 && screenWidth > 640)
+	if (!bUserSize) {
+		if (windowSize == DnhConfiguration::WINDOW_SIZE_640x480 && screenWidth > 640)
 			windowSize = DnhConfiguration::WINDOW_SIZE_800x600;
-		if(windowSize == DnhConfiguration::WINDOW_SIZE_800x600 && screenWidth > 800)
+		if (windowSize == DnhConfiguration::WINDOW_SIZE_800x600 && screenWidth > 800)
 			windowSize = DnhConfiguration::WINDOW_SIZE_960x720;
-		if(windowSize == DnhConfiguration::WINDOW_SIZE_960x720 && screenWidth > 960)
+		if (windowSize == DnhConfiguration::WINDOW_SIZE_960x720 && screenWidth > 960)
 			windowSize = DnhConfiguration::WINDOW_SIZE_1280x960;
-		if(windowSize == DnhConfiguration::WINDOW_SIZE_1280x960 && screenWidth > 1280)
+		if (windowSize == DnhConfiguration::WINDOW_SIZE_1280x960 && screenWidth > 1280)
 			windowSize = DnhConfiguration::WINDOW_SIZE_1600x1200;
-		if(windowSize == DnhConfiguration::WINDOW_SIZE_1600x1200 && screenWidth > 1600)
+		if (windowSize == DnhConfiguration::WINDOW_SIZE_1600x1200 && screenWidth > 1600)
 			windowSize = DnhConfiguration::WINDOW_SIZE_1920x1200;
 	}
 
-
-	bool bShowWindow = screenMode == DirectGraphics::SCREENMODE_FULLSCREEN ||
-						windowSize == DnhConfiguration::WINDOW_SIZE_640x480;
+	bool bShowWindow = screenMode == DirectGraphics::SCREENMODE_FULLSCREEN || windowSize == DnhConfiguration::WINDOW_SIZE_640x480;
 
 	DirectGraphicsConfig dxConfig;
 	dxConfig.SetScreenWidth(screenWidth);
@@ -244,53 +266,55 @@ bool EDirectGraphics::Initialize()
 	dxConfig.SetShowWindow(bShowWindow);
 	bool res = DirectGraphicsPrimaryWindow::Initialize(dxConfig);
 
+#ifndef __EMSCRIPTEN__
 	int wWidth = ::GetSystemMetrics(SM_CXFULLSCREEN);
 	int wHeight = ::GetSystemMetrics(SM_CYFULLSCREEN);
 	bool bFullScreenEnable = screenWidth <= wWidth && screenHeight <= wHeight;
-	
-	//ƒRƒ“ƒtƒBƒO”½‰f
-	if(screenMode == DirectGraphics::SCREENMODE_FULLSCREEN && bFullScreenEnable)
-	{
+
+	//ã‚³ãƒ³ãƒ•ã‚£ã‚°åæ˜ 
+	if (screenMode == DirectGraphics::SCREENMODE_FULLSCREEN && bFullScreenEnable) {
 		ChangeScreenMode();
-	}
-	else
-	{	
-		if(windowSize != DnhConfiguration::WINDOW_SIZE_640x480 || bUserSize)
-		{
+	} else {
+		if (windowSize != DnhConfiguration::WINDOW_SIZE_640x480 || bUserSize) {
 			int width = screenWidth;
 			int height = screenHeight;
-			if(!bUserSize)
-			{
-				switch(windowSize)
-				{
+			if (!bUserSize) {
+				switch (windowSize) {
 				case DnhConfiguration::WINDOW_SIZE_800x600:
-					width = 800; height = 600;
+					width = 800;
+					height = 600; // + ::GetSystemMetrics(SM_CXEDGE) + 10 ; + ::GetSystemMetrics(SM_CXEDGE) + 10 ;
 					break;
 				case DnhConfiguration::WINDOW_SIZE_960x720:
-					width = 960; height = 720;
+					width = 960;
+					height = 720; // + ::GetSystemMetrics(SM_CXEDGE) + 10 ; + ::GetSystemMetrics(SM_CXEDGE) + 10 ;
 					break;
 				case DnhConfiguration::WINDOW_SIZE_1280x960:
-					width = 1280; height = 960;
+					width = 1280;
+					height = 960; // + ::GetSystemMetrics(SM_CXEDGE) + 10 ; + ::GetSystemMetrics(SM_CXEDGE) + 10 ;
 					break;
 				case DnhConfiguration::WINDOW_SIZE_1600x1200:
-					width = 1600; height = 1200;
+					width = 1600;
+					height = 1200; // + ::GetSystemMetrics(SM_CXEDGE) + 10 ; + ::GetSystemMetrics(SM_CXEDGE) + 10 ;
 					break;
 				case DnhConfiguration::WINDOW_SIZE_1920x1200:
-					width = 1920; height = 1200;
+					width = 1920;
+					height = 1200; // + ::GetSystemMetrics(SM_CXEDGE) + 10 ; + ::GetSystemMetrics(SM_CXEDGE) + 10 ;
 					break;
 				}
 			}
 
 			double ratioWH = (double)screenWidth / (double)screenHeight;
-			if(width > wWidth)width = wWidth;
+			if (width > wWidth)
+				width = wWidth;
 			height = (double)width / ratioWH;
 
 			double ratioHW = (double)screenHeight / (double)screenWidth;
-			if(height > wHeight) height = wHeight;
+			if (height > wHeight)
+				height = wHeight;
 			width = (double)height / ratioHW;
 
-			int tw=::GetSystemMetrics(SM_CXEDGE)+GetSystemMetrics(SM_CXBORDER)+GetSystemMetrics(SM_CXDLGFRAME);
-			int th=::GetSystemMetrics(SM_CYEDGE)+GetSystemMetrics(SM_CYBORDER)+GetSystemMetrics(SM_CYDLGFRAME)+GetSystemMetrics(SM_CYCAPTION);
+			int tw = ::GetSystemMetrics(SM_CXEDGE) + 10 + GetSystemMetrics(SM_CXBORDER) + GetSystemMetrics(SM_CXDLGFRAME);
+			int th = ::GetSystemMetrics(SM_CYEDGE) + 10 + GetSystemMetrics(SM_CYBORDER) + GetSystemMetrics(SM_CYDLGFRAME) + GetSystemMetrics(SM_CYCAPTION);
 			width += tw;
 			height += th;
 
@@ -298,6 +322,7 @@ bool EDirectGraphics::Initialize()
 			MoveWindowCenter();
 		}
 	}
+#endif
 	SetWindowVisible(true);
 
 	return res;
@@ -309,19 +334,16 @@ void EDirectGraphics::SetRenderStateFor2D(int blend)
 	graphics->SetZBufferEnable(false);
 	graphics->SetZWriteEnalbe(false);
 }
-LRESULT EDirectGraphics::_WindowProcedure(HWND hWnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
+LRESULT EDirectGraphics::_WindowProcedure(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-	switch (uMsg)
-	{
-		case WM_SYSCOMMAND:
-		{
-			int nId = wParam & 0xffff;
-			if (nId == WindowLogger::MENU_ID_OPEN)
-			{
-				ELogger::GetInstance()->ShowLogWindow();
-			}
-			break;
-		}
+#ifndef __EMSCRIPTEN__
+	switch (uMsg) {
+	case WM_SYSCOMMAND:
+		int nId = wParam & 0xffff;
+		if (nId == WindowLogger::MENU_ID_OPEN)
+			ELogger::GetInstance()->ShowLogWindow();
+		break;
 	}
+#endif
 	return DirectGraphicsPrimaryWindow::_WindowProcedure(hWnd, uMsg, wParam, lParam);
 }

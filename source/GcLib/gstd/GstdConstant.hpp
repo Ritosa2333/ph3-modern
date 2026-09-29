@@ -1,5 +1,7 @@
 #ifndef __GSTD_GAMESTDCONSTANT__
 #define __GSTD_GAMESTDCONSTANT__
+#include "ScriptReal.hpp"
+namespace woo { namespace verify { struct Access; } }
 
 //Unicode
 #ifdef _MBCS
@@ -12,32 +14,30 @@
 #define _UNICODE
 #endif
 
-
-//•W€ŠÖ”‘Î‰•\
+//æ¨™æº–é–¢æ•°å¯¾å¿œè¡¨
 //http://www1.kokusaika.jp/advisory/org/ja/win32_unicode.html
 
-//Win2000ˆÈ~
+//Win2000ä»¥é™
 #define _WIN32_WINNT 0x0500
 
 //lib
-#pragma comment(lib,"winmm.lib")
-#pragma comment(lib,"comctl32.lib")
-#pragma comment(lib,"pdh.lib")
-#pragma comment(lib,"gdi32.lib")
-#pragma comment(lib,"shlwapi.lib")
-#pragma comment(lib,"psapi.lib")
+#pragma comment(lib, "winmm.lib")
+#pragma comment(lib, "comctl32.lib")
+#pragma comment(lib, "pdh.lib")
+#pragma comment(lib, "gdi32.lib")
+#pragma comment(lib, "shlwapi.lib")
+#pragma comment(lib, "psapi.lib")
 
 //pragma
-#pragma warning (disable:4786)//STL Warning—}~
-#pragma warning (disable:4018)//signed ‚Æ unsigned ‚Ì”’l‚ğ”äŠr
-#pragma warning (disable:4244)//double' ‚©‚ç 'float' ‚É•ÏŠ·
-#pragma warning (disable:4503)//
+#pragma warning(disable : 4786) //STL WarningæŠ‘æ­¢
+#pragma warning(disable : 4018) //signed ã¨ unsigned ã®æ•°å€¤ã‚’æ¯”è¼ƒ
+#pragma warning(disable : 4244) //double' ã‹ã‚‰ 'float' ã«å¤‰æ›
+#pragma warning(disable : 4503) //
 
-#pragma warning (disable:4302)// Ø‚è‹l‚ß‚Ü‚·B
-#pragma warning (disable:4305)// 'double' ‚©‚ç 'FLOAT' ‚ÖØ‚è‹l‚ß‚Ü‚·B
-#pragma warning (disable:4819)//ƒtƒ@ƒCƒ‹‚ÍAŒ»İ‚ÌƒR[ƒh ƒy[ƒW (932) ‚Å•\¦‚Å‚«‚È‚¢•¶š‚ğŠÜ‚ñ‚Å‚¢‚Ü‚·Bƒf[ƒ^‚Ì‘¹¸‚ğ–h‚®‚½‚ß‚ÉAƒtƒ@ƒCƒ‹‚ğ Unicode Œ`®‚Å•Û‘¶‚µ‚Ä‚­‚¾‚³‚¢B
-#pragma warning (disable:4996)//This function or variable may be unsafe. 
-
+#pragma warning(disable : 4302) // åˆ‡ã‚Šè©°ã‚ã¾ã™ã€‚
+#pragma warning(disable : 4305) // 'double' ã‹ã‚‰ 'FLOAT' ã¸åˆ‡ã‚Šè©°ã‚ã¾ã™ã€‚
+#pragma warning(disable : 4819) //ãƒ•ã‚¡ã‚¤ãƒ«ã¯ã€ç¾åœ¨ã®ã‚³ãƒ¼ãƒ‰ ãƒšãƒ¼ã‚¸ (932) ã§è¡¨ç¤ºã§ããªã„æ–‡å­—ã‚’å«ã‚“ã§ã„ã¾ã™ã€‚ãƒ‡ãƒ¼ã‚¿ã®æå¤±ã‚’é˜²ããŸã‚ã«ã€ãƒ•ã‚¡ã‚¤ãƒ«ã‚’ Unicode å½¢å¼ã§ä¿å­˜ã—ã¦ãã ã•ã„ã€‚
+#pragma warning(disable : 4996) //This function or variable may be unsafe.
 
 //define
 #ifndef STRICT
@@ -45,41 +45,57 @@
 #endif
 
 //std
-#include<cwchar>
-#include<cstdlib>
+#include <cstdlib>
+#include <cwchar>
 
-#include<exception>
-#include<cstdlib>
-#include<cmath>
-#include<string>
-#include<list>
-#include<vector>
-#include<set>
-#include<map>
-#include<bitset>
-#include<memory>
-#include<algorithm>
+#include <algorithm>
+#include <bitset>
+#include <cmath>
+#include <cstdlib>
+#include <exception>
+#include <list>
+#include <map>
+#include <memory>
+#include <set>
+#include <stdexcept>
+#include <string>
+#include <vector>
+#include <type_traits>
 
-//Windows
-#include<windows.h>
-#include<windowsx.h>
-#include<mmsystem.h>
-#include<commctrl.h>
-#include<pdh.h>
-#include<process.h>
-#include<wingdi.h>
-#include<shlwapi.h>
+//Platform
+#ifdef __EMSCRIPTEN__
+#include "../portable/Win32Compat.hpp"
+using std::max;
+using std::min;
+template<class A, class B, typename std::enable_if<!std::is_same<typename std::decay<A>::type, typename std::decay<B>::type>::value, int>::type = 0>
+constexpr typename std::common_type<A, B>::type min(A a, B b) {
+	using C = typename std::common_type<A, B>::type;
+	return static_cast<C>(a) < static_cast<C>(b) ? static_cast<C>(a) : static_cast<C>(b);
+}
+template<class A, class B, typename std::enable_if<!std::is_same<typename std::decay<A>::type, typename std::decay<B>::type>::value, int>::type = 0>
+constexpr typename std::common_type<A, B>::type max(A a, B b) {
+	using C = typename std::common_type<A, B>::type;
+	return static_cast<C>(a) > static_cast<C>(b) ? static_cast<C>(a) : static_cast<C>(b);
+}
+#else
+#include <windows.h>
+#include <windowsx.h>
 
-#include<mlang.h>
-#include<psapi.h>
+#include <commctrl.h>
+#include <mmsystem.h>
+#include <pdh.h>
+#include <process.h>
+#include <shlwapi.h>
+#include <wingdi.h>
 
-
+#include <mlang.h>
+#include <psapi.h>
+#endif
 
 #ifdef _DEBUG
 #include <crtdbg.h>
 #define _CRTDBG_MAP_ALLOC
-#define new  ::new(_NORMAL_BLOCK, __FILE__, __LINE__)
+#define new ::new (_NORMAL_BLOCK, __FILE__, __LINE__)
 #endif
-
 
 #endif

@@ -51,7 +51,7 @@ void StgEnemyManager::RegistIntersectionTarget()
 void StgEnemyManager::SetBossSceneObject(ref_count_ptr<StgEnemyBossSceneObject>::unsync obj)
 {
 	if(objBossScene_ != NULL && !objBossScene_->IsDeleted())
-		throw gstd::wexception(L"‚·‚Å‚ÉEnemyBossSceneƒIƒuƒWƒFƒNƒg‚ª‘¶İ‚µ‚Ü‚·");
+		throw gstd::wexception(L"ã™ã§ã«EnemyBossSceneã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆãŒå­˜åœ¨ã—ã¾ã™");
 
 	objBossScene_ = obj;
 }
@@ -129,7 +129,7 @@ void StgEnemyObject::Intersect(ref_count_ptr<StgIntersectionTarget>::unsync ownT
 			damage = damage * rateDamageSpell_ / 100;
 		}
 	}
-	life_ = max(life_ - damage, 0);
+	life_ = std::max(life_ - damage, 0.0);
 }
 void StgEnemyObject::RegistIntersectionTarget()
 {
@@ -167,7 +167,7 @@ bool StgEnemyBossSceneObject::_NextStep()
 
 	StgStageScriptManager* scriptManager = stageController_->GetScriptManagerP();
 
-	//Œ»ƒXƒeƒbƒvI—¹’Ê’m
+	//ç¾ã‚¹ãƒ†ãƒƒãƒ—çµ‚äº†é€šçŸ¥
 	if(activeData_ != NULL)
 	{
 		scriptManager->RequestEventAll(StgStageScript::EV_END_BOSS_STEP);
@@ -187,7 +187,7 @@ bool StgEnemyBossSceneObject::_NextStep()
 	
 	ref_count_ptr<StgEnemyBossSceneData>::unsync oldActiveData = activeData_;
 
-	//“G“o˜^
+	//æ•µç™»éŒ²
 	ref_count_ptr<StgStageScriptObjectManager> objectManager = stageController_->GetMainObjectManager();
 	activeData_ = listData_[dataStep_][dataIndex_];
 	std::vector<ref_count_ptr<StgEnemyBossObject>::unsync >& listEnemy = activeData_->GetEnemyObjectList();
@@ -209,11 +209,11 @@ bool StgEnemyBossSceneObject::_NextStep()
 		objectManager->ActivateObject(obj->GetObjectID(), true);
 	}
 
-	//ƒXƒNƒŠƒvƒgŠJn
+	//ã‚¹ã‚¯ãƒªãƒ—ãƒˆé–‹å§‹
 	_int64 idScript = activeData_->GetScriptID();
 	scriptManager->StartScript(idScript);
 
-	//VƒXƒeƒbƒvŠJn’Ê’m
+	//æ–°ã‚¹ãƒ†ãƒƒãƒ—é–‹å§‹é€šçŸ¥
 	scriptManager->RequestEventAll(StgStageScript::EV_START_BOSS_STEP);
 
 	return true;
@@ -222,7 +222,7 @@ void StgEnemyBossSceneObject::Work()
 {
 	if(activeData_->IsReadyNext())
 	{
-		//ŸƒXƒeƒbƒv‘JˆÚ‰Â”\
+		//æ¬¡ã‚¹ãƒ†ãƒƒãƒ—é·ç§»å¯èƒ½
 		bool bEnemyExists = false;
 		std::vector<ref_count_ptr<StgEnemyBossObject>::unsync > listEnemy = activeData_->GetEnemyObjectList();
 		for(int iEnemy = 0 ; iEnemy < listEnemy.size() ; iEnemy++)
@@ -236,7 +236,7 @@ void StgEnemyBossSceneObject::Work()
 			bool bNext = _NextStep();
 			if(!bNext)
 			{
-				//I—¹
+				//çµ‚äº†
 				StgEnemyManager* enemyManager = stageController_->GetEnemyManager();
 				ref_count_ptr<StgStageScriptObjectManager> objectManager = stageController_->GetMainObjectManager();
 				objectManager->DeleteObject(idObject_);
@@ -248,7 +248,7 @@ void StgEnemyBossSceneObject::Work()
 	}
 	else if(!activeData_->IsReadyNext())
 	{
-		//ƒ^ƒCƒ}[ŠÄ‹
+		//ã‚¿ã‚¤ãƒãƒ¼ç›£è¦–
 		bool bZeroTimer = false;
 		int timer = activeData_->GetSpellTimer();
 		if(timer > 0)
@@ -261,7 +261,7 @@ void StgEnemyBossSceneObject::Work()
 			}
 		}
 
-		//ƒ‰ƒXƒgƒXƒyƒ‹ŠÄ‹
+		//ãƒ©ã‚¹ãƒˆã‚¹ãƒšãƒ«ç›£è¦–
 		bool bEndLastSpell = false;
 		if(activeData_->IsLastSpell())
 		{
@@ -270,7 +270,7 @@ void StgEnemyBossSceneObject::Work()
 
 		if(bZeroTimer || bEndLastSpell)
 		{
-			//ƒ^ƒCƒ}[0‚È‚ç“G‚Ìƒ‰ƒCƒt‚ğ0‚É‚·‚é
+			//ã‚¿ã‚¤ãƒãƒ¼0ãªã‚‰æ•µã®ãƒ©ã‚¤ãƒ•ã‚’0ã«ã™ã‚‹
 			std::vector<ref_count_ptr<StgEnemyBossObject>::unsync >& listEnemy = activeData_->GetEnemyObjectList();
 			for(int iEnemy = 0 ; iEnemy < listEnemy.size() ; iEnemy++)
 			{
@@ -280,13 +280,13 @@ void StgEnemyBossSceneObject::Work()
 
 			if(bZeroTimer)
 			{
-				//ƒ^ƒCƒ€ƒAƒEƒg’Ê’m
+				//ã‚¿ã‚¤ãƒ ã‚¢ã‚¦ãƒˆé€šçŸ¥
 				StgStageScriptManager* scriptManager = stageController_->GetScriptManagerP();
 				scriptManager->RequestEventAll(StgStageScript::EV_TIMEOUT);
 			}
 		}
 
-		//ŸƒV[ƒ“‚Ö‚Ì‘JˆÚƒtƒ‰ƒOİ’è
+		//æ¬¡ã‚·ãƒ¼ãƒ³ã¸ã®é·ç§»ãƒ•ãƒ©ã‚°è¨­å®š
 		bool bReadyNext = true;
 		std::vector<ref_count_ptr<StgEnemyBossObject>::unsync >& listEnemy = activeData_->GetEnemyObjectList();
 		for(int iEnemy = 0 ; iEnemy < listEnemy.size() ; iEnemy++)
@@ -300,9 +300,9 @@ void StgEnemyBossSceneObject::Work()
 		{
 			if(activeData_->IsSpellCard())
 			{
-				//ƒXƒyƒ‹ƒJ[ƒhæ“¾
-				//Eƒ^ƒCƒ}[0^ƒXƒyƒ‹g—p^”í’e‚Íæ“¾•s‰Â
-				//E‘Ï‹v‚Ìê‡‚Íƒ^ƒCƒ}[0‚Å‚àæ“¾‰Â”\
+				//ã‚¹ãƒšãƒ«ã‚«ãƒ¼ãƒ‰å–å¾—
+				//ãƒ»ã‚¿ã‚¤ãƒãƒ¼0ï¼ã‚¹ãƒšãƒ«ä½¿ç”¨ï¼è¢«å¼¾æ™‚ã¯å–å¾—ä¸å¯
+				//ãƒ»è€ä¹…ã®å ´åˆã¯ã‚¿ã‚¤ãƒãƒ¼0ã§ã‚‚å–å¾—å¯èƒ½
 				bool bGrain = true;
 				bGrain &= (activeData_->GetPlayerShootDownCount() == 0);
 				bGrain &= (activeData_->GetPlayerSpellCount() == 0);
@@ -322,7 +322,7 @@ void StgEnemyBossSceneObject::Work()
 }
 void StgEnemyBossSceneObject::Activate()
 {
-	//ƒXƒNƒŠƒvƒg‚ğ“Ç‚İ‚ñ‚Å‚¢‚È‚©‚Á‚½‚ç“Ç‚İ‚ŞB
+	//ã‚¹ã‚¯ãƒªãƒ—ãƒˆã‚’èª­ã¿è¾¼ã‚“ã§ã„ãªã‹ã£ãŸã‚‰èª­ã¿è¾¼ã‚€ã€‚
 	if(!bLoad_)
 		LoadAllScriptInThread();
 
@@ -336,7 +336,7 @@ void StgEnemyBossSceneObject::Activate()
 			_int64 idScript = data->GetScriptID();
 			ref_count_ptr<ManagedScript> script = scriptManager->GetScript(idScript);
 			if(script == NULL)
-				throw gstd::wexception(StringUtility::Format(L"“Ç‚İ‚Ü‚ê‚Ä‚¢‚È‚¢ƒXƒNƒŠƒvƒgF%s", data->GetPath().c_str()).c_str());
+				throw gstd::wexception(StringUtility::Format(L"èª­ã¿è¾¼ã¾ã‚Œã¦ã„ãªã„ã‚¹ã‚¯ãƒªãƒ—ãƒˆï¼š%s", data->GetPath().c_str()).c_str());
 			if(!script->IsLoad())
 			{
 				int count = 0;
@@ -345,7 +345,7 @@ void StgEnemyBossSceneObject::Activate()
 					if(count % 1000 == 999)
 					{
 						std::wstring log = 
-							StringUtility::Format(L"“Ç‚İ‚İŠ®—¹‘Ò‹@(StgEnemyBossSceneObject)F[%d, %d] %s", iStep, iData, data->GetPath().c_str());
+							StringUtility::Format(L"èª­ã¿è¾¼ã¿å®Œäº†å¾…æ©Ÿ(StgEnemyBossSceneObject)ï¼š[%d, %d] %s", iStep, iData, data->GetPath().c_str());
 						Logger::WriteTop(log);
 
 					}
@@ -356,7 +356,7 @@ void StgEnemyBossSceneObject::Activate()
 
 			if(stageController_->GetSystemInformation()->IsError())continue;
 
-			//ƒ‰ƒCƒt“Ç‚İ‚İ
+			//ãƒ©ã‚¤ãƒ•èª­ã¿è¾¼ã¿
 			std::vector<double> listLife;
 			gstd::value vLife = script->RequestEvent(StgStageScript::EV_REQUEST_LIFE);
 			if(script->IsRealValue(vLife))
@@ -375,17 +375,17 @@ void StgEnemyBossSceneObject::Activate()
 			}
 
 			if(listLife.size() == 0)
-				throw gstd::wexception(StringUtility::Format(L"“Gƒ‰ƒCƒt‚ğ“KØ‚É•Ô‚µ‚Ä‚¢‚Ü‚¹‚ñB(%s)", data->GetPath().c_str()).c_str());
+				throw gstd::wexception(StringUtility::Format(L"æ•µãƒ©ã‚¤ãƒ•ã‚’é©åˆ‡ã«è¿”ã—ã¦ã„ã¾ã›ã‚“ã€‚(%s)", data->GetPath().c_str()).c_str());
 			data->SetLifeList(listLife);
 
-			//ƒ^ƒCƒ}[“Ç‚İ‚İ
+			//ã‚¿ã‚¤ãƒãƒ¼èª­ã¿è¾¼ã¿
 			gstd::value vTimer = script->RequestEvent(StgStageScript::EV_REQUEST_TIMER);
 			if(script->IsRealValue(vTimer))
 			{
 				data->SetOriginalSpellTimer(vTimer.as_real() * STANDARD_FPS);
 			}
 
-			//ƒXƒyƒ‹
+			//ã‚¹ãƒšãƒ«
 			gstd::value vSpell = script->RequestEvent(StgStageScript::EV_REQUEST_IS_SPELL);
 			if(script->IsBooleanValue(vSpell))
 			{
@@ -393,7 +393,7 @@ void StgEnemyBossSceneObject::Activate()
 			}
 
 			{
-				//ƒXƒRƒAAƒ‰ƒXƒgƒXƒyƒ‹A‘Ï‹vƒXƒyƒ‹‚ğ“Ç‚İ‚Ş
+				//ã‚¹ã‚³ã‚¢ã€ãƒ©ã‚¹ãƒˆã‚¹ãƒšãƒ«ã€è€ä¹…ã‚¹ãƒšãƒ«ã‚’èª­ã¿è¾¼ã‚€
 				gstd::value vScore = script->RequestEvent(StgStageScript::EV_REQUEST_SPELL_SCORE);
 				if(script->IsRealValue(vScore))
 				{
@@ -413,7 +413,7 @@ void StgEnemyBossSceneObject::Activate()
 				}
 			}
 
-			//“GƒIƒuƒWƒFƒNƒgì¬
+			//æ•µã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆä½œæˆ
 			std::vector<ref_count_ptr<StgEnemyBossObject>::unsync > listEnemyObject;
 			for(int iEnemy = 0 ; iEnemy < listLife.size() ; iEnemy++)
 			{
@@ -425,7 +425,7 @@ void StgEnemyBossSceneObject::Activate()
 		}
 	}
 
-	//“o˜^
+	//ç™»éŒ²
 	_NextStep();
 
 }
@@ -561,7 +561,7 @@ int StgEnemyBossSceneData::GetEnemyBossIdInCreate()
 {
 	if(countCreate_ >= listEnemyObject_.size())
 	{
-		std::wstring log = StringUtility::Format(L"EnemyBossƒIƒuƒWƒFƒNƒg‚Í‚±‚êˆÈãì¬‚Å‚«‚Ü‚¹‚ñ:%d", countCreate_);
+		std::wstring log = StringUtility::Format(L"EnemyBossã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã¯ã“ã‚Œä»¥ä¸Šä½œæˆã§ãã¾ã›ã‚“:%d", countCreate_);
 		throw gstd::wexception(log.c_str());
 	}
 		

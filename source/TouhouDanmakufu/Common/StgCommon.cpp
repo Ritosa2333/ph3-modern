@@ -36,7 +36,7 @@ void StgMoveObject::_Move()
 }
 void StgMoveObject::_AttachReservedPattern(ref_count_ptr<StgMovePattern>::unsync pattern)
 {
-	//‘¬“xŒp‘±‚È‚Ç
+	//é€Ÿåº¦ç¶™ç¶šãªã©
 	if(pattern_ == NULL)
 		pattern_ = new StgMovePattern_Angle(this);
 
@@ -64,7 +64,7 @@ void StgMoveObject::_AttachReservedPattern(ref_count_ptr<StgMovePattern>::unsync
 			xyPattern->SetSpeedY(speedY);
 	}
 
-	//’u‚«Š·‚¦
+	//ç½®ãæ›ãˆ
 	pattern_ = pattern;
 }
 double StgMoveObject::GetSpeed()

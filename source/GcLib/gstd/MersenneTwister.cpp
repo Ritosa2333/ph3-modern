@@ -4,18 +4,18 @@ using namespace gstd;
 
 /**********************************************************
 //MersenneTwister
-//Mersenne Twister‚ÍA¼–{áÁ E¼‘º‘ñŽmiƒAƒ‹ƒtƒ@ƒxƒbƒg‡j
-//‚É‚æ‚è1996”N‚©‚ç1997”N‚É“n‚Á‚ÄŠJ”­‚³‚ê‚½
-//‹^Ž——”¶¬ƒAƒ‹ƒSƒŠƒYƒ€‚Å‚·B
+//Mersenne Twisterã¯ã€æ¾æœ¬çœž ãƒ»è¥¿æ‘æ‹“å£«ï¼ˆã‚¢ãƒ«ãƒ•ã‚¡ãƒ™ãƒƒãƒˆé †ï¼‰
+//ã«ã‚ˆã‚Š1996å¹´ã‹ã‚‰1997å¹´ã«æ¸¡ã£ã¦é–‹ç™ºã•ã‚ŒãŸ
+//ç–‘ä¼¼ä¹±æ•°ç”Ÿæˆã‚¢ãƒ«ã‚´ãƒªã‚ºãƒ ã§ã™ã€‚
 // http://www.math.sci.hiroshima-u.ac.jp/~m-mat/MT/what-is-mt.html
 **********************************************************/
 typedef unsigned long cardinal;
-typedef long double real;
+typedef gstd::script_real real;
 const cardinal MATRIX_A = 0x9908b0dfUL;
 const cardinal UPPER_MASK = 0x80000000UL;
 const cardinal LOWER_MASK = 0x7fffffffUL;
 
-#define FIX32(value) value // 32bit‚ÌŒ^‚ª–³‚¢ŠÂ‹«‚Å‚Í value & 0xffffffffUL ‚Æ‚©
+#define FIX32(value) value // 32bitã®åž‹ãŒç„¡ã„ç’°å¢ƒã§ã¯ value & 0xffffffffUL ã¨ã‹
 static cardinal const mag01[2]={0x0UL, MATRIX_A};
 
 MersenneTwister::MersenneTwister()
@@ -131,16 +131,16 @@ _int64 MersenneTwister::GetInt64(_int64 min, _int64 max)
 {
 	return (_int64)this->GetReal(min, max);
 }
-long double MersenneTwister::GetReal()
+gstd::script_real MersenneTwister::GetReal()
 {
 	return _GenrandInt32() * (1.0 / 4294967295.0);
 }
-long double MersenneTwister::GetReal(long double min, long double max)
+gstd::script_real MersenneTwister::GetReal(gstd::script_real min, gstd::script_real max)
 {
 	if(min==max)return min;
 	if(min > max)
 	{
-		long double t = min;
+		gstd::script_real t = min;
 		min=max;
 		max=t;
 	}

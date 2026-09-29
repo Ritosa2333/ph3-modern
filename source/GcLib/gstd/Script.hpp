@@ -1,735 +1,760 @@
 /* ---------------------------------- */
-/* 2004..2005 YTAmkm(–{‘Ì’S“–‚Å‚·‚æ)*/
-/* ‚±‚Ìƒ\[ƒXƒR[ƒh‚ÍÏ‚é‚È‚èÄ‚­‚È‚èD‚«‚É‚µ‚ëƒ‰ƒCƒZƒ“ƒX‚ÌŒ³‚Å”z•z‚µ‚Ü‚·B*/
-/* A-3AA-4‚É]‚¢A‚±‚Ìƒ\[ƒX‚ğ‘g‚İ‚ñ‚¾.exe‚É‚Íƒ‰ƒCƒZƒ“ƒX‚Í“K—p‚³‚ê‚Ü‚¹‚ñB*/
+/* 2004..2005 YTã€mkm(æœ¬ä½“æ‹…å½“ã§ã™ã‚ˆ)*/
+/* ã“ã®ã‚½ãƒ¼ã‚¹ã‚³ãƒ¼ãƒ‰ã¯ç…®ã‚‹ãªã‚Šç„¼ããªã‚Šå¥½ãã«ã—ã‚ãƒ©ã‚¤ã‚»ãƒ³ã‚¹ã®å…ƒã§é…å¸ƒã—ã¾ã™ã€‚*/
+/* A-3ã€A-4ã«å¾“ã„ã€ã“ã®ã‚½ãƒ¼ã‚¹ã‚’çµ„ã¿è¾¼ã‚“ã .exeã«ã¯ãƒ©ã‚¤ã‚»ãƒ³ã‚¹ã¯é©ç”¨ã•ã‚Œã¾ã›ã‚“ã€‚*/
 /* ---------------------------------- */
 /* NYSL Version 0.9982 */
-/* A. –{ƒ\ƒtƒgƒEƒFƒA‚Í Everyone'sWare ‚Å‚·B‚±‚Ìƒ\ƒtƒg‚ğè‚É‚µ‚½ˆêlˆêl‚ªA*/
-/*    ‚²©•ª‚Ìì‚Á‚½‚à‚Ì‚ğˆµ‚¤‚Ì‚Æ“¯‚¶‚æ‚¤‚ÉA©—R‚É—˜—p‚·‚é‚±‚Æ‚ªo—ˆ‚Ü‚·B*/
-/* A-1. ƒtƒŠ[ƒEƒFƒA‚Å‚·BìÒ‚©‚ç‚Íg—p—¿“™‚ğ—v‹‚µ‚Ü‚¹‚ñB*/
-/* A-2. —L—¿–³—¿‚â”}‘Ì‚Ì”@‰½‚ğ–â‚í‚¸A©—R‚É“]ÚEÄ”z•z‚Å‚«‚Ü‚·B*/
-/* A-3. ‚¢‚©‚È‚éí—Ş‚Ì ‰ü•ÏE‘¼ƒvƒƒOƒ‰ƒ€‚Å‚Ì—˜—p ‚ğs‚Á‚Ä‚à\‚¢‚Ü‚¹‚ñB*/
-/* A-4. •ÏX‚µ‚½‚à‚Ì‚â•”•ª“I‚Ég—p‚µ‚½‚à‚Ì‚ÍA‚ ‚È‚½‚Ì‚à‚Ì‚É‚È‚è‚Ü‚·B*/
-/*      ŒöŠJ‚·‚éê‡‚ÍA‚ ‚È‚½‚Ì–¼‘O‚Ì‰º‚Ås‚Á‚Ä‰º‚³‚¢B*/
-/* B. ‚±‚Ìƒ\ƒtƒg‚ğ—˜—p‚·‚é‚±‚Æ‚É‚æ‚Á‚Ä¶‚¶‚½‘¹ŠQ“™‚É‚Â‚¢‚ÄAìÒ‚Í */
-/*    Ó”C‚ğ•‰‚í‚È‚¢‚à‚Ì‚Æ‚µ‚Ü‚·BŠe©‚ÌÓ”C‚É‚¨‚¢‚Ä‚²—˜—p‰º‚³‚¢B*/
-/* C. ’˜ìÒlŠiŒ ‚Í ›››› ‚É‹A‘®‚µ‚Ü‚·B’˜ìŒ ‚Í•úŠü‚µ‚Ü‚·B*/
-/* D. ˆÈã‚Ì‚R€‚ÍAƒ\[ƒXEÀsƒoƒCƒiƒŠ‚Ì‘o•û‚É“K—p‚³‚ê‚Ü‚·B */
+/* A. æœ¬ã‚½ãƒ•ãƒˆã‚¦ã‚§ã‚¢ã¯ Everyone'sWare ã§ã™ã€‚ã“ã®ã‚½ãƒ•ãƒˆã‚’æ‰‹ã«ã—ãŸä¸€äººä¸€äººãŒã€*/
+/*    ã”è‡ªåˆ†ã®ä½œã£ãŸã‚‚ã®ã‚’æ‰±ã†ã®ã¨åŒã˜ã‚ˆã†ã«ã€è‡ªç”±ã«åˆ©ç”¨ã™ã‚‹ã“ã¨ãŒå‡ºæ¥ã¾ã™ã€‚*/
+/* A-1. ãƒ•ãƒªãƒ¼ã‚¦ã‚§ã‚¢ã§ã™ã€‚ä½œè€…ã‹ã‚‰ã¯ä½¿ç”¨æ–™ç­‰ã‚’è¦æ±‚ã—ã¾ã›ã‚“ã€‚*/
+/* A-2. æœ‰æ–™ç„¡æ–™ã‚„åª’ä½“ã®å¦‚ä½•ã‚’å•ã‚ãšã€è‡ªç”±ã«è»¢è¼‰ãƒ»å†é…å¸ƒã§ãã¾ã™ã€‚*/
+/* A-3. ã„ã‹ãªã‚‹ç¨®é¡ã® æ”¹å¤‰ãƒ»ä»–ãƒ—ãƒ­ã‚°ãƒ©ãƒ ã§ã®åˆ©ç”¨ ã‚’è¡Œã£ã¦ã‚‚æ§‹ã„ã¾ã›ã‚“ã€‚*/
+/* A-4. å¤‰æ›´ã—ãŸã‚‚ã®ã‚„éƒ¨åˆ†çš„ã«ä½¿ç”¨ã—ãŸã‚‚ã®ã¯ã€ã‚ãªãŸã®ã‚‚ã®ã«ãªã‚Šã¾ã™ã€‚*/
+/*      å…¬é–‹ã™ã‚‹å ´åˆã¯ã€ã‚ãªãŸã®åå‰ã®ä¸‹ã§è¡Œã£ã¦ä¸‹ã•ã„ã€‚*/
+/* B. ã“ã®ã‚½ãƒ•ãƒˆã‚’åˆ©ç”¨ã™ã‚‹ã“ã¨ã«ã‚ˆã£ã¦ç”Ÿã˜ãŸæå®³ç­‰ã«ã¤ã„ã¦ã€ä½œè€…ã¯ */
+/*    è²¬ä»»ã‚’è² ã‚ãªã„ã‚‚ã®ã¨ã—ã¾ã™ã€‚å„è‡ªã®è²¬ä»»ã«ãŠã„ã¦ã”åˆ©ç”¨ä¸‹ã•ã„ã€‚*/
+/* C. è‘—ä½œè€…äººæ ¼æ¨©ã¯ â—‹â—‹â—‹â—‹ ã«å¸°å±ã—ã¾ã™ã€‚è‘—ä½œæ¨©ã¯æ”¾æ£„ã—ã¾ã™ã€‚*/
+/* D. ä»¥ä¸Šã®ï¼“é …ã¯ã€ã‚½ãƒ¼ã‚¹ãƒ»å®Ÿè¡Œãƒã‚¤ãƒŠãƒªã®åŒæ–¹ã«é©ç”¨ã•ã‚Œã¾ã™ã€‚ */
 /* ---------------------------------- */
 
-#if !defined(__SCRIPT_H__)
+#ifndef __SCRIPT_H__
 #define __SCRIPT_H__
+#include "ScriptReal.hpp"
 
-#pragma warning (disable:4786)	//STL Warning—}~
-#pragma warning (disable:4018)	//signed ‚Æ unsigned ‚Ì”’l‚ğ”äŠr
-#pragma warning (disable:4244)	//double' ‚©‚ç 'float' ‚É•ÏŠ·
-#include<list>
-#include<vector>
-#include<string>
-#include<map>
+#pragma warning(disable : 4786) //STL WarningæŠ‘æ­¢
+#pragma warning(disable : 4018) //signed ã¨ unsigned ã®æ•°å€¤ã‚’æ¯”è¼ƒ
+#pragma warning(disable : 4244) //double' ã‹ã‚‰ 'float' ã«å¤‰æ›
+#include <list>
+#include <map>
+#include <string>
+#include <vector>
 
-
-//d•¡éŒ¾ƒ`ƒFƒbƒN‚ğ‚µ‚È‚¢
+//é‡è¤‡å®£è¨€ãƒã‚§ãƒƒã‚¯ã‚’ã—ãªã„
 //#define __SCRIPT_H__NO_CHECK_DUPLICATED
 
-//-------- ”Ä—p
-namespace gstd
-{
-	std::string to_mbcs(std::wstring const & s);
-	std::wstring to_wide(std::string const & s);
+//-------- æ±ç”¨
+namespace gstd {
 
-	template < typename T >
-	class lightweight_vector
+std::string to_mbcs(std::wstring const& s);
+std::wstring to_wide(std::string const& s);
+
+template <typename T>
+class lightweight_vector {
+public:
+	unsigned length;
+	unsigned capacity;
+	T* at;
+
+	lightweight_vector()
+		: length(0)
+		, capacity(0)
+		, at(NULL)
 	{
-	public:
-		unsigned length;
-		unsigned capacity;
-		T * at;
-
-		lightweight_vector() : length(0), capacity(0), at(NULL)
-		{
-		}
-
-		lightweight_vector(lightweight_vector const & source);
-
-		~lightweight_vector()
-		{
-			if(at != NULL)
-			{
-				delete[] at;
-			}
-		}
-
-		lightweight_vector & operator = (lightweight_vector const & source);
-
-		void expand();
-
-		void push_back(T const & value)
-		{
-			if(length == capacity) expand();
-			at[length] = value;
-			++length;
-		}
-
-		void pop_back()
-		{
-			--length;
-
-			T temp;
-			at[length] = temp;
-		}
-
-		void clear()
-		{
-			length = 0;
-		}
-
-		void release()
-		{
-			length = 0;
-			if(at != NULL)
-			{
-				delete[] at;
-				at = NULL;
-				capacity = 0;
-			}
-		}
-
-		unsigned size() const
-		{
-			return length;
-		}
-
-		T & operator[] (unsigned i)
-		{
-			return at[i];
-		}
-
-		T const & operator[] (unsigned i) const
-		{
-			return at[i];
-		}
-
-		T & back()
-		{
-			return at[length - 1];
-		}
-
-		T * begin()
-		{
-			return & at[0];
-		}
-
-		void erase(T * pos);
-		void insert(T * pos, T const & value);
-	};
-
-	template < typename T >
-	lightweight_vector < T >::lightweight_vector(lightweight_vector const & source)
-	{
-		length = source.length;
-		capacity = source.capacity;
-		if(source.capacity > 0)
-		{
-			at = new T[source.capacity];
-			for(int i = length - 1; i >= 0; --i)
-				at[i] = source.at[i];
-		}
-		else
-		{
-			at = NULL;
-		}
 	}
 
-	template < typename T >
-	lightweight_vector < T > & lightweight_vector < T >::operator = (lightweight_vector < T > const & source)
-	{
-		if(at != NULL) delete[] at;
-		length = source.length;
-		capacity = source.capacity;
-		if(source.capacity > 0)
-		{
-			at = new T[source.capacity];
-			for(int i = length - 1; i >= 0; --i)
-				at[i] = source.at[i];
-		}
-		else
-		{
-			at = NULL;
-		}
-		return * this;
-	}
+	lightweight_vector(lightweight_vector const& source);
 
-	template < typename T >
-	void lightweight_vector < T >::expand()
+	~lightweight_vector()
 	{
-		if(capacity == 0)
-		{
-			//delete[] at;
-			capacity = 4;
-			at = new T[4];
-		}
-		else
-		{
-			capacity *= 2;
-			T * n = new T[capacity];
-			for(int i = length - 1; i >= 0; --i)
-				n[i] = at[i];
+		if (at != NULL) {
 			delete[] at;
-			at = n;
 		}
 	}
 
-	template < typename T >
-	void lightweight_vector < T >::erase(T * pos)
-	{
-		--length;
-		for(T * i = pos; i < at + length; ++i)
-		{
-			* i = * (i + 1);
-		}
-	}
+	lightweight_vector& operator=(lightweight_vector const& source);
 
-	template < typename T >
-	void lightweight_vector < T >::insert(T * pos, T const & value)
+	void expand();
+
+	void push_back(T const& value)
 	{
-		if(length == capacity)
-		{
-			unsigned pos_index = pos - at;
+		if (length == capacity)
 			expand();
-			pos = at + pos_index;
-		}
-		for(T * i = at + length; i > pos; --i)
-		{
-			* i = * (i - 1);
-		}
-		* pos = value;
+		at[length] = value;
 		++length;
 	}
 
-	//-------- ‚±‚±‚©‚ç
-
-	class type_data
+	void pop_back()
 	{
-	public:
-		enum type_kind
-		{
-			tk_real, tk_char, tk_boolean, tk_array
-		};
+		--length;
 
-		type_data(type_kind k, type_data * t = NULL) : kind(k), element(t)
-		{
-		}
+		T temp;
+		at[length] = temp;
+	}
 
-		type_data(type_data const & source) : kind(source.kind), element(source.element)
-		{
-		}
-
-		//ƒfƒXƒgƒ‰ƒNƒ^‚ÍƒfƒtƒHƒ‹ƒg‚É”C‚¹‚é
-
-		type_kind get_kind()
-		{
-			return kind;
-		}
-
-		type_data * get_element()
-		{
-			return element;
-		}
-
-	private:
-		type_kind kind;
-		type_data * element;
-
-		type_data & operator = (type_data const & source);
-	};
-
-	class value
+	void clear()
 	{
-	public:
-		value() : data(NULL)
-		{
-		}
+		length = 0;
+	}
 
-		value(type_data * t, long double v)
-		{
-			data = new body();
-			data->ref_count = 1;
-			data->type = t;
-			data->real_value = v;
-		}
-
-		value(type_data * t, wchar_t v)
-		{
-			data = new body();
-			data->ref_count = 1;
-			data->type = t;
-			data->char_value = v;
-		}
-
-		value(type_data * t, bool v)
-		{
-			data = new body();
-			data->ref_count = 1;
-			data->type = t;
-			data->boolean_value = v;
-		}
-
-		value(type_data * t, std::wstring v);
-
-		value(value const & source)
-		{
-			data = source.data;
-			if(data != NULL)
-				++(data->ref_count);
-		}
-
-		~value()
-		{
-			release();
-		}
-
-		value & operator = (value const & source)
-		{
-			if(source.data != NULL)
-			{
-				++(source.data->ref_count);
-			}
-			release();
-			data = source.data;
-			return * this;
-		}
-
-		bool has_data() const
-		{
-			return data != NULL;
-		}
-
-		void set(type_data * t, long double v)
-		{
-			unique();
-			data->type = t;
-			data->real_value = v;
-		}
-
-		void set(type_data * t, bool v)
-		{
-			unique();
-			data->type = t;
-			data->boolean_value = v;
-		}
-
-		void append(type_data * t, value const & x);
-		void concatenate(value const & x);
-
-		long double as_real() const;
-		wchar_t as_char() const;
-		bool as_boolean() const;
-		std::wstring as_string() const;
-		unsigned length_as_array() const;
-		value const & index_as_array(unsigned i) const;
-		value & index_as_array(unsigned i);
-		type_data * get_type() const;
-
-		void unique() const
-		{
-			if(data == NULL)
-			{
-				data = new body();
-				data->ref_count = 1;
-				data->type = NULL;
-			}
-			else if(data->ref_count > 1)
-			{
-				--(data->ref_count);
-				data = new body(* data);
-				data->ref_count = 1;
-			}
-		}
-
-		void overwrite(value const & source);	//ŠëŒ¯IŠO‚©‚çŒÄ‚Ô‚È
-
-	private:
-		inline void release() 
-		{
-			if(data != NULL)
-			{
-				--(data->ref_count);
-				if(data->ref_count == 0)
-				{
-					delete data;
-				}
-			}
-		}
-		struct body
-		{
-			int ref_count;
-			type_data * type;
-			lightweight_vector < value > array_value;
-
-			union
-			{
-				long double real_value;
-				wchar_t char_value;
-				bool boolean_value;
-			};
-		};
-
-		mutable body * data;
-	};
-
-	class script_engine;
-	class script_machine;
-
-	typedef value(* callback) (script_machine * machine, int argc, value const * argv);
-
-	struct function
+	void release()
 	{
-		char const * name;
-		callback func;
-		unsigned arguments;
-	};
+		length = 0;
+		if (at != NULL) {
+			delete[] at;
+			at = NULL;
+			capacity = 0;
+		}
+	}
 
-	class script_type_manager
+	unsigned size() const
 	{
-	public:
-		script_type_manager();
+		return length;
+	}
 
-		type_data * get_real_type()
-		{
-			return real_type;
-		}
-
-		type_data * get_char_type()
-		{
-			return char_type;
-		}
-
-		type_data * get_boolean_type()
-		{
-			return boolean_type;
-		}
-
-		type_data * get_string_type()
-		{
-			return string_type;
-		}
-
-		type_data * get_array_type(type_data * element);
-	private:
-		script_type_manager(script_type_manager const &);
-		script_type_manager & operator = (script_type_manager const & source);
-
-		std::list < type_data > types;	//’†g‚Ìƒ|ƒCƒ“ƒ^‚ğg‚¤‚Ì‚ÅƒAƒhƒŒƒX‚ª•Ï‚í‚ç‚È‚¢‚æ‚¤‚Élist
-		type_data * real_type;
-		type_data * char_type;
-		type_data * boolean_type;
-		type_data * string_type;
-	};
-
-	class script_engine
+	T& operator[](unsigned i)
 	{
-	public:
-		script_engine(script_type_manager * a_type_manager, std::string const & source, int funcc, function const * funcv);
-		script_engine(script_type_manager * a_type_manager, std::vector<char> const & source, int funcc, function const * funcv);
-		virtual ~script_engine();
+		return at[i];
+	}
 
-		void * data;	//ƒNƒ‰ƒCƒAƒ“ƒg—p‹óŠÔ
-
-		bool get_error()
-		{
-			return error;
-		}
-
-		std::wstring & get_error_message()
-		{
-			return error_message;
-		}
-
-		int get_error_line()
-		{
-			return error_line;
-		}
-
-		script_type_manager * get_type_manager()
-		{
-			return type_manager;
-		}
-
-		//compatibility
-		type_data * get_real_type()
-		{
-			return type_manager->get_real_type();
-		}
-
-		type_data * get_char_type()
-		{
-			return type_manager->get_char_type();
-		}
-
-		type_data * get_boolean_type()
-		{
-			return type_manager->get_boolean_type();
-		}
-
-		type_data * get_array_type(type_data * element)
-		{
-			return type_manager->get_array_type(element);
-		}
-
-		type_data * get_string_type()
-		{
-			return type_manager->get_string_type();
-		}
-
-	#ifndef _MSC_VER
-	private:
-	#endif
-
-		//ƒRƒs[A‘ã“ü‰‰Zq‚Ì©“®¶¬‚ğ–³Œø‚É
-		script_engine(script_engine const & source);
-		script_engine & operator = (script_engine const & source);
-
-		//ƒGƒ‰[
-		bool error;
-		std::wstring error_message;
-		int error_line;
-
-		//Œ^
-		script_type_manager * type_manager;
-
-		//’†ŠÔƒR[ƒh
-		enum command_kind
-		{
-			pc_assign, pc_assign_writable, pc_break_loop, pc_break_routine, pc_call, pc_call_and_push_result, pc_case_begin,
-			   pc_case_end, pc_case_if, pc_case_if_not, pc_case_next, pc_compare_e, pc_compare_g, pc_compare_ge, pc_compare_l,
-			   pc_compare_le, pc_compare_ne, pc_dup, pc_dup2, pc_loop_ascent, pc_loop_back, pc_loop_count, pc_loop_descent, pc_loop_if,
-			   pc_pop, pc_push_value, pc_push_variable, pc_push_variable_writable, pc_swap, pc_yield
-		};
-
-		struct block;
-
-		struct code
-		{
-			command_kind command;
-			int line;	//ƒ\[ƒXƒR[ƒhã‚Ìs
-			value data;	//pc_push_value‚Åpush‚·‚éƒf[ƒ^
-
-			union
-			{
-				struct
-				{
-					int level;	//assign/push_variable‚Ì•Ï”‚ÌŠÂ‹«ˆÊ’u
-					unsigned variable;	//assign/push_variable‚Ì•Ï”‚ÌƒCƒ“ƒfƒbƒNƒX
-				};
-				struct
-				{
-					block * sub;	//call/call_and_push_result‚Ì”ò‚Ñæ
-					unsigned arguments;	//call/call_and_push_result‚Ìˆø”‚Ì”
-				};
-				struct
-				{
-					int ip;	//loop_back‚Ì–ß‚èæ
-				};
-			};
-
-			code()
-			{
-			}
-
-			code(int the_line, command_kind the_command) : line(the_line), command(the_command)
-			{
-			}
-
-			code(int the_line, command_kind the_command, int the_level, unsigned the_variable) : line(the_line), command(the_command), level(the_level), variable(the_variable)
-			{
-			}
-
-			code(int the_line, command_kind the_command, block * the_sub, int the_arguments) : line(the_line), command(the_command), sub(the_sub),
-			   arguments(the_arguments)
-			   {
-			}
-
-			code(int the_line, command_kind the_command, int the_ip) : line(the_line), command(the_command), ip(the_ip)
-			{
-			}
-
-			code(int the_line, command_kind the_command, value const & the_data) : line(the_line), command(the_command), data(the_data)
-			{
-			}
-		};
-
-		enum block_kind
-		{
-			bk_normal, bk_loop, bk_sub, bk_function, bk_microthread
-		};
-
-		friend struct block;
-
-		typedef lightweight_vector < code > codes_t;
-
-		struct block
-		{
-			int level;
-			int arguments;
-			std::string name;
-			callback func;
-			codes_t codes;
-			block_kind kind;
-
-			block(int the_level, block_kind the_kind) : level(the_level), arguments(0), name(), func(NULL), codes(), kind(the_kind)
-			{
-			}
-		};
-
-		std::list < block > blocks;	//’†g‚Ìƒ|ƒCƒ“ƒ^‚ğg‚¤‚Ì‚ÅƒAƒhƒŒƒX‚ª•Ï‚í‚ç‚È‚¢‚æ‚¤‚Élist
-		block * main_block;
-		std::map < std::string, block * > events;
-
-		block * new_block(int level, block_kind kind)
-		{
-			block x(level, kind);
-			return & * blocks.insert(blocks.end(), x);
-		}
-
-		friend class parser;
-		friend class script_machine;
-	};
-
-	class script_machine
+	T const& operator[](unsigned i) const
 	{
-	public:
-		script_machine(script_engine * the_engine);
-		virtual ~script_machine();
+		return at[i];
+	}
 
-		void * data;	//ƒNƒ‰ƒCƒAƒ“ƒg—p‹óŠÔ
-
-		void run();
-		void call(std::string event_name);
-		void resume();
-
-		void stop()
-		{
-			finished = true;
-			stopped = true;
-		}
-
-		bool get_stopped()
-		{
-			return stopped;
-		}
-
-		bool get_resuming()
-		{
-			return resuming;
-		}
-
-		bool get_error()
-		{
-			return error;
-		}
-
-		std::wstring & get_error_message()
-		{
-			return error_message;
-		}
-
-		int get_error_line()
-		{
-			return error_line;
-		}
-
-		void raise_error(std::wstring const & message)
-		{
-			error = true;
-			error_message = message;
-			finished = true;
-		}
-		void terminate(std::wstring const & message)
-		{
-			bTerminate = true;
-			error = true;
-			error_message = message;
-			finished = true;
-		}
-
-		script_engine * get_engine()
-		{
-			return engine;
-		}
-
-		bool has_event(std::string event_name);
-
-		int get_current_line();
-
-	private:
-		script_machine();
-		script_machine(script_machine const & source);
-		script_machine & operator = (script_machine const & source);
-
-		script_engine * engine;
-
-		bool error;
-		std::wstring error_message;
-		int error_line;
-
-		bool bTerminate;
-
-		typedef lightweight_vector < value > variables_t;
-		typedef lightweight_vector < value > stack_t;
-
-		struct environment
-		{
-			environment * pred, * succ;	//‘o•ûŒüƒŠƒ“ƒNƒŠƒXƒg
-			environment * parent;
-			int ref_count;
-			script_engine::block * sub;
-			unsigned ip;
-			variables_t variables;
-			stack_t stack;
-			bool has_result;
-		};
-
-		std::list<environment *> call_start_parent_environment_list;
-		environment * first_using_environment;
-		environment * last_using_environment;
-		environment * first_garbage_environment;
-		environment * last_garbage_environment;
-		environment * new_environment(environment * parent, script_engine::block * b);
-		void dispose_environment(environment * object);
-
-		typedef lightweight_vector < environment * > threads_t;
-
-		threads_t threads;
-		unsigned current_thread_index;
-		bool finished;
-		bool stopped;
-		bool resuming;
-
-		void yield()
-		{
-			if(current_thread_index > 0)
-				--current_thread_index;
-			else
-				current_thread_index = threads.size() - 1;
-		}
-
-		void advance();
-
-	public:
-		int get_thread_count(){return threads.size();}
-	};
-
-	template < int num >
-	class constant
+	T& back()
 	{
-	public:
-		static value func(script_machine * machine, int argc, value const * argv)
-		{
-			return value(machine->get_engine()->get_real_type(), (long double) num);
-		}
-	};
+		return at[length - 1];
+	}
 
+	T* begin()
+	{
+		return &at[0];
+	}
+
+	void erase(T* pos);
+	void insert(T* pos, T const& value);
+};
+
+template <typename T>
+lightweight_vector<T>::lightweight_vector(lightweight_vector const& source)
+{
+	length = source.length;
+	capacity = source.capacity;
+	if (source.capacity > 0) {
+		at = new T[source.capacity];
+		for (int i = length - 1; i >= 0; --i)
+			at[i] = source.at[i];
+	} else {
+		at = NULL;
+	}
 }
+
+template <typename T>
+lightweight_vector<T>& lightweight_vector<T>::operator=(lightweight_vector<T> const& source)
+{
+	if (at != NULL)
+		delete[] at;
+	length = source.length;
+	capacity = source.capacity;
+	if (source.capacity > 0) {
+		at = new T[source.capacity];
+		for (int i = length - 1; i >= 0; --i)
+			at[i] = source.at[i];
+	} else {
+		at = NULL;
+	}
+	return *this;
+}
+
+template <typename T>
+void lightweight_vector<T>::expand()
+{
+	if (capacity == 0) {
+		// delete[] at;
+		capacity = 4;
+		at = new T[4];
+	} else {
+		capacity *= 2;
+		T* n = new T[capacity];
+		for (int i = length - 1; i >= 0; --i)
+			n[i] = at[i];
+		delete[] at;
+		at = n;
+	}
+}
+
+template <typename T>
+void lightweight_vector<T>::erase(T* pos)
+{
+	--length;
+	for (T* i = pos; i < at + length; ++i) {
+		*i = *(i + 1);
+	}
+}
+
+template <typename T>
+void lightweight_vector<T>::insert(T* pos, T const& value)
+{
+	if (length == capacity) {
+		unsigned pos_index = pos - at;
+		expand();
+		pos = at + pos_index;
+	}
+	for (T* i = at + length; i > pos; --i) {
+		*i = *(i - 1);
+	}
+	*pos = value;
+	++length;
+}
+
+//-------- ã“ã“ã‹ã‚‰
+
+class type_data {
+public:
+	enum type_kind {
+		tk_real,
+		tk_char,
+		tk_boolean,
+		tk_array
+	};
+
+	type_data(type_kind k, type_data* t = NULL)
+		: kind(k)
+		, element(t)
+	{
+	}
+
+	type_data(type_data const& source)
+		: kind(source.kind)
+		, element(source.element)
+	{
+	}
+
+	//ãƒ‡ã‚¹ãƒˆãƒ©ã‚¯ã‚¿ã¯ãƒ‡ãƒ•ã‚©ãƒ«ãƒˆã«ä»»ã›ã‚‹
+
+	type_kind get_kind()
+	{
+		return kind;
+	}
+
+	type_data* get_element()
+	{
+		return element;
+	}
+
+private:
+	type_kind kind;
+	type_data* element;
+
+	type_data& operator=(type_data const& source);
+};
+
+class value {
+public:
+	value()
+		: data(NULL) {}
+
+	value(type_data* t, gstd::script_real v)
+	{
+		data = new body();
+		data->ref_count = 1;
+		data->type = t;
+		data->real_value = v;
+	}
+
+	value(type_data* t, wchar_t v)
+	{
+		data = new body();
+		data->ref_count = 1;
+		data->type = t;
+		data->char_value = v;
+	}
+
+	value(type_data* t, bool v)
+	{
+		data = new body();
+		data->ref_count = 1;
+		data->type = t;
+		data->boolean_value = v;
+	}
+
+	value(type_data* t, std::wstring v);
+
+	value(value const& source)
+	{
+		data = source.data;
+		if (data != NULL)
+			++(data->ref_count);
+	}
+
+	~value()
+	{
+		release();
+	}
+
+	value& operator=(value const& source)
+	{
+		if (source.data != NULL) {
+			++(source.data->ref_count);
+		}
+		release();
+		data = source.data;
+		return *this;
+	}
+
+	bool has_data() const
+	{
+		return data != NULL;
+	}
+
+	void set(type_data* t, gstd::script_real v)
+	{
+		unique();
+		data->type = t;
+		data->real_value = v;
+	}
+
+	void set(type_data* t, bool v)
+	{
+		unique();
+		data->type = t;
+		data->boolean_value = v;
+	}
+
+	void append(type_data* t, value const& x);
+	void concatenate(value const& x);
+
+	gstd::script_real as_real() const;
+	wchar_t as_char() const;
+	bool as_boolean() const;
+	std::wstring as_string() const;
+	unsigned length_as_array() const;
+	value const& index_as_array(unsigned i) const;
+	value& index_as_array(unsigned i);
+	type_data* get_type() const;
+
+	void unique() const
+	{
+		if (data == NULL) {
+			data = new body();
+			data->ref_count = 1;
+			data->type = NULL;
+		} else if (data->ref_count > 1) {
+			--(data->ref_count);
+			data = new body(*data);
+			data->ref_count = 1;
+		}
+	}
+
+	void overwrite(value const& source); //å±é™ºï¼å¤–ã‹ã‚‰å‘¼ã¶ãª
+
+private:
+	inline void release()
+	{
+		if (data != NULL) {
+			--(data->ref_count);
+			if (data->ref_count == 0) {
+				delete data;
+			}
+		}
+	}
+	struct body {
+		int ref_count;
+		type_data* type;
+		lightweight_vector<value> array_value;
+
+		union {
+			gstd::script_real real_value;
+			wchar_t char_value;
+			bool boolean_value;
+		};
+	};
+
+	mutable body* data;
+};
+
+class script_engine;
+class script_machine;
+
+typedef value (*callback)(script_machine* machine, int argc, value const* argv);
+
+struct function {
+	char const* name;
+	callback func;
+	unsigned arguments;
+};
+
+class script_type_manager {
+public:
+	script_type_manager();
+
+	type_data* get_real_type()
+	{
+		return real_type;
+	}
+
+	type_data* get_char_type()
+	{
+		return char_type;
+	}
+
+	type_data* get_boolean_type()
+	{
+		return boolean_type;
+	}
+
+	type_data* get_string_type()
+	{
+		return string_type;
+	}
+
+	type_data* get_array_type(type_data* element);
+
+private:
+	script_type_manager(script_type_manager const&);
+	script_type_manager& operator=(script_type_manager const& source);
+
+	std::list<type_data> types; //ä¸­èº«ã®ãƒã‚¤ãƒ³ã‚¿ã‚’ä½¿ã†ã®ã§ã‚¢ãƒ‰ãƒ¬ã‚¹ãŒå¤‰ã‚ã‚‰ãªã„ã‚ˆã†ã«list
+	type_data* real_type;
+	type_data* char_type;
+	type_data* boolean_type;
+	type_data* string_type;
+};
+
+class script_engine {
+public:
+	script_engine(script_type_manager* a_type_manager, std::string const& source, int funcc, function const* funcv);
+	script_engine(script_type_manager* a_type_manager, std::vector<char> const& source, int funcc, function const* funcv);
+	virtual ~script_engine();
+
+	void* data; //ã‚¯ãƒ©ã‚¤ã‚¢ãƒ³ãƒˆç”¨ç©ºé–“
+
+	bool get_error()
+	{
+		return error;
+	}
+
+	std::wstring& get_error_message()
+	{
+		return error_message;
+	}
+
+	int get_error_line()
+	{
+		return error_line;
+	}
+
+	script_type_manager* get_type_manager()
+	{
+		return type_manager;
+	}
+
+	//compatibility
+	type_data* get_real_type()
+	{
+		return type_manager->get_real_type();
+	}
+
+	type_data* get_char_type()
+	{
+		return type_manager->get_char_type();
+	}
+
+	type_data* get_boolean_type()
+	{
+		return type_manager->get_boolean_type();
+	}
+
+	type_data* get_array_type(type_data* element)
+	{
+		return type_manager->get_array_type(element);
+	}
+
+	type_data* get_string_type()
+	{
+		return type_manager->get_string_type();
+	}
+
+#ifndef _MSC_VER
+private:
+#endif
+
+	//ã‚³ãƒ”ãƒ¼ã€ä»£å…¥æ¼”ç®—å­ã®è‡ªå‹•ç”Ÿæˆã‚’ç„¡åŠ¹ã«
+	script_engine(script_engine const& source);
+	script_engine& operator=(script_engine const& source);
+
+	//ã‚¨ãƒ©ãƒ¼
+	bool error;
+	std::wstring error_message;
+	int error_line;
+
+	//å‹
+	script_type_manager* type_manager;
+
+	//ä¸­é–“ã‚³ãƒ¼ãƒ‰
+	enum command_kind {
+		pc_assign,
+		pc_assign_writable,
+		pc_break_loop,
+		pc_break_routine,
+		pc_call,
+		pc_call_and_push_result,
+		pc_case_begin,
+		pc_case_end,
+		pc_case_if,
+		pc_case_if_not,
+		pc_case_next,
+		pc_compare_e,
+		pc_compare_g,
+		pc_compare_ge,
+		pc_compare_l,
+		pc_compare_le,
+		pc_compare_ne,
+		pc_dup,
+		pc_dup2,
+		pc_loop_ascent,
+		pc_loop_back,
+		pc_loop_count,
+		pc_loop_descent,
+		pc_loop_if,
+		pc_pop,
+		pc_push_value,
+		pc_push_variable,
+		pc_push_variable_writable,
+		pc_swap,
+		pc_yield
+	};
+
+	struct block;
+
+	struct code {
+		command_kind command;
+		int line; //ã‚½ãƒ¼ã‚¹ã‚³ãƒ¼ãƒ‰ä¸Šã®è¡Œ
+		value data; //pc_push_valueã§pushã™ã‚‹ãƒ‡ãƒ¼ã‚¿
+
+		union {
+			struct
+			{
+				int level; //assign/push_variableã®å¤‰æ•°ã®ç’°å¢ƒä½ç½®
+				unsigned variable; //assign/push_variableã®å¤‰æ•°ã®ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹
+			};
+			struct
+			{
+				block* sub; //call/call_and_push_resultã®é£›ã³å…ˆ
+				unsigned arguments; //call/call_and_push_resultã®å¼•æ•°ã®æ•°
+			};
+			struct
+			{
+				int ip; //loop_backã®æˆ»ã‚Šå…ˆ
+			};
+		};
+
+		code()
+		{
+		}
+
+		code(int the_line, command_kind the_command)
+			: line(the_line)
+			, command(the_command)
+		{
+		}
+
+		code(int the_line, command_kind the_command, int the_level, unsigned the_variable)
+			: line(the_line)
+			, command(the_command)
+			, level(the_level)
+			, variable(the_variable)
+		{
+		}
+
+		code(int the_line, command_kind the_command, block* the_sub, int the_arguments)
+			: line(the_line)
+			, command(the_command)
+			, sub(the_sub)
+			, arguments(the_arguments)
+		{
+		}
+
+		code(int the_line, command_kind the_command, int the_ip)
+			: line(the_line)
+			, command(the_command)
+			, ip(the_ip)
+		{
+		}
+
+		code(int the_line, command_kind the_command, value const& the_data)
+			: line(the_line)
+			, command(the_command)
+			, data(the_data)
+		{
+		}
+	};
+
+	enum block_kind {
+		bk_normal,
+		bk_loop,
+		bk_sub,
+		bk_function,
+		bk_microthread
+	};
+
+	friend struct block;
+
+	typedef lightweight_vector<code> codes_t;
+
+	struct block {
+		int level;
+		int arguments;
+		std::string name;
+		callback func;
+		codes_t codes;
+		block_kind kind;
+
+		block(int the_level, block_kind the_kind)
+			: level(the_level)
+			, arguments(0)
+			, name()
+			, func(NULL)
+			, codes()
+			, kind(the_kind)
+		{
+		}
+	};
+
+	std::list<block> blocks; //ä¸­èº«ã®ãƒã‚¤ãƒ³ã‚¿ã‚’ä½¿ã†ã®ã§ã‚¢ãƒ‰ãƒ¬ã‚¹ãŒå¤‰ã‚ã‚‰ãªã„ã‚ˆã†ã«list
+	block* main_block;
+	std::map<std::string, block*> events;
+
+	block* new_block(int level, block_kind kind)
+	{
+		block x(level, kind);
+		return &*blocks.insert(blocks.end(), x);
+	}
+
+	friend class parser;
+	friend class script_machine;
+};
+
+class script_machine {
+public:
+	script_machine(script_engine* the_engine);
+	virtual ~script_machine();
+
+	void* data; //ã‚¯ãƒ©ã‚¤ã‚¢ãƒ³ãƒˆç”¨ç©ºé–“
+
+	void run();
+	void call(std::string event_name);
+	void resume();
+
+	void stop()
+	{
+		finished = true;
+		stopped = true;
+	}
+
+	bool get_stopped()
+	{
+		return stopped;
+	}
+
+	bool get_resuming()
+	{
+		return resuming;
+	}
+
+	bool get_error()
+	{
+		return error;
+	}
+
+	std::wstring& get_error_message()
+	{
+		return error_message;
+	}
+
+	int get_error_line()
+	{
+		return error_line;
+	}
+
+	void raise_error(std::wstring const& message)
+	{
+		error = true;
+		error_message = message;
+		finished = true;
+	}
+	void terminate(std::wstring const& message)
+	{
+		bTerminate = true;
+		error = true;
+		error_message = message;
+		finished = true;
+	}
+
+	script_engine* get_engine()
+	{
+		return engine;
+	}
+
+	bool has_event(std::string event_name);
+
+	int get_current_line();
+
+	int get_thread_count() { return threads.size(); }
+
+private:
+	script_machine();
+	script_machine(script_machine const& source);
+	script_machine& operator=(script_machine const& source);
+
+	script_engine* engine;
+
+	bool error;
+	std::wstring error_message;
+	int error_line;
+
+	bool bTerminate;
+
+	typedef lightweight_vector<value> variables_t;
+	typedef lightweight_vector<value> stack_t;
+
+	struct environment {
+		environment *pred, *succ; //åŒæ–¹å‘ãƒªãƒ³ã‚¯ãƒªã‚¹ãƒˆ
+		environment* parent;
+		int ref_count;
+		script_engine::block* sub;
+		unsigned ip;
+		variables_t variables;
+		stack_t stack;
+		bool has_result;
+	};
+
+	std::list<environment*> call_start_parent_environment_list;
+	environment* first_using_environment;
+	environment* last_using_environment;
+	environment* first_garbage_environment;
+	environment* last_garbage_environment;
+	environment* new_environment(environment* parent, script_engine::block* b);
+	void dispose_environment(environment* object);
+
+	typedef lightweight_vector<environment*> threads_t;
+
+	threads_t threads;
+	unsigned current_thread_index;
+	bool finished;
+	bool stopped;
+	bool resuming;
+
+	void yield()
+	{
+		if (current_thread_index > 0)
+			--current_thread_index;
+		else
+			current_thread_index = threads.size() - 1;
+	}
+
+	void advance();
+};
+
+template <int num>
+class constant {
+public:
+	static value func(script_machine* machine, int argc, value const* argv)
+	{
+		return value(machine->get_engine()->get_real_type(), (gstd::script_real)num);
+	}
+};
+
+} // namespace gstd
 
 #endif

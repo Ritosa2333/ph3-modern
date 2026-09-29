@@ -1,387 +1,401 @@
 #ifndef __DIRECTX_DIRECTSOUND__
 #define __DIRECTX_DIRECTSOUND__
 
-#include"DxConstant.hpp"
+#ifdef __EMSCRIPTEN__
 
-namespace directx
-{
-	class DirectSoundManager;
-	class SoundInfoPanel;
-	class SoundInfo;
-	class SoundDivision;
-	class SoundPlayer;
-	class SoundStreamingPlayer;
+#include "../portable/DirectSound.hpp"
 
-	class SoundPlayerWave;
-	class SoundStreamingPlayerWave;
-	class SoundStreamingPlayerMp3;
-	class SoundStreamingPlayerOgg;
+#else
 
-	class AcmBase;
-	class AcmMp3;
-	class AcmMp3Wave;
+#include "DxConstant.hpp"
 
+namespace directx {
 
-	struct WAVEFILEHEADER
-	{//WAVE\¬ƒtƒH[ƒ}ƒbƒgî•ñA"fmt "ƒ`ƒƒƒ“ƒNƒf[ƒ^
-		char cRIFF[4];
-		int	iSizeRIFF;
-		char cType[4];
-		char cFmt[4];
-		int	iSizeFmt;
-		WAVEFORMATEX WaveFmt;
-		char cData[4];
-		int	iSizeData;
+class DirectSoundManager;
+class SoundInfoPanel;
+class SoundInfo;
+class SoundDivision;
+class SoundPlayer;
+class SoundStreamingPlayer;
+
+class SoundPlayerWave;
+class SoundStreamingPlayerWave;
+class SoundStreamingPlayerMp3;
+class SoundStreamingPlayerOgg;
+
+class AcmBase;
+class AcmMp3;
+class AcmMp3Wave;
+
+struct WAVEFILEHEADER { //WAVEæ§‹æˆãƒ•ã‚©ãƒ¼ãƒãƒƒãƒˆæƒ…å ±ã€"fmt "ãƒãƒ£ãƒ³ã‚¯ãƒ‡ãƒ¼ã‚¿
+	char cRIFF[4];
+	int iSizeRIFF;
+	char cType[4];
+	char cFmt[4];
+	int iSizeFmt;
+	WAVEFORMATEX WaveFmt;
+	char cData[4];
+	int iSizeData;
+};
+
+/**********************************************************
+//DirectSoundManager
+**********************************************************/
+class DirectSoundManager {
+public:
+	class SoundManageThread;
+	friend SoundManageThread;
+	friend SoundInfoPanel;
+
+public:
+	enum {
+		SD_VOLUME_MIN = DSBVOLUME_MIN,
+		SD_VOLUME_MAX = DSBVOLUME_MAX,
 	};
+	enum FileFormat {
+		SD_MIDI,
+		SD_WAVE,
+		SD_MP3,
+		SD_OGG,
+		SD_AWAVE, //åœ§ç¸®wave waveãƒ˜ãƒƒãƒ€mp3
+		SD_UNKNOWN,
+	};
+gstd::ref_count_ptr<SoundPlayer> _CreatePlayer(std::wstring path);
 
-	/**********************************************************
-	//DirectSoundManager
-	**********************************************************/
-	class DirectSoundManager
+public:
+	DirectSoundManager();
+	virtual ~DirectSoundManager();
+	static DirectSoundManager* GetBase() { return thisBase_; }
+	virtual bool Initialize(HWND hWnd);
+	void Clear();
+
+	IDirectSound8* GetDirectSound() { return pDirectSound_; }
+	gstd::CriticalSection& GetLock() { return lock_; }
+
+	gstd::ref_count_ptr<SoundPlayer> GetPlayer(std::wstring path, bool bCreateAlways = false);
+	gstd::ref_count_ptr<SoundDivision> CreateSoundDivision(int index);
+	gstd::ref_count_ptr<SoundDivision> GetSoundDivision(int index);
+	gstd::ref_count_ptr<SoundInfo> GetSoundInfo(std::wstring path);
+
+	void SetInfoPanel(gstd::ref_count_ptr<SoundInfoPanel> panel)
 	{
-		public:
-			class SoundManageThread;
-			friend SoundManageThread;
-			friend SoundInfoPanel;
+		gstd::Lock lock(lock_);
+		panelInfo_ = panel;
+	}
 
-		public:
-			enum
-			{
-				SD_VOLUME_MIN=DSBVOLUME_MIN,
-				SD_VOLUME_MAX=DSBVOLUME_MAX,
-			};
-			enum FileFormat
-			{
-				SD_MIDI,
-				SD_WAVE,
-				SD_MP3,
-				SD_OGG,
-				SD_AWAVE,//ˆ³kwave waveƒwƒbƒ_mp3
-				SD_UNKNOWN,
-			};
+	bool AddSoundInfoFromFile(std::wstring path);
+	std::vector<gstd::ref_count_ptr<SoundInfo>> GetSoundInfoList();
+	void SetFadeDeleteAll();
 
-		private:
-			static DirectSoundManager* thisBase_;
+protected:
+	IDirectSound8* pDirectSound_;
+	IDirectSoundBuffer8* pDirectSoundBuffer_;
+	gstd::CriticalSection lock_;
+	SoundManageThread* threadManage_;
+	std::map<std::wstring, std::list<gstd::ref_count_ptr<SoundPlayer>>> mapPlayer_;
+	std::map<int, gstd::ref_count_ptr<SoundDivision>> mapDivision_;
+	std::map<std::wstring, gstd::ref_count_ptr<SoundInfo>> mapInfo_;
+	gstd::ref_count_ptr<SoundInfoPanel> panelInfo_;
 
-		protected:
-			IDirectSound8* pDirectSound_;
-			IDirectSoundBuffer8* pDirectSoundBuffer_;
-			gstd::CriticalSection lock_;
-			SoundManageThread* threadManage_;
-			std::map<std::wstring, std::list<gstd::ref_count_ptr<SoundPlayer> > > mapPlayer_;
-			std::map<int, gstd::ref_count_ptr<SoundDivision> > mapDivision_;
-			std::map<std::wstring, gstd::ref_count_ptr<SoundInfo> > mapInfo_;
-			gstd::ref_count_ptr<SoundInfoPanel> panelInfo_;
+	gstd::ref_count_ptr<SoundPlayer> _GetPlayer(std::wstring path);
 
-			gstd::ref_count_ptr<SoundPlayer> _GetPlayer(std::wstring path);
-			gstd::ref_count_ptr<SoundPlayer> _CreatePlayer(std::wstring path);
-		public:
-			DirectSoundManager();
-			virtual ~DirectSoundManager();
-			static DirectSoundManager* GetBase(){return thisBase_;}
-			virtual bool Initialize(HWND hWnd);
-			void Clear();
-			
-			IDirectSound8* GetDirectSound(){return pDirectSound_;}
-			gstd::CriticalSection& GetLock(){return lock_;}
+private:
+	static DirectSoundManager* thisBase_;
+};
 
-			gstd::ref_count_ptr<SoundPlayer> GetPlayer(std::wstring path, bool bCreateAlways = false);
-			gstd::ref_count_ptr<SoundDivision> CreateSoundDivision(int index);
-			gstd::ref_count_ptr<SoundDivision> GetSoundDivision(int index);
-			gstd::ref_count_ptr<SoundInfo> GetSoundInfo(std::wstring path);
+//ãƒ•ã‚§ãƒ¼ãƒ‰ã‚¤ãƒ³ï¼ãƒ•ã‚§ãƒ¼ãƒ‰ã‚¢ã‚¦ãƒˆåˆ¶å¾¡
+//å¿…è¦ãªããªã£ãŸãƒãƒƒãƒ•ã‚¡ã®é–‹æ”¾ãªã©
+class DirectSoundManager::SoundManageThread : public gstd::Thread, public gstd::InnerClass<DirectSoundManager> {
+	friend DirectSoundManager;
 
-			void SetInfoPanel(gstd::ref_count_ptr<SoundInfoPanel> panel){gstd::Lock lock(lock_);panelInfo_ = panel;}
+protected:
+	int timeCurrent_;
+	int timePrevious_;
 
-			bool AddSoundInfoFromFile(std::wstring path);
-			std::vector<gstd::ref_count_ptr<SoundInfo> > GetSoundInfoList();
-			void SetFadeDeleteAll();
-	};
+	SoundManageThread(DirectSoundManager* manager);
+	void _Run();
+	void _Arrange(); //å¿…è¦ãªããªã£ãŸãƒ‡ãƒ¼ã‚¿ã‚’å‰Šé™¤
+	void _Fade(); //ãƒ•ã‚§ãƒ¼ãƒ‰å‡¦ç†
+};
 
-	//ƒtƒF[ƒhƒCƒ“^ƒtƒF[ƒhƒAƒEƒg§Œä
-	//•K—v‚È‚­‚È‚Á‚½ƒoƒbƒtƒ@‚ÌŠJ•ú‚È‚Ç
-	class DirectSoundManager::SoundManageThread : public gstd::Thread, public gstd::InnerClass<DirectSoundManager>
-	{
-		friend DirectSoundManager;
-		protected:
-			int timeCurrent_;
-			int timePrevious_;
-
-			SoundManageThread(DirectSoundManager* manager);
-			void _Run();
-			void _Arrange();//•K—v‚È‚­‚È‚Á‚½ƒf[ƒ^‚ğíœ
-			void _Fade();//ƒtƒF[ƒhˆ—
-	};
-
-	/**********************************************************
+/**********************************************************
 	//SoundInfoPanel
 	**********************************************************/
-	class SoundInfoPanel : public gstd::WindowLogger::Panel
-	{
-		protected:
-			struct Info
-			{
-				int address;
-				std::wstring path;
-				int countRef;
-			};
-			enum
-			{
-					ROW_ADDRESS,
-					ROW_FILENAME,
-					ROW_FULLPATH,
-					ROW_COUNT_REFFRENCE,
-			};
-			gstd::WListView wndListView_;
-			int timeLastUpdate_;
-			int timeUpdateInterval_;
+class SoundInfoPanel : public gstd::WindowLogger::Panel {
+public:
+	SoundInfoPanel();
+	void SetUpdateInterval(int time) { timeUpdateInterval_ = time; }
+	virtual void LocateParts();
+	virtual void Update(DirectSoundManager* soundManager);
 
-			virtual bool _AddedLogger(HWND hTab);
-		public:
-			SoundInfoPanel();
-			void SetUpdateInterval(int time){timeUpdateInterval_=time;}
-			virtual void LocateParts();
-			virtual void Update(DirectSoundManager* soundManager);
+protected:
+	struct Info {
+		int address;
+		std::wstring path;
+		int countRef;
 	};
+	enum {
+		ROW_ADDRESS,
+		ROW_FILENAME,
+		ROW_FULLPATH,
+		ROW_COUNT_REFFRENCE,
+	};
+	gstd::WListView wndListView_;
+	int timeLastUpdate_;
+	int timeUpdateInterval_;
 
-	/**********************************************************
+	virtual bool _AddedLogger(HWND hTab);
+};
+
+/**********************************************************
 	//SoundDivision
-	//‰¹—Ê‚È‚Ç‚ğ‹¤—L‚·‚é‚½‚ß‚ÌƒNƒ‰ƒX
+	//éŸ³é‡ãªã©ã‚’å…±æœ‰ã™ã‚‹ãŸã‚ã®ã‚¯ãƒ©ã‚¹
 	**********************************************************/
-	class SoundDivision
-	{
-		public:
-			enum
-			{
-				DIVISION_BGM = 0,
-				DIVISION_SE,
-				DIVISION_VOICE,
-			};
-		protected:
-			double rateVolume_;//‰¹—ÊŠ„‡(0-100)
-		public:
-			SoundDivision();
-			virtual ~SoundDivision();
-			void SetVolumeRate(double rate){rateVolume_ = rate;}
-			double GetVolumeRate(){return rateVolume_;}
+class SoundDivision {
+public:
+	enum {
+		DIVISION_BGM = 0,
+		DIVISION_SE,
+		DIVISION_VOICE,
 	};
 
-	/**********************************************************
+public:
+	SoundDivision();
+	virtual ~SoundDivision();
+	void SetVolumeRate(double rate) { rateVolume_ = rate; }
+	double GetVolumeRate() { return rateVolume_; }
+
+protected:
+	double rateVolume_; //éŸ³é‡å‰²åˆ(0-100)
+};
+
+/**********************************************************
 	//SoundInfo
 	**********************************************************/
-	class SoundInfo
+class SoundInfo {
+	friend DirectSoundManager;
+
+public:
+	SoundInfo()
 	{
-		friend DirectSoundManager;
-		private:
-			std::wstring name_;
-			std::wstring title_;
-			double timeLoopStart_;
-			double timeLoopEnd_;
-		public:
-			SoundInfo(){timeLoopStart_ = 0; timeLoopEnd_ = 0;}
-			virtual ~SoundInfo(){};
-			std::wstring GetName(){return name_;}
-			std::wstring GetTitle(){return title_;}
-			double GetLoopStartTime(){return timeLoopStart_;}
-			double GetLoopEndTime(){return timeLoopEnd_;}
+		timeLoopStart_ = 0;
+		timeLoopEnd_ = 0;
+	}
+	virtual ~SoundInfo(){};
+	std::wstring GetName() { return name_; }
+	std::wstring GetTitle() { return title_; }
+	double GetLoopStartTime() { return timeLoopStart_; }
+	double GetLoopEndTime() { return timeLoopEnd_; }
+
+private:
+	std::wstring name_;
+	std::wstring title_;
+	double timeLoopStart_;
+	double timeLoopEnd_;
+};
+
+/**********************************************************
+//SoundPlayer
+**********************************************************/
+class SoundPlayer {
+	friend DirectSoundManager;
+	friend DirectSoundManager::SoundManageThread;
+
+public:
+	class PlayStyle;
+	enum {
+		FADE_DEFAULT = 20,
 	};
 
-	/**********************************************************
-	//SoundPlayer
-	**********************************************************/
-	class SoundPlayer
-	{
-		friend DirectSoundManager;
-		friend DirectSoundManager::SoundManageThread;
-		public:
-			class PlayStyle;
-			enum
-			{
-				FADE_DEFAULT = 20,
-			};
-		protected:
-			DirectSoundManager* manager_;
-			std::wstring path_;
-			gstd::CriticalSection lock_;
-			IDirectSoundBuffer8* pDirectSoundBuffer_;
-			gstd::ref_count_ptr<gstd::FileReader> reader_;
-			gstd::ref_count_ptr<SoundDivision> division_;
+public:
+	SoundPlayer();
+	virtual ~SoundPlayer();
+	std::wstring GetPath() { return path_; }
+	gstd::CriticalSection& GetLock() { return lock_; }
+	virtual void Restore() { pDirectSoundBuffer_->Restore(); }
+	void SetSoundDivision(gstd::ref_count_ptr<SoundDivision> div);
+	void SetSoundDivision(int index);
 
-			WAVEFORMATEX formatWave_;
-			bool bLoop_;//ƒ‹[ƒv—L–³
-			double timeLoopStart_;//ƒ‹[ƒvŠJnŠÔ
-			double timeLoopEnd_;//ƒ‹[ƒvI—¹ŠÔ
-			bool bPause_;
+	virtual bool Play();
+	virtual bool Play(PlayStyle& style);
+	virtual bool Stop();
+	virtual bool IsPlaying();
+	virtual bool Seek(double time) = 0;
+	virtual bool SetVolumeRate(double rateVolume);
+	bool SetPanRate(double ratePan);
+	double GetVolumeRate();
+	void SetFade(double rateVolumeFadePerSec);
+	void SetFadeDelete(double rateVolumeFadePerSec);
+	void SetAutoDelete(bool bAuto = true) { bAutoDelete_ = bAuto; }
+	double GetFadeVolumeRate();
+	void Delete() { bDelete_ = true; }
+	WAVEFORMATEX GetWaveFormat() { return formatWave_; }
 
-			bool bDelete_;//íœƒtƒ‰ƒO
-			bool bFadeDelete_;//ƒtƒF[ƒhƒAƒEƒgŒã‚Éíœ
-			bool bAutoDelete_;//©“®íœ
-			double rateVolume_;//‰¹—ÊŠ„‡(0-100)
-			double rateVolumeFadePerSec_;//ƒtƒF[ƒh‚Ì‰¹—Ê’á‰ºŠ„‡
+protected:
+	DirectSoundManager* manager_;
+	std::wstring path_;
+	gstd::CriticalSection lock_;
+	IDirectSoundBuffer8* pDirectSoundBuffer_;
+	gstd::ref_count_ptr<gstd::FileReader> reader_;
+	gstd::ref_count_ptr<SoundDivision> division_;
 
-			virtual bool _CreateBuffer(gstd::ref_count_ptr<gstd::FileReader> reader) = 0;
-			virtual void _SetSoundInfo();
-			static int _GetValumeAsDirectSoundDecibel(float rate);
-		public:
-			SoundPlayer();
-			virtual ~SoundPlayer();
-			std::wstring GetPath(){return path_;}
-			gstd::CriticalSection& GetLock(){return lock_;}
-			virtual void Restore(){pDirectSoundBuffer_->Restore();}
-			void SetSoundDivision(gstd::ref_count_ptr<SoundDivision> div);
-			void SetSoundDivision(int index);
+	WAVEFORMATEX formatWave_;
+	bool bLoop_; //ãƒ«ãƒ¼ãƒ—æœ‰ç„¡
+	double timeLoopStart_; //ãƒ«ãƒ¼ãƒ—é–‹å§‹æ™‚é–“
+	double timeLoopEnd_; //ãƒ«ãƒ¼ãƒ—çµ‚äº†æ™‚é–“
+	bool bPause_;
 
-			virtual bool Play();
-			virtual bool Play(PlayStyle& style);
-			virtual bool Stop();
-			virtual bool IsPlaying();
-			virtual bool Seek(double time) = 0;
-			virtual bool SetVolumeRate(double rateVolume);
-			bool SetPanRate(double ratePan);
-			double GetVolumeRate();
-			void SetFade(double rateVolumeFadePerSec);
-			void SetFadeDelete(double rateVolumeFadePerSec);
-			void SetAutoDelete(bool bAuto = true){bAutoDelete_ = bAuto;}
-			double GetFadeVolumeRate();
-			void Delete(){bDelete_ = true;}
-			WAVEFORMATEX GetWaveFormat(){return formatWave_;}
-	};
-	class SoundPlayer::PlayStyle
-	{
-			bool bLoop_;
-			double timeLoopStart_;
-			double timeLoopEnd_;
-			double timeStart_;
-			bool bRestart_;
-		public:
-			PlayStyle();
-			virtual ~PlayStyle();
-			void SetLoopEnable(bool bLoop){bLoop_ = bLoop;}
-			bool IsLoopEnable(){return bLoop_;}
-			void SetLoopStartTime(double time){timeLoopStart_ = time;}
-			double GetLoopStartTime(){return timeLoopStart_;}
-			void SetLoopEndTime(double time){timeLoopEnd_ = time;}
-			double GetLoopEndTime(){return timeLoopEnd_;}
-			void SetStartTime(double time){timeStart_ = time;}
-			double GetStartTime(){return timeStart_;}
-			bool IsRestart(){return bRestart_;}
-			void SetRestart(bool b){bRestart_ = b;}
-	};
+	bool bDelete_; //å‰Šé™¤ãƒ•ãƒ©ã‚°
+	bool bFadeDelete_; //ãƒ•ã‚§ãƒ¼ãƒ‰ã‚¢ã‚¦ãƒˆå¾Œã«å‰Šé™¤
+	bool bAutoDelete_; //è‡ªå‹•å‰Šé™¤
+	double rateVolume_; //éŸ³é‡å‰²åˆ(0-100)
+	double rateVolumeFadePerSec_; //ãƒ•ã‚§ãƒ¼ãƒ‰æ™‚ã®éŸ³é‡ä½ä¸‹å‰²åˆ
 
-	/**********************************************************
-	//SoundStreamPlayer
-	**********************************************************/
-	class SoundStreamingPlayer : public SoundPlayer
-	{
-		class StreamingThread;
-		friend StreamingThread;
-		protected:
-			HANDLE hEvent_[3];
-			IDirectSoundNotify* pDirectSoundNotify_;//ƒCƒxƒ“ƒg
-			int sizeCopy_;
-			StreamingThread* thread_;
-			bool bStreaming_;
-			bool bRequestStop_;//ƒ‹[ƒvŠ®—¹‚Ìƒtƒ‰ƒOB‚·‚®’â~‚·‚é‚ÆÅŒã‚Ìƒoƒbƒtƒ@‚ªÄ¶‚³‚ê‚È‚¢‚½‚ßB
+	virtual bool _CreateBuffer(gstd::ref_count_ptr<gstd::FileReader> reader) = 0;
+	virtual void _SetSoundInfo();
+	static int _GetValumeAsDirectSoundDecibel(float rate);
+};
+class SoundPlayer::PlayStyle {
+public:
+	PlayStyle();
+	virtual ~PlayStyle();
+	void SetLoopEnable(bool bLoop) { bLoop_ = bLoop; }
+	bool IsLoopEnable() { return bLoop_; }
+	void SetLoopStartTime(double time) { timeLoopStart_ = time; }
+	double GetLoopStartTime() { return timeLoopStart_; }
+	void SetLoopEndTime(double time) { timeLoopEnd_ = time; }
+	double GetLoopEndTime() { return timeLoopEnd_; }
+	void SetStartTime(double time) { timeStart_ = time; }
+	double GetStartTime() { return timeStart_; }
+	bool IsRestart() { return bRestart_; }
+	void SetRestart(bool b) { bRestart_ = b; }
 
-			void _CreateSoundEvent(WAVEFORMATEX& formatWave);
-			virtual void _CopyStream(int indexCopy);
-			virtual void _CopyBuffer(LPVOID pMem, DWORD dwSize) = 0;
-			void _RequestStop(){bRequestStop_ = true;}
+private:
+	bool bLoop_;
+	double timeLoopStart_;
+	double timeLoopEnd_;
+	double timeStart_;
+	bool bRestart_;
+};
 
-		public:
-			SoundStreamingPlayer();
-			virtual ~SoundStreamingPlayer();
+/**********************************************************
+//SoundStreamPlayer
+**********************************************************/
+class SoundStreamingPlayer : public SoundPlayer {
+	class StreamingThread;
+	friend StreamingThread;
 
-			virtual bool Play(PlayStyle& style);
-			virtual bool Stop();
-			virtual bool IsPlaying();
-	};
-	class SoundStreamingPlayer::StreamingThread : public gstd::Thread , public gstd::InnerClass<SoundStreamingPlayer>
-	{
-		protected:
-			virtual void _Run();
-		public:
-			StreamingThread(SoundStreamingPlayer* player){_SetOuter(player);}
-	};
+protected:
+	HANDLE hEvent_[3];
+	IDirectSoundNotify* pDirectSoundNotify_; //ã‚¤ãƒ™ãƒ³ãƒˆ
+	int sizeCopy_;
+	StreamingThread* thread_;
+	bool bStreaming_;
+	bool bRequestStop_; //ãƒ«ãƒ¼ãƒ—å®Œäº†æ™‚ã®ãƒ•ãƒ©ã‚°ã€‚ã™ãåœæ­¢ã™ã‚‹ã¨æœ€å¾Œã®ãƒãƒƒãƒ•ã‚¡ãŒå†ç”Ÿã•ã‚Œãªã„ãŸã‚ã€‚
 
-	/**********************************************************
-	//SoundPlayerWave
-	**********************************************************/
-	class SoundPlayerWave : public SoundPlayer
-	{
-		protected:
-			virtual bool _CreateBuffer(gstd::ref_count_ptr<gstd::FileReader> reader);
-		public:
-			SoundPlayerWave();
-			virtual ~SoundPlayerWave();
+	void _CreateSoundEvent(WAVEFORMATEX& formatWave);
+	virtual void _CopyStream(int indexCopy);
+	virtual void _CopyBuffer(LPVOID pMem, DWORD dwSize) = 0;
+	void _RequestStop() { bRequestStop_ = true; }
 
-			virtual bool Play(PlayStyle& style);
-			virtual bool Stop();
-			virtual bool IsPlaying();
-			virtual bool Seek(double time);
-	};
+public:
+	SoundStreamingPlayer();
+	virtual ~SoundStreamingPlayer();
 
-	/**********************************************************
-	//SoundStreamingPlayerWave
-	**********************************************************/
-	class SoundStreamingPlayerWave : public SoundStreamingPlayer
-	{
-		protected:
-			int posWaveStart_;
-			int posWaveEnd_;
-			virtual bool _CreateBuffer(gstd::ref_count_ptr<gstd::FileReader> reader);
-			virtual void _CopyBuffer(LPVOID pMem, DWORD dwSize);
-		public:
-			SoundStreamingPlayerWave();
-			virtual bool Seek(double time);
-	};
+	virtual bool Play(PlayStyle& style);
+	virtual bool Stop();
+	virtual bool IsPlaying();
 
-	/**********************************************************
-	//SoundStreamingPlayerOgg
-	**********************************************************/
-	class SoundStreamingPlayerOgg : public SoundStreamingPlayer
-	{
-		protected:
-			OggVorbis_File fileOgg_;
-			ov_callbacks oggCallBacks_;
+};
+class SoundStreamingPlayer::StreamingThread : public gstd::Thread, public gstd::InnerClass<SoundStreamingPlayer> {
+protected:
+	virtual void _Run();
 
-			virtual bool _CreateBuffer(gstd::ref_count_ptr<gstd::FileReader> reader);
-			virtual void _CopyBuffer(LPVOID pMem, DWORD dwSize);
+public:
+	StreamingThread(SoundStreamingPlayer* player) { _SetOuter(player); }
+};
 
-			static size_t _ReadOgg(void* ptr, size_t size, size_t nmemb, void* source);
-			static int _SeekOgg( void* source, ogg_int64_t offset, int whence);
-			static int _CloseOgg(void* source);
-			static long _TellOgg(void* source);
+/**********************************************************
+//SoundPlayerWave
+**********************************************************/
+class SoundPlayerWave : public SoundPlayer {
+public:
+	SoundPlayerWave();
+	virtual ~SoundPlayerWave();
 
-		public:
-			SoundStreamingPlayerOgg();
-			~SoundStreamingPlayerOgg();
-			virtual bool Seek(double time);
-	};
+	virtual bool Play(PlayStyle& style);
+	virtual bool Stop();
+	virtual bool IsPlaying();
+	virtual bool Seek(double time);
 
-	/**********************************************************
-	//SoundStreamingPlayerMp3
-	**********************************************************/
-	class SoundStreamingPlayerMp3 : public SoundStreamingPlayer
-	{
-		protected:
-			MPEGLAYER3WAVEFORMAT formatMp3_;
-			WAVEFORMATEX formatWave_;
-			HACMSTREAM hAcmStream_;
-			ACMSTREAMHEADER acmStreamHeader_;
-			int posMp3DataStart_;
-			int posMp3DataEnd_;
-			DWORD waveDataSize_;
-			double timeCurrent_;
-			gstd::ref_count_ptr<gstd::ByteBuffer> bufDecode_;
+protected:
+	virtual bool _CreateBuffer(gstd::ref_count_ptr<gstd::FileReader> reader);
+};
 
-			virtual bool _CreateBuffer(gstd::ref_count_ptr<gstd::FileReader> reader);
-			virtual void _CopyBuffer(LPVOID pMem, DWORD dwSize);
-			int _ReadAcmStream(char* pBuffer, int size);
-		public:
-			SoundStreamingPlayerMp3();
-			~SoundStreamingPlayerMp3();
-			virtual bool Seek(double time);
-	};
-}
+/**********************************************************
+//SoundStreamingPlayerWave
+**********************************************************/
+class SoundStreamingPlayerWave : public SoundStreamingPlayer {
+public:
+	SoundStreamingPlayerWave();
+	virtual bool Seek(double time);
+
+protected:
+	int posWaveStart_;
+	int posWaveEnd_;
+	virtual bool _CreateBuffer(gstd::ref_count_ptr<gstd::FileReader> reader);
+	virtual void _CopyBuffer(LPVOID pMem, DWORD dwSize);
+};
+
+/**********************************************************
+//SoundStreamingPlayerOgg
+**********************************************************/
+class SoundStreamingPlayerOgg : public SoundStreamingPlayer {
+public:
+	SoundStreamingPlayerOgg();
+	~SoundStreamingPlayerOgg();
+	virtual bool Seek(double time);
+
+protected:
+	OggVorbis_File fileOgg_;
+	ov_callbacks oggCallBacks_;
+
+	virtual bool _CreateBuffer(gstd::ref_count_ptr<gstd::FileReader> reader);
+	virtual void _CopyBuffer(LPVOID pMem, DWORD dwSize);
+
+	static size_t _ReadOgg(void* ptr, size_t size, size_t nmemb, void* source);
+	static int _SeekOgg(void* source, ogg_int64_t offset, int whence);
+	static int _CloseOgg(void* source);
+	static long _TellOgg(void* source);
+};
+
+/**********************************************************
+//SoundStreamingPlayerMp3
+**********************************************************/
+class SoundStreamingPlayerMp3 : public SoundStreamingPlayer {
+public:
+	SoundStreamingPlayerMp3();
+	~SoundStreamingPlayerMp3();
+	virtual bool Seek(double time);
+
+protected:
+	MPEGLAYER3WAVEFORMAT formatMp3_;
+	WAVEFORMATEX formatWave_;
+	HACMSTREAM hAcmStream_;
+	ACMSTREAMHEADER acmStreamHeader_;
+	int posMp3DataStart_;
+	int posMp3DataEnd_;
+	DWORD waveDataSize_;
+	double timeCurrent_;
+	gstd::ref_count_ptr<gstd::ByteBuffer> bufDecode_;
+
+	virtual bool _CreateBuffer(gstd::ref_count_ptr<gstd::FileReader> reader);
+	virtual void _CopyBuffer(LPVOID pMem, DWORD dwSize);
+	int _ReadAcmStream(char* pBuffer, int size);
+};
+
+} // namespace directx
+
+#endif // __EMSCRIPTEN__
 
 #endif

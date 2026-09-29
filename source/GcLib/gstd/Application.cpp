@@ -1,5 +1,5 @@
-#include"Application.hpp"
-#include"Logger.hpp"
+#include "Application.hpp"
+#include "Logger.hpp"
 
 using namespace gstd;
 
@@ -9,122 +9,113 @@ using namespace gstd;
 Application* Application::thisBase_ = NULL;
 Application::Application()
 {
+#ifdef __EMSCRIPTEN__
+#else
 	::InitCommonControls();
+#endif
 }
 Application::~Application()
 {
-	thisBase_=NULL;
+	thisBase_ = NULL;
 }
 bool Application::Initialize()
 {
-	if(thisBase_!=NULL)return false;
+	if (thisBase_ != NULL)
+		return false;
 	thisBase_ = this;
+#ifdef __EMSCRIPTEN__
+	hAppInstance_ = 0;
+#else
 	hAppInstance_ = ::GetModuleHandle(NULL);
-	bAppRun_= true;
-	bAppActive_=true;
+#endif
+	bAppRun_ = true;
+	bAppActive_ = true;
 	return true;
 }
 bool Application::Run()
 {
-	if(bAppRun_==false)
-	{
+	if (bAppRun_ == false) {
 		return false;
 	}
 
-	try
-	{
+	try {
 		bool res = _Initialize();
-		if(res == false)
-			throw gstd::wexception(L"‰Šú‰»’†‚É—áŠO‚ª”­¶‚µ‚Ü‚µ‚½B");
-	}
-	catch(std::exception& e)
-	{
+		if (res == false)
+			throw gstd::wexception(L"åˆæœŸåŒ–ä¸­ã«ä¾‹å¤–ãŒç™ºç”Ÿã—ã¾ã—ãŸã€‚");
+	} catch (std::exception& e) {
 		std::wstring log = StringUtility::ConvertMultiToWide(e.what());
 		Logger::WriteTop(log);
-		Logger::WriteTop(L"‰Šú‰»’†‚É—áŠO‚ª”­¶‚µ‚Ü‚µ‚½B‹­§I—¹‚µ‚Ü‚·B");
+		Logger::WriteTop(L"åˆæœŸåŒ–ä¸­ã«ä¾‹å¤–ãŒç™ºç”Ÿã—ã¾ã—ãŸã€‚å¼·åˆ¶çµ‚äº†ã—ã¾ã™ã€‚");
 		bAppRun_ = false;
-	}
-	catch(gstd::wexception& e)
-	{
+	} catch (gstd::wexception& e) {
 		std::wstring log = e.what();
 		Logger::WriteTop(log);
-		Logger::WriteTop(L"‰Šú‰»’†‚É—áŠO‚ª”­¶‚µ‚Ü‚µ‚½B‹­§I—¹‚µ‚Ü‚·B");
+		Logger::WriteTop(L"åˆæœŸåŒ–ä¸­ã«ä¾‹å¤–ãŒç™ºç”Ÿã—ã¾ã—ãŸã€‚å¼·åˆ¶çµ‚äº†ã—ã¾ã™ã€‚");
 		bAppRun_ = false;
-	}
-	catch(...)
-	{
-		Logger::WriteTop(L"‰Šú‰»’†‚É—áŠO‚ª”­¶‚µ‚Ü‚µ‚½B‹­§I—¹‚µ‚Ü‚·B");
+	} catch (...) {
+		Logger::WriteTop(L"åˆæœŸåŒ–ä¸­ã«ä¾‹å¤–ãŒç™ºç”Ÿã—ã¾ã—ãŸã€‚å¼·åˆ¶çµ‚äº†ã—ã¾ã™ã€‚");
 		bAppRun_ = false;
 	}
 
+#ifdef __EMSCRIPTEN__
+	while (bAppRun_) {
+		if (_Loop() == false) break;
+	}
+#else
 	MSG msg;
-	while(true)
-	{	
-		if(bAppRun_ == false)break;
-		if(::PeekMessage(&msg,0,0,0,PM_NOREMOVE))
-		{
-			if(!::GetMessage(&msg,NULL,0,0))break;
+	while (true) {
+		if (bAppRun_ == false)
+			break;
+		if (::PeekMessage(&msg, 0, 0, 0, PM_NOREMOVE)) {
+			if (!::GetMessage(&msg, NULL, 0, 0))
+				break;
 			::TranslateMessage(&msg);
 			::DispatchMessage(&msg);
-		}
-		else
-		{	
-			if(bAppActive_ == false)
-			{
+		} else {
+			if (bAppActive_ == false) {
 				Sleep(10);
 				continue;
 			}
-			try
-			{
-				if(_Loop() == false)break;
-			}
-			catch(std::exception& e)
-			{
+			try {
+				if (_Loop() == false)
+					break;
+			} catch (std::exception& e) {
 				std::wstring log = StringUtility::ConvertMultiToWide(e.what());
 				Logger::WriteTop(log);
-				Logger::WriteTop(L"Às’†‚É—áŠO‚ª”­¶‚µ‚Ü‚µ‚½BI—¹‚µ‚Ü‚·B");
+				Logger::WriteTop(L"å®Ÿè¡Œä¸­ã«ä¾‹å¤–ãŒç™ºç”Ÿã—ã¾ã—ãŸã€‚çµ‚äº†ã—ã¾ã™ã€‚");
 				break;
-			}
-			catch(gstd::wexception& e)
-			{
+			} catch (gstd::wexception& e) {
 				std::wstring log = e.what();
 				Logger::WriteTop(log);
-				Logger::WriteTop(L"Às’†‚É—áŠO‚ª”­¶‚µ‚Ü‚µ‚½BI—¹‚µ‚Ü‚·B");
+				Logger::WriteTop(L"å®Ÿè¡Œä¸­ã«ä¾‹å¤–ãŒç™ºç”Ÿã—ã¾ã—ãŸã€‚çµ‚äº†ã—ã¾ã™ã€‚");
 				break;
 			}
-//			catch(...)
-//			{
-//				Logger::WriteTop(L"Às’†‚É—áŠO‚ª”­¶‚µ‚Ü‚µ‚½BI—¹‚µ‚Ü‚·B");
-//				break;
-//			}
+			// catch(...)
+			// {
+			// 	Logger::WriteTop(L"å®Ÿè¡Œä¸­ã«ä¾‹å¤–ãŒç™ºç”Ÿã—ã¾ã—ãŸã€‚çµ‚äº†ã—ã¾ã™ã€‚");
+			// 	break;
+			// }
 		}
 	}
+#endif
 
 	bAppRun_ = false;
 
-	try
-	{
+	try {
 		bool res = _Finalize();
-		if(res == false)
-			throw gstd::wexception(L"I—¹’†‚É—áŠO‚ª”­¶‚µ‚Ü‚µ‚½B");
-	}
-	catch(std::exception& e)
-	{
+		if (res == false)
+			throw gstd::wexception(L"çµ‚äº†ä¸­ã«ä¾‹å¤–ãŒç™ºç”Ÿã—ã¾ã—ãŸã€‚");
+	} catch (std::exception& e) {
 		std::wstring log = StringUtility::ConvertMultiToWide(e.what());
 		Logger::WriteTop(log);
-		Logger::WriteTop(L"³í‚ÉI—¹‚Å‚«‚Ü‚¹‚ñ‚Å‚µ‚½B");
-	}
-	catch(gstd::wexception& e)
-	{
+		Logger::WriteTop(L"æ­£å¸¸ã«çµ‚äº†ã§ãã¾ã›ã‚“ã§ã—ãŸã€‚");
+	} catch (gstd::wexception& e) {
 		std::wstring log = e.what();
 		Logger::WriteTop(log);
-		Logger::WriteTop(L"³í‚ÉI—¹‚Å‚«‚Ü‚¹‚ñ‚Å‚µ‚½B");
+		Logger::WriteTop(L"æ­£å¸¸ã«çµ‚äº†ã§ãã¾ã›ã‚“ã§ã—ãŸã€‚");
 		bAppRun_ = false;
-	}
-	catch(...)
-	{
-		Logger::WriteTop(L"³í‚ÉI—¹‚Å‚«‚Ü‚¹‚ñ‚Å‚µ‚½B");
+	} catch (...) {
+		Logger::WriteTop(L"æ­£å¸¸ã«çµ‚äº†ã§ãã¾ã›ã‚“ã§ã—ãŸã€‚");
 	}
 	return true;
 }
-

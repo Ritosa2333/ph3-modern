@@ -7,9 +7,9 @@ namespace gstd
 {
 	/**********************************************************
 	//MersenneTwister
-	//Mersenne Twister‚ÍA¼–{áÁ E¼‘º‘ñmiƒAƒ‹ƒtƒ@ƒxƒbƒg‡j
-	//‚É‚æ‚è1996”N‚©‚ç1997”N‚É“n‚Á‚ÄŠJ”­‚³‚ê‚½
-	//‹^——”¶¬ƒAƒ‹ƒSƒŠƒYƒ€‚Å‚·B
+	//Mersenne Twisterã¯ã€æ¾æœ¬çœ ãƒ»è¥¿æ‘æ‹“å£«ï¼ˆã‚¢ãƒ«ãƒ•ã‚¡ãƒ™ãƒƒãƒˆé †ï¼‰
+	//ã«ã‚ˆã‚Š1996å¹´ã‹ã‚‰1997å¹´ã«æ¸¡ã£ã¦é–‹ç™ºã•ã‚ŒãŸ
+	//ç–‘ä¼¼ä¹±æ•°ç”Ÿæˆã‚¢ãƒ«ã‚´ãƒªã‚ºãƒ ã§ã™ã€‚
 	// http://www.math.sci.hiroshima-u.ac.jp/~m-mat/MT/what-is-mt.html
 	**********************************************************/
 	class MersenneTwister
@@ -44,8 +44,8 @@ namespace gstd
 			long GetInt(long min, long max);
 			_int64 GetInt64();
 			_int64 GetInt64(_int64 min, _int64 max);
-			long double GetReal();
-			long double GetReal(long double min, long double max);
+			gstd::script_real GetReal();
+			gstd::script_real GetReal(gstd::script_real min, gstd::script_real max);
 	};
 }
 

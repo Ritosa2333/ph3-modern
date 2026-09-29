@@ -58,12 +58,12 @@ void StgPlayerObject::Work()
 	StgStageScriptManager* scriptManager = stageController_->GetScriptManagerP();
 	StgEnemyManager* enemyManager = stageController_->GetEnemyManager();
 
-	//ìñÇΩÇËîªíËÉNÉäÉA
+	//ÂΩì„Åü„ÇäÂà§ÂÆö„ÇØ„É™„Ç¢
 	ClearIntersected();
 
 	if(state_ == STATE_NORMAL)
 	{
-		//í èÌéû
+		//ÈÄöÂ∏∏ÊôÇ
 		if(hitObjectID_ != DxScript::ID_INVALID)
 		{
 			state_ = STATE_HIT;
@@ -79,7 +79,7 @@ void StgPlayerObject::Work()
 			if(listGrazedShot_.size() > 0)
 			{
 				std::vector<value> listValPos;
-				std::vector<long double> listShotID;
+				std::vector<gstd::script_real> listShotID;
 				int grazedShotCount = listGrazedShot_.size();
 				for(int iObj = 0 ; iObj < grazedShotCount ; iObj++)
 				{
@@ -90,7 +90,7 @@ void StgPlayerObject::Work()
 						int id = objShot->GetObjectID();
 						listShotID.push_back(id);
 
-						std::vector<long double> listPos;
+						std::vector<gstd::script_real> listPos;
 						listPos.push_back(objShot->GetPositionX());
 						listPos.push_back(objShot->GetPositionY());
 						listValPos.push_back(script_->CreateRealArrayValue(listPos));
@@ -119,17 +119,17 @@ void StgPlayerObject::Work()
 	}
 	if(state_ == STATE_HIT)
 	{
-		//Ç≠ÇÁÇ¢É{ÉÄë“ã@
+		//„Åè„Çâ„ÅÑ„Éú„É†ÂæÖÊ©ü
 		if(input->GetVirtualKeyState(EDirectInput::KEY_BOMB) == KEY_PUSH)
 			CallSpell();	
 
 		if(state_ == STATE_HIT)
 		{
-			//Ç≠ÇÁÇ¢É{ÉÄóLå¯ÉtÉåÅ[ÉÄå∏è≠
+			//„Åè„Çâ„ÅÑ„Éú„É†ÊúâÂäπ„Éï„É¨„Éº„É†Ê∏õÂ∞ë
 			frameState_--;
 			if(frameState_ < 0)
 			{
-				//é©ã@É_ÉEÉì
+				//Ëá™Ê©ü„ÉÄ„Ç¶„É≥
 				bool bEnemyLastSpell = false;
 				ref_count_ptr<StgEnemyBossSceneObject>::unsync objBossScene = enemyManager->GetBossSceneObject();
 				if(objBossScene != NULL)
@@ -157,7 +157,7 @@ void StgPlayerObject::Work()
 	}
 	if(state_ == STATE_DOWN)
 	{
-		//É_ÉEÉì
+		//„ÉÄ„Ç¶„É≥
 		frameState_--;
 		if(frameState_ <= 0)
 		{
@@ -180,7 +180,7 @@ void StgPlayerObject::Move()
 {
 	if(state_ == STATE_NORMAL)
 	{
-		//í èÌéû
+		//ÈÄöÂ∏∏ÊôÇ
 		if(hitObjectID_ == DxScript::ID_INVALID)
 		{
 			_Move();
@@ -220,11 +220,11 @@ void StgPlayerObject::_Move()
 	double px = posX_ + sx;
 	double py = posY_ + sy;
 
-	//ÇÕÇ›èoÇΩÇ∆Ç´ÇÃèàóù
-	px = max(px, rcClip_.left);
-	px = min(px, rcClip_.right);
-	py = max(py, rcClip_.top);
-	py = min(py, rcClip_.bottom);
+	//„ÅØ„ÅøÂá∫„Åü„Å®„Åç„ÅÆÂá¶ÁêÜ
+	px = std::max(px, static_cast<double>(rcClip_.left));
+	px = std::min(px, static_cast<double>(rcClip_.right));
+	py = std::max(py, static_cast<double>(rcClip_.top));
+	py = std::min(py, static_cast<double>(rcClip_.bottom));
 
 	SetX(px);
 	SetY(py);
@@ -255,7 +255,7 @@ void StgPlayerObject::CallSpell()
 
 	gstd::value vUse = script_->RequestEvent(StgStagePlayerScript::EV_REQUEST_SPELL);
 	if(!script_->IsBooleanValue(vUse))
-		throw gstd::wexception(L"@Event(EV_REQUEST_SPELL)ì‡Ç≈booleanå^ÇÃílÇ™ï‘Ç≥ÇÍÇƒÇ¢Ç‹ÇπÇÒÅB");
+		throw gstd::wexception(L"@Event(EV_REQUEST_SPELL)ÂÜÖ„ÅßbooleanÂûã„ÅÆÂÄ§„ÅåËøî„Åï„Çå„Å¶„ÅÑ„Åæ„Åõ„Çì„ÄÇ");
 	bool bUse = vUse.as_boolean();
 	if(!bUse)
 	{
@@ -267,7 +267,7 @@ void StgPlayerObject::CallSpell()
 	if(state_ == STATE_HIT)
 	{
 		state_ = STATE_NORMAL;
-		infoPlayer_->frameRebirth_ = max(infoPlayer_->frameRebirth_ - frameRebirthDiff_, 0);
+		infoPlayer_->frameRebirth_ = std::max(infoPlayer_->frameRebirth_ - frameRebirthDiff_, 0);
 	}
 
 	StgEnemyManager* enemyManager = stageController_->GetEnemyManager();
@@ -289,7 +289,7 @@ void StgPlayerObject::Intersect(ref_count_ptr<StgIntersectionTarget>::unsync own
 	{
 		case StgIntersectionTarget::TYPE_ENEMY_SHOT:
 		{
-			//ìGíe
+			//ÊïµÂºæ
 			if(own->IsGraze())
 			{
 				StgShotObject* objShot = (StgShotObject*)otherTarget->GetObject().GetPointer();
@@ -311,7 +311,7 @@ void StgPlayerObject::Intersect(ref_count_ptr<StgIntersectionTarget>::unsync own
 
 		case StgIntersectionTarget::TYPE_ENEMY:
 		{
-			//ìG
+			//Êïµ
 			if(!own->IsGraze())
 			{
 				ref_count_weak_ptr<StgEnemyObject>::unsync objEnemy = 
@@ -331,15 +331,15 @@ ref_count_ptr<StgPlayerObject>::unsync StgPlayerObject::GetOwnObject()
 }
 bool StgPlayerObject::IsPermitShot()
 {
-	//à»â∫ÇÃÇ∆Ç´ïsâ¬
-	//ÅEâÔòbíÜ
+	//‰ª•‰∏ã„ÅÆ„Å®„Åç‰∏çÂèØ
+	//„Éª‰ºöË©±‰∏≠
 	return !bForbidShot_;
 }
 bool StgPlayerObject::IsPermitSpell()
 {
-	//à»â∫ÇÃÇ∆Ç´ïsâ¬
-	//ÅEâÔòbíÜ
-	//ÅEÉâÉXÉgÉXÉyÉãíÜ
+	//‰ª•‰∏ã„ÅÆ„Å®„Åç‰∏çÂèØ
+	//„Éª‰ºöË©±‰∏≠
+	//„Éª„É©„Çπ„Éà„Çπ„Éö„É´‰∏≠
 	StgEnemyManager* enemyManager = stageController_->GetEnemyManager();
 	bool bEnemyLastSpell = false;
 	ref_count_ptr<StgEnemyBossSceneObject>::unsync objBossScene = enemyManager->GetBossSceneObject();
@@ -391,7 +391,7 @@ void StgPlayerSpellObject::Intersect(ref_count_ptr<StgIntersectionTarget>::unsyn
 		}
 	}
 	life_ -= damage;
-	life_ = max(life_, 0);
+	life_ = std::max(life_, 0.0);
 }
 
 
