@@ -5,6 +5,7 @@ using namespace directx;
 
 #ifdef __EMSCRIPTEN__
 #include <SDL3/SDL.h>
+#include <cmath>
 #endif
 
 /**********************************************************
@@ -304,8 +305,6 @@ bool DirectInput::_IdleMouse()
 		}
 		bMouseButton_[i] = pressed;
 	}
-	mouseMoveX_ = x;
-	mouseMoveY_ = y;
 	return true;
 }
 
@@ -355,10 +354,28 @@ POINT DirectInput::GetMousePosition()
 
 void DirectInput::Update()
 {
+	// DirectInput's DIMOUSESTATE lX/lY/lZ are per-update deltas, not the
+	// absolute cursor position. Accumulate SDL events for this logical input
+	// update and reset them on every call, matching the native polling owner.
+	float deltaX = 0.0f;
+	float deltaY = 0.0f;
+	float deltaWheel = 0.0f;
 	SDL_Event event;
 	while (SDL_PollEvent(&event)) {
 		if (event.type == SDL_EVENT_WINDOW_FOCUS_LOST) ResetInputState();
+		else if (event.type == SDL_EVENT_MOUSE_MOTION) {
+			deltaX += event.motion.xrel;
+			deltaY += event.motion.yrel;
+		} else if (event.type == SDL_EVENT_MOUSE_WHEEL) {
+			float wheel = event.wheel.y;
+			if (event.wheel.direction == SDL_MOUSEWHEEL_FLIPPED) wheel = -wheel;
+			deltaWheel += wheel;
+		}
 	}
+	mouseMoveX_ = static_cast<int>(std::lround(deltaX));
+	mouseMoveY_ = static_cast<int>(std::lround(deltaY));
+	// Win32 DirectInput reports the conventional wheel detent as 120 units.
+	mouseMoveZ_ = static_cast<int>(std::lround(deltaWheel * 120.0f));
 	this->_IdleKeyboard();
 	this->_IdleJoypad();
 	this->_IdleMouse();

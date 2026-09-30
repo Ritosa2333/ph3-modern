@@ -107,7 +107,18 @@ HRESULT directx::portable::CreateEffect(IDirect3DDevice9*,const std::string& sou
 precision highp float;
 in highp vec2 texcoord;in highp vec4 tint;in highp float fogFactor;
 uniform sampler2D wooTexture;out vec4 color;
-void main(){color=texture(wooTexture,texcoord)*tint;if(color.a<=0.0)discard;}
+uniform bool ph3AlphaTest;uniform int ph3AlphaFunc;uniform float ph3AlphaRef;
+bool ph3_alpha_pass(float a){
+    if(ph3AlphaFunc==1)return false;
+    if(ph3AlphaFunc==2)return a<ph3AlphaRef;
+    if(ph3AlphaFunc==3)return a==ph3AlphaRef;
+    if(ph3AlphaFunc==4)return a<=ph3AlphaRef;
+    if(ph3AlphaFunc==5)return a>ph3AlphaRef;
+    if(ph3AlphaFunc==6)return a!=ph3AlphaRef;
+    if(ph3AlphaFunc==7)return a>=ph3AlphaRef;
+    return true;
+}
+void main(){color=clamp(texture(wooTexture,texcoord)*tint,0.0,1.0);if(ph3AlphaTest&&!ph3_alpha_pass(color.a))discard;}
 )";
         effect->bindings.push_back({"wooTexture","",0,{0xffffffffu,0xffffffffu,0xffffffffu,0xffffffffu,0xffffffffu}});
         *output=effect.release();return S_OK;

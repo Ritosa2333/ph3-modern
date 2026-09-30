@@ -51,12 +51,19 @@ public:
 
 	void Wait() { controller_->Wait(); }
 	bool IsSkip() { return controller_->IsSkip(); }
-	void SetCriticalFrame() { controller_->SetCriticalFrame(); }
+	void SetCriticalFrame() {
+		controller_->SetCriticalFrame();
 #ifdef __EMSCRIPTEN__
-	float GetCurrentFps() { return browserWorkFps_; }
+		browserRenderCounter_ = 0;
+#endif
+	}
+#ifdef __EMSCRIPTEN__
+	float GetCurrentFps() { return browserAutoSkip_ ? browserWorkFps_ : browserWorkFps_ / browserRenderDivisor_; }
 	float GetCurrentWorkFps() { return browserWorkFps_; }
 	float GetCurrentRenderFps() { return browserRenderFps_; }
-	void SetMeasuredBrowserFps(float work, float render) { browserWorkFps_ = work; browserRenderFps_ = render; }
+	void SetBrowserRuntimeFps(float work, float render) { browserWorkFps_ = work; browserRenderFps_ = render; }
+	int GetBrowserTargetFps();
+	bool AdvanceBrowserRenderPermit();
 #else
 	float GetCurrentFps() { return controller_->GetCurrentFps(); }
 	float GetCurrentWorkFps() { return controller_->GetCurrentWorkFps(); }
@@ -75,7 +82,10 @@ private:
 	int fastModeKey_;
 	ref_count_ptr<FpsController> controller_;
 #ifdef __EMSCRIPTEN__
-	float browserWorkFps_ = 0, browserRenderFps_ = 0;
+	float browserWorkFps_ = STANDARD_FPS, browserRenderFps_ = STANDARD_FPS;
+	int browserRenderDivisor_ = 1;
+	int browserRenderCounter_ = 0;
+	bool browserAutoSkip_ = false;
 #endif
 };
 

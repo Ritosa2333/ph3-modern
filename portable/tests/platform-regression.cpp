@@ -41,6 +41,11 @@ int main() {
     auto format = gstd::portable::WidePrintfFormat(L"name=%s value=%d");
     assert(std::swprintf(output, 128, format.c_str(), text.c_str(), 7) > 0);
     assert(std::wstring(output) == L"name=日本語 / Alpha value=7");
+    auto scoreFormat = gstd::portable::WidePrintfFormat(L"%012I64d");
+    assert(scoreFormat == L"%012lld");
+    wchar_t score[128]{};
+    assert(std::swprintf(score, 128, scoreFormat.c_str(), static_cast<long long>(147368070)) > 0);
+    assert(std::wstring(score) == L"000147368070");
     std::filesystem::create_directories("/game/lib");
     std::ofstream("/game/lib/lib_Result.dnh") << "fixture";
     assert(gstd::portable::ResolveFilePath("/GAME/LIB/lib_result.dnh") == "/game/lib/lib_Result.dnh");

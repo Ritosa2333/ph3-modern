@@ -379,29 +379,23 @@ std::wstring StringUtility::Format(wchar_t* str, ...)
 }
 std::wstring StringUtility::FormatToWide(char* str, ...)
 {
-	std::string res;
-	char buf[256];
 	va_list vl;
 	va_start(vl, str);
-	if (_vsnprintf(buf, sizeof(buf), str, vl) < 0) { //バッファを超えていた場合、動的に確保する
-		int size = sizeof(buf);
-		while (true) {
-			size *= 2;
-			char* nBuf = new char[size];
-			if (_vsnprintf(nBuf, size, str, vl) >= 0) {
-				res = nBuf;
-				delete[] nBuf;
-				break;
-			}
-			delete[] nBuf;
+	std::string res;
+	for (std::size_t size = 256; size <= 8 * 1024 * 1024; size *= 2) {
+		std::vector<char> buffer(size);
+		va_list copy;
+		va_copy(copy, vl);
+		int written = std::vsnprintf(buffer.data(), buffer.size(), str, copy);
+		va_end(copy);
+		if (written >= 0 && static_cast<std::size_t>(written) < buffer.size()) {
+			res.assign(buffer.data(), static_cast<std::size_t>(written));
+			va_end(vl);
+			return StringUtility::ConvertMultiToWide(res);
 		}
-	} else {
-		res = buf;
 	}
 	va_end(vl);
-
-	std::wstring wres = StringUtility::ConvertMultiToWide(res);
-	return wres;
+	throw std::runtime_error("Invalid or excessively long formatted text");
 }
 
 int StringUtility::CountCharacter(std::wstring& str, wchar_t c)

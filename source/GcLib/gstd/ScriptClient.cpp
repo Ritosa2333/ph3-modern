@@ -427,7 +427,7 @@ std::vector<char> ScriptClientBase::_Include(std::vector<char>& source)
 					int newLineSize = bNeedNewLine ? 2 : 0;
 					placement.resize(reader->GetFileSize() + newLineSize);
 					reader->Read(&placement[0], reader->GetFileSize());
-					memcpy(&placement[reader->GetFileSize() - 1], "\r\n", newLineSize);
+					memcpy(&placement[reader->GetFileSize()], "\r\n", newLineSize);
 
 					//結合先がUTF16LEの場合、読み込んだデータをUTF16LEに変換する。
 					if (encoding == Encoding::UTF16LE) {

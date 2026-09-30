@@ -23,9 +23,15 @@ def main() -> None:
     parser.add_argument('--seconds', type=int, default=0, help='Explicit partial probe; never marked complete')
     parser.add_argument('--headed', action='store_true')
     parser.add_argument('--trace', action='store_true', help='Diagnostic build only; not a performance measurement')
+    parser.add_argument('--fast-steps', type=int, default=0,
+                        help='Diagnostic Replay only: original logical ticks per browser callback (1–32)')
     parser.add_argument('--detail-tick', type=int, default=-1)
     parser.add_argument('--stages', type=int, default=0, help='Explicit prefix scope; zero selects the whole fixture')
+    parser.add_argument('--stop-at-frame', type=int, default=-1,
+                        help='Diagnostic partial probe: stop after the observed stage reaches this logical frame')
     args = parser.parse_args()
+    if not 0 <= args.fast_steps <= 32:
+        raise ValueError('--fast-steps must be between 1 and 32, or omitted')
     fixture_path = GAME / 'script/th_hsob/replay' / args.fixture
     if fixture_path.name != args.fixture or not fixture_path.is_file():
         raise ValueError('Choose an existing corpus replay basename')
@@ -35,7 +41,7 @@ def main() -> None:
     args.out.mkdir(parents=True, exist_ok=True)
     report = {'fixture': fixture, 'errors': [], 'consoleErrors': [], 'failedRequests': [],
               'checkpoints': [], 'completed': False, 'requestedStages':stage_count,
-              'fullFixture':stage_count==len(fixture['stages'])}
+              'fullFixture':stage_count==len(fixture['stages']), 'fastSteps':args.fast_steps}
     with sync_playwright() as pw:
         browser = pw.chromium.launch(channel='msedge', headless=not args.headed)
         page = browser.new_page(viewport={'width': 1100, 'height': 1000})
@@ -85,6 +91,8 @@ def main() -> None:
             report['build'] = page.evaluate("async() => await (await fetch('./build.json')).json()")
             if args.trace and report['build'].get('variant') != 'verify':
                 raise RuntimeError('Trace requested against a non-verifier build')
+            if args.fast_steps and report['build'].get('variant') not in ('verify', 'boundary'):
+                raise RuntimeError('Fast Replay requested against a production build')
             page.locator('#start').click()
             page.wait_for_function("['ready','error'].includes(ph3Diagnostics.phase)", timeout=180000)
             checkpoint('00-ready')
@@ -131,6 +139,8 @@ def main() -> None:
             state = checkpoint('04-playing')
             if not state.get('stage', {}).get('replay'):
                 raise RuntimeError('Did not enter native replay mode')
+            if args.fast_steps:
+                page.evaluate('count => {ph3Runtime.wooReplayFastSteps=count;}', args.fast_steps)
             started = time.monotonic()
             deadline = started + (args.seconds or fixture['declaredFrames'] / 60 * 2 + 240)
             last_boundary_count = -1
@@ -144,6 +154,8 @@ def main() -> None:
                     samples.flush()
                     if state.get('phase') == 'error':
                         raise RuntimeError(str(state.get('errors')))
+                    if args.stop_at_frame >= 0 and state.get('stage', {}).get('frame', -1) >= args.stop_at_frame:
+                        break
                     boundaries = state.get('replayBoundaries', [])
                     if len(boundaries) != last_boundary_count:
                         last_boundary_count = len(boundaries)

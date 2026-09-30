@@ -84,8 +84,18 @@ inline D3DXMATRIX operator*(const D3DXMATRIX& a,const D3DXMATRIX& b) {
     return result;
 }
 inline D3DXMATRIX& D3DXMATRIX::operator*=(const D3DXMATRIX& b){return *this=*this*b;}
-inline float D3DXToRadian(float degrees){return degrees*0.01745329251994329577f;}
-inline float D3DXToDegree(float radians){return radians*57.295779513082320877f;}
+inline constexpr float D3DX_PI = 3.141592654f;
+template<class T>
+inline auto D3DXToRadian(T degrees) -> decltype(degrees * (D3DX_PI / 180.0f)) {
+    // Match the D3DX macro expression instead of narrowing every caller to
+    // float first. In particular, ph3 passes double shot angles here for
+    // collision geometry; the Windows macro keeps those calculations double.
+    return degrees * (D3DX_PI / 180.0f);
+}
+template<class T>
+inline auto D3DXToDegree(T radians) -> decltype(radians * (180.0f / D3DX_PI)) {
+    return radians * (180.0f / D3DX_PI);
+}
 inline float D3DXVec2Dot(const D3DXVECTOR2* a,const D3DXVECTOR2* b){return a->x*b->x+a->y*b->y;}
 inline float D3DXVec2CCW(const D3DXVECTOR2* a,const D3DXVECTOR2* b){return a->x*b->y-a->y*b->x;}
 inline float D3DXVec2Length(const D3DXVECTOR2* a){return std::sqrt(D3DXVec2Dot(a,a));}

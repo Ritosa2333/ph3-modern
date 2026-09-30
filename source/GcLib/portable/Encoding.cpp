@@ -79,6 +79,7 @@ std::string EncodeText(const std::wstring& text, unsigned codePage, bool* usedDe
 
 std::wstring WidePrintfFormat(const wchar_t* source) {
     // MSVCRT wide printf's %s/%c consume wide values; ISO printf requires %ls/%lc.
+    // MSVCRT's 64-bit integer modifier is I64; musl/ISO printf uses ll.
     std::wstring result;
     for (std::size_t i = 0; source[i]; ++i) {
         result.push_back(source[i]);
@@ -87,6 +88,13 @@ std::wstring WidePrintfFormat(const wchar_t* source) {
         bool length = false;
         for (++i; source[i]; ++i) {
             wchar_t c = source[i];
+            if (c == L'I' && source[i + 1] == L'6' && source[i + 2] == L'4') {
+                result.push_back(L'l');
+                result.push_back(L'l');
+                i += 2;
+                length = true;
+                continue;
+            }
             if (c == L'l' || c == L'h' || c == L'j' || c == L'z' || c == L't' || c == L'L') length = true;
             if ((c == L's' || c == L'c') && !length) result.push_back(L'l');
             if (c == L'S') c = L's';

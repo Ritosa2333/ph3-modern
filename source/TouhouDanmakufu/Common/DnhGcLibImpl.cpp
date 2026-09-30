@@ -122,7 +122,37 @@ EFpsController::EFpsController()
 
 	SetFps(STANDARD_FPS);
 	fastModeKey_ = DIK_LCONTROL;
+#ifdef __EMSCRIPTEN__
+	browserRenderDivisor_ = fpsType == DnhConfiguration::FPS_1_2 ? 2 :
+		(fpsType == DnhConfiguration::FPS_1_3 ? 3 : 1);
+	browserAutoSkip_ = fpsType == DnhConfiguration::FPS_AUTO;
+	if (browserAutoSkip_) {
+		browserWorkFps_ = 0;
+		browserRenderFps_ = 0;
+	} else {
+		browserWorkFps_ = STANDARD_FPS;
+		browserRenderFps_ = float(STANDARD_FPS) / browserRenderDivisor_;
+	}
+#endif
 }
+#ifdef __EMSCRIPTEN__
+int EFpsController::GetBrowserTargetFps()
+{
+	if (controller_->IsFastMode())
+		return FpsController::FPS_FAST_MODE;
+	int target = controller_->GetFps();
+	int controlled = controller_->GetControlObjectFps();
+	if (controlled < target)
+		target = controlled;
+	return target < 1 ? 1 : target;
+}
+bool EFpsController::AdvanceBrowserRenderPermit()
+{
+	bool permit = browserRenderCounter_ == 0;
+	browserRenderCounter_ = (browserRenderCounter_ + 1) % browserRenderDivisor_;
+	return permit;
+}
+#endif
 
 /**********************************************************
 //EFileManager

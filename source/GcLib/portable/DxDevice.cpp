@@ -6,6 +6,7 @@
 #include <emscripten/html5.h>
 #include <png.h>
 #include <array>
+#include <fstream>
 #include <limits>
 #include <map>
 #include <stdexcept>
@@ -16,8 +17,6 @@ namespace {
 constexpr HRESULT InvalidCall=static_cast<HRESULT>(0x8876086cu);
 constexpr unsigned MaxSlots=16;
 constexpr unsigned MaxElements=32;
-struct RenderTargetFeedback final : std::exception {};
-
 template<class T> void AssignReference(T*& destination,T* source) {
     if(source)source->AddRef();
     if(destination)destination->Release();
@@ -188,7 +187,9 @@ struct DeviceState {
     SDL_Window* window=nullptr;
     SDL_GLContext context=nullptr;
     bool ownWindow=false,inScene=false;
-    GLuint program=0,vao=0,vbo=0,white=0;
+    GLuint program=0,vao=0,vbo=0,white=0,feedbackTexture=0;
+    UINT feedbackWidth=0,feedbackHeight=0;
+    bool feedbackSnapshotReady=false;
     std::map<std::string,GLint> uniformLocations;
     std::array<GLuint,MaxSlots> glSamplers{};
     std::map<DWORD,D3DXMATRIX> transforms;
@@ -205,7 +206,11 @@ struct DeviceState {
     IDirect3DVertexDeclaration9* declaration=nullptr;
     UINT offset=0,stride=0;
     DWORD fvf=0;
-    UINT presented=0,draws=0,actualDraws=0,verticesDrawn=0,feedbackRejected=0;
+    UINT presented=0,draws=0,actualDraws=0,verticesDrawn=0,feedbackResolved=0;
+    UINT feedbackFixed=0,feedbackEffect=0;
+    UINT feedbackBack=0,feedbackOffscreen=0;
+    std::array<UINT,MaxSlots> feedbackByUnit{};
+    std::array<UINT,MaxSlots> feedbackBySourceSlot{};
     std::vector<Vertex> converted,wireframe;
     struct FixedBatchKey {
         TextureStorage* target=nullptr;
@@ -233,7 +238,7 @@ struct DeviceState {
         AssignReference(stream,static_cast<IDirect3DVertexBuffer9*>(nullptr));AssignReference(indices,static_cast<IDirect3DIndexBuffer9*>(nullptr));AssignReference(declaration,static_cast<IDirect3DVertexDeclaration9*>(nullptr));
         AssignReference(target,static_cast<IDirect3DSurface9*>(nullptr));AssignReference(depth,static_cast<IDirect3DSurface9*>(nullptr));
         if(back)back->Release();if(backDepth)backDepth->Release();
-        glDeleteSamplers(MaxSlots,glSamplers.data());if(white)glDeleteTextures(1,&white);if(vbo)glDeleteBuffers(1,&vbo);if(vao)glDeleteVertexArrays(1,&vao);if(program)glDeleteProgram(program);
+        glDeleteSamplers(MaxSlots,glSamplers.data());if(white)glDeleteTextures(1,&white);if(feedbackTexture)glDeleteTextures(1,&feedbackTexture);if(vbo)glDeleteBuffers(1,&vbo);if(vao)glDeleteVertexArrays(1,&vao);if(program)glDeleteProgram(program);
         if(context)SDL_GL_DestroyContext(context);if(ownWindow&&window)SDL_DestroyWindow(window);
     }
     DWORD Render(DWORD type)const{auto found=render.find(type);return found==render.end()?0:found->second;}
@@ -277,6 +282,22 @@ struct DeviceState {
         }
         glViewport(viewport.X,surface.back?surface.height-viewport.Y-viewport.Height:viewport.Y,viewport.Width,viewport.Height);
         glDepthRangef(viewport.MinZ,viewport.MaxZ);
+    }
+    GLuint SnapshotTarget(){
+        Check(target!=nullptr&&!target->storage->depthOnly,"Cannot snapshot an invalid render target");
+        auto& surface=*target->storage;
+        if(!feedbackTexture)glGenTextures(1,&feedbackTexture);
+        glBindTexture(GL_TEXTURE_2D,feedbackTexture);
+        if(feedbackWidth!=surface.width||feedbackHeight!=surface.height){
+            glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA8,surface.width,surface.height,0,GL_RGBA,GL_UNSIGNED_BYTE,nullptr);
+            glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAX_LEVEL,0);
+            glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
+            feedbackWidth=surface.width;feedbackHeight=surface.height;
+        }
+        glCopyTexSubImage2D(GL_TEXTURE_2D,0,0,0,0,0,surface.width,surface.height);
+        feedbackSnapshotReady=true;
+        return feedbackTexture;
     }
 };
 
@@ -361,7 +382,14 @@ HRESULT IDirect3DDevice9::Present(const RECT*,const RECT*,HWND,const RGNDATA*){
     if(error!=GL_NO_ERROR)throw std::runtime_error("WebGL rendering error: "+std::to_string(error));
     glFlush();if(!SDL_GL_SwapWindow(state->window))return E_FAIL;
     ++state->presented;
-    EM_ASM({const d=globalThis.ph3Diagnostics;if(d){d.presentedFrames=$0;d.drawCalls=$1;d.actualDrawCalls=$2;d.drawVertices=$3;d.rejectedFeedbackDraws=$4;}},state->presented,state->draws,state->actualDraws,state->verticesDrawn,state->feedbackRejected);
+    EM_ASM({const d=globalThis.ph3Diagnostics;if(d){d.presentedFrames=$0;d.drawCalls=$1;d.actualDrawCalls=$2;d.drawVertices=$3;d.rejectedFeedbackDraws=0;d.resolvedFeedbackDraws=$4;
+        d.feedbackFixed=$5;d.feedbackEffect=$6;d.feedbackBack=$7;d.feedbackOffscreen=$8;}},
+        state->presented,state->draws,state->actualDraws,state->verticesDrawn,state->feedbackResolved,
+        state->feedbackFixed,state->feedbackEffect,state->feedbackBack,state->feedbackOffscreen);
+    EM_ASM({const d=globalThis.ph3Diagnostics;if(d){d.feedbackUnit0=$0;d.feedbackUnit1=$1;d.feedbackUnit2=$2;d.feedbackUnit3=$3;
+        d.feedbackSlot0=$4;d.feedbackSlot1=$5;d.feedbackSlot2=$6;d.feedbackSlot3=$7;}},
+        state->feedbackByUnit[0],state->feedbackByUnit[1],state->feedbackByUnit[2],state->feedbackByUnit[3],
+        state->feedbackBySourceSlot[0],state->feedbackBySourceSlot[1],state->feedbackBySourceSlot[2],state->feedbackBySourceSlot[3]);
     return S_OK;
 }
 HRESULT IDirect3DDevice9::Clear(DWORD count,const D3DRECT* rects,DWORD flags,D3DCOLOR color,float depth,DWORD stencil){
@@ -422,7 +450,14 @@ void IDirect3DDevice9::BindTextureUnit(UINT unit,IDirect3DBaseTexture9* texture,
     const DWORD keys[]={D3DSAMP_MINFILTER,D3DSAMP_MAGFILTER,D3DSAMP_MIPFILTER,D3DSAMP_ADDRESSU,D3DSAMP_ADDRESSV};
     DWORD values[5];for(unsigned i=0;i<5;++i)values[i]=overrides&&overrides[i]!=0xffffffffu?overrides[i]:state->samplers[sourceSlot][keys[i]];
     glActiveTexture(GL_TEXTURE0+unit);GLuint id=texture?texture->GetGLTexture():state->white;
-    if(texture&&id==state->target->storage->texture)throw RenderTargetFeedback{};
+    if(texture&&id==state->target->storage->texture){
+        id=state->feedbackSnapshotReady?state->feedbackTexture:state->SnapshotTarget();
+        ++state->feedbackResolved;
+        if(ID3DXEffect::Active())++state->feedbackEffect;else ++state->feedbackFixed;
+        if(state->target&&state->target->storage->back)++state->feedbackBack;else ++state->feedbackOffscreen;
+        if(unit<MaxSlots)++state->feedbackByUnit[unit];
+        if(sourceSlot<MaxSlots)++state->feedbackBySourceSlot[sourceSlot];
+    }
     glBindTexture(GL_TEXTURE_2D,id);glBindSampler(unit,state->glSamplers[unit]);
     const bool linear=values[0]==D3DTEXF_LINEAR||values[0]==D3DTEXF_ANISOTROPIC;
     GLint minFilter=linear?GL_LINEAR:GL_NEAREST;
@@ -487,7 +522,13 @@ Vertex Convert(DeviceState& s,const DecodedVertex& source){
     if(source.transformed){
         float w=source.position.w!=0?1/source.position.w:1;
         const float x=source.position.x+.5f,y=source.position.y+.5f;
-        result.position={(2*(x-viewport.X)/viewport.Width-1)*w,(back?-1.f:1.f)*(2*(y-viewport.Y)/viewport.Height-1)*w,(2*source.position.z-1)*w,w};
+        // D3D9 pre-transformed XYZRHW vertices can still be rasterized when
+        // Z testing is disabled even if CPU-side 2D transforms push z outside
+        // the nominal [0,1] depth interval (for example a 180-degree Y flip).
+        // WebGL always performs homogeneous clip rejection before depth test,
+        // so keep disabled-Z vertices inside the clip volume explicitly.
+        const float depth=s.Render(D3DRS_ZENABLE)?source.position.z:std::clamp(source.position.z,0.f,1.f);
+        result.position={(2*(x-viewport.X)/viewport.Width-1)*w,(back?-1.f:1.f)*(2*(y-viewport.Y)/viewport.Height-1)*w,(2*depth-1)*w,w};
         result.pixel={source.position.x,source.position.y};
     }else{
         D3DXVECTOR4 worldPosition;D3DXVECTOR3 worldNormal;
@@ -569,19 +610,24 @@ HRESULT Draw(IDirect3DDevice9& device,DWORD type,UINT primitives,const BYTE* byt
     DWORD cull=s.Render(D3DRS_CULLMODE);if(cull==D3DCULL_NONE)glDisable(GL_CULL_FACE);else{glEnable(GL_CULL_FACE);glFrontFace(s.target->storage->back?GL_CCW:GL_CW);glCullFace(cull==D3DCULL_CCW?GL_BACK:GL_FRONT);}
     DWORD mask=s.Render(D3DRS_COLORWRITEENABLE);glColorMask(mask&1,mask&2,mask&4,mask&8);glDisable(GL_SCISSOR_TEST);
     GLuint program=effect?effect->GetProgram(VertexSource):s.program;Check(program!=0,"An active effect did not provide a GLES program");glUseProgram(program);
-    try {
-      if(effect)effect->ApplyUniforms(&device);
-      else{
+    s.feedbackSnapshotReady=false;
+    if(effect){
+        effect->ApplyUniforms(&device);
+        // Alpha test is a D3D9 fixed-function stage after the pixel shader.
+        // Custom FX therefore observe the same state as fixed-function draws.
+        GLint location=glGetUniformLocation(program,"ph3AlphaTest");
+        if(location>=0)glUniform1i(location,int(s.Render(D3DRS_ALPHATESTENABLE)));
+        location=glGetUniformLocation(program,"ph3AlphaFunc");
+        if(location>=0)glUniform1i(location,int(s.Render(D3DRS_ALPHAFUNC)));
+        location=glGetUniformLocation(program,"ph3AlphaRef");
+        if(location>=0)glUniform1f(location,float(s.Render(D3DRS_ALPHAREF))/255.0f);
+    }
+    else{
         device.BindTextureUnit(0,s.textures[0],0);SetUniform(s,"wooTexture",0);auto& stages=s.stages[0];
         glUniform3i(s.Uniform("wooColorStage"),stages[D3DTSS_COLOROP],stages[D3DTSS_COLORARG1],stages[D3DTSS_COLORARG2]);
         glUniform3i(s.Uniform("wooAlphaStage"),stages[D3DTSS_ALPHAOP],stages[D3DTSS_ALPHAARG1],stages[D3DTSS_ALPHAARG2]);
         SetUniform(s,"wooTextureFactor",Color(s.Render(D3DRS_TEXTUREFACTOR)));SetUniform(s,"wooAlphaTest",int(s.Render(D3DRS_ALPHATESTENABLE)));SetUniform(s,"wooAlphaFunc",int(s.Render(D3DRS_ALPHAFUNC)));SetUniform(s,"wooAlphaRef",float(s.Render(D3DRS_ALPHAREF))/255);
         SetUniform(s,"wooFogEnable",int(s.Render(D3DRS_FOGENABLE)));SetUniform(s,"wooFogColor",Color(s.Render(D3DRS_FOGCOLOR)));
-      }
-    } catch(const RenderTargetFeedback&) {
-        // D3D rejects this one invalid draw; Woo ignores its HRESULT and keeps
-        // rendering the remaining objects. Do not turn it into a fatal frame.
-        ++s.feedbackRejected;glActiveTexture(GL_TEXTURE0);return InvalidCall;
     }
     if(batchable){
         s.batchKey=batchKey;s.batchVertices.assign(vertices->begin(),vertices->end());s.batchActive=true;
@@ -638,10 +684,20 @@ HRESULT D3DXCreateTextureFromFileInMemoryEx(IDirect3DDevice9* device,const void*
     }catch(const std::exception& error){std::fprintf(stderr,"Woo texture load: %s\n",error.what());if(*texture){(*texture)->Release();*texture=nullptr;}return E_FAIL;}
 }
 HRESULT D3DXSaveSurfaceToFile(const wchar_t* path,D3DXIMAGE_FILEFORMAT format,IDirect3DSurface9* surface,const void*,const RECT* rectangle){
-    if(!path||!surface||format!=D3DXIFF_PNG)return InvalidCall;
+    if(!path||!surface||(format!=D3DXIFF_PNG&&format!=D3DXIFF_BMP))return InvalidCall;
     try{auto& data=*surface->storage;data.Readback();RECT rect=rectangle?*rectangle:RECT{0,0,LONG(data.width),LONG(data.height)};if(rect.left<0||rect.top<0||rect.right>LONG(data.width)||rect.bottom>LONG(data.height)||rect.left>=rect.right||rect.top>=rect.bottom)return InvalidCall;
         UINT width=rect.right-rect.left,height=rect.bottom-rect.top;std::vector<BYTE> rgba(std::size_t(width)*height*4);for(UINT y=0;y<height;++y)for(UINT x=0;x<width;++x){DWORD pixel=data.pixels[std::size_t(y+rect.top)*data.width+x+rect.left];BYTE* p=rgba.data()+(std::size_t(y)*width+x)*4;p[0]=BYTE(pixel>>16);p[1]=BYTE(pixel>>8);p[2]=BYTE(pixel);p[3]=BYTE(pixel>>24);}
-        png_image image{};image.version=PNG_IMAGE_VERSION;image.width=width;image.height=height;image.format=PNG_FORMAT_RGBA;
-        std::string file=gstd::StringUtility::ConvertWideToMulti(std::wstring(path),65001);Check(png_image_write_to_file(&image,file.c_str(),0,rgba.data(),0,nullptr)!=0,"PNG screenshot write failed");return S_OK;
+        std::string file=gstd::StringUtility::ConvertWideToMulti(std::wstring(path),65001);
+        if(format==D3DXIFF_PNG){png_image image{};image.version=PNG_IMAGE_VERSION;image.width=width;image.height=height;image.format=PNG_FORMAT_RGBA;Check(png_image_write_to_file(&image,file.c_str(),0,rgba.data(),0,nullptr)!=0,"PNG screenshot write failed");return S_OK;}
+        // D3DX's BMP path is used by ph3's public SaveRenderedTexture/Snapshot
+        // APIs. Write a conventional bottom-up 32-bit BI_RGB bitmap so the
+        // Web backend exposes the same script-visible file format.
+        auto u16=[](std::ostream& out,std::uint16_t value){char bytes[2]={char(value),char(value>>8)};out.write(bytes,2);};
+        auto u32=[](std::ostream& out,std::uint32_t value){char bytes[4]={char(value),char(value>>8),char(value>>16),char(value>>24)};out.write(bytes,4);};
+        const std::uint32_t pixelBytes=width*height*4u,fileBytes=14u+40u+pixelBytes;
+        std::ofstream out(file,std::ios::binary);Check(out.good(),"BMP screenshot open failed");
+        out.put('B');out.put('M');u32(out,fileBytes);u16(out,0);u16(out,0);u32(out,54);
+        u32(out,40);u32(out,width);u32(out,height);u16(out,1);u16(out,32);u32(out,0);u32(out,pixelBytes);u32(out,2835);u32(out,2835);u32(out,0);u32(out,0);
+        for(UINT y=height;y-- >0;)for(UINT x=0;x<width;++x){const BYTE* p=rgba.data()+(std::size_t(y)*width+x)*4;const char bgra[4]={char(p[2]),char(p[1]),char(p[0]),char(p[3])};out.write(bgra,4);}Check(out.good(),"BMP screenshot write failed");return S_OK;
     }catch(const std::exception& error){std::fprintf(stderr,"Woo screenshot: %s\n",error.what());return E_FAIL;}
 }

@@ -31,6 +31,33 @@ def blob(value: str | bytes) -> bytes:
     return struct.pack("<I", len(data)) + data
 
 
+def lower_d3d9_trig(glsl: str) -> str:
+    """Mirror FXC ps_2_0/ps_3_0 scalar sin/cos argument reduction.
+
+    FXC lowers HLSL sin/cos to a frac-based wrap into [-pi, pi] before the
+    shader-model-3 sincos instruction.  Leaving SPIR-V Cross' GLSL sin/cos on
+    the unreduced argument is mathematically equivalent but not numerically
+    equivalent enough for hash-style procedural noise such as
+    frac(sin(x)*43758).  Preserve FXC's float constants/instruction order so
+    WebGL sees the same reduced input before its native trig approximation.
+    """
+    replaced = re.sub(r"(?<![A-Za-z0-9_])sin\(", "ph3_d3d9_sin(", glsl)
+    replaced = re.sub(r"(?<![A-Za-z0-9_])cos\(", "ph3_d3d9_cos(", replaced)
+    if replaced == glsl:
+        return glsl
+    helpers = """
+highp float ph3_d3d9_wrap_angle(highp float x) {
+    return fract(x * 0.159154937 + 0.5) * 6.28318548 - 3.14159274;
+}
+highp float ph3_d3d9_sin(highp float x) { return sin(ph3_d3d9_wrap_angle(x)); }
+highp float ph3_d3d9_cos(highp float x) { return cos(ph3_d3d9_wrap_angle(x)); }
+"""
+    marker = "precision highp int;\n"
+    if marker not in replaced:
+        raise ValueError("Missing GLSL precision preamble")
+    return replaced.replace(marker, marker + helpers, 1)
+
+
 def compile_effect(path: Path, virtual: str, output: Path, scratch: Path,
                    glslang: Path, cross: Path) -> dict:
     raw = path.read_bytes()
@@ -122,6 +149,7 @@ def compile_effect(path: Path, virtual: str, output: Path, scratch: Path,
             raise ValueError("Unsupported pixel input: " + str(key))
         interface += ["--rename-interface-variable", "in", str(item["location"]), accepted[key]]
     glsl = run([cross, spirv, "--es", "--version", "300", "--glsl-emit-ubo-as-plain-uniforms", *interface])
+    glsl = lower_d3d9_trig(glsl)
     prefix = ""
     if reflection.get("ubos"):
         if len(reflection["ubos"]) != 1 or reflection["ubos"][0]["name"] != "$Global":
@@ -137,8 +165,29 @@ def compile_effect(path: Path, virtual: str, output: Path, scratch: Path,
     if not fragment_output:
         raise ValueError("Missing output")
     glsl = glsl.replace("void main()", "void ph3_effect_main()")
-    glsl += (f"\nvoid main() {{ ph3_effect_main(); {fragment_output[1]}=clamp({fragment_output[1]},0.0,1.0); "
-             f"if ({fragment_output[1]}.a<=0.0) discard; }}\n")
+    # D3D9 alpha testing happens after the pixel shader, so custom FX must see
+    # the same ALPHATESTENABLE/FUNC/REF state as fixed-function draws.  The old
+    # Web wrapper approximated that with an unconditional alpha<=0 discard,
+    # which was wrong whenever alpha test was disabled or used another ref/func.
+    # Explicit HLSL clip/discard survives through glslang/spirv-cross.
+    glsl += """
+uniform bool ph3AlphaTest;
+uniform int ph3AlphaFunc;
+uniform float ph3AlphaRef;
+bool ph3_alpha_pass(float a) {
+    if (ph3AlphaFunc == 1) return false;
+    if (ph3AlphaFunc == 2) return a < ph3AlphaRef;
+    if (ph3AlphaFunc == 3) return a == ph3AlphaRef;
+    if (ph3AlphaFunc == 4) return a <= ph3AlphaRef;
+    if (ph3AlphaFunc == 5) return a > ph3AlphaRef;
+    if (ph3AlphaFunc == 6) return a != ph3AlphaRef;
+    if (ph3AlphaFunc == 7) return a >= ph3AlphaRef;
+    return true;
+}
+"""
+    glsl += (f"\nvoid main() {{ ph3_effect_main(); "
+             f"{fragment_output[1]}=clamp({fragment_output[1]},0.0,1.0); "
+             f"if (ph3AlphaTest && !ph3_alpha_pass({fragment_output[1]}.a)) discard; }}\n")
     bindings = []
     for texture in reflection.get("textures", []):
         if texture["type"] != "sampler2D" or texture["name"] not in samplers:
