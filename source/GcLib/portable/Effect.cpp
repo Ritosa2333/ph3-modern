@@ -5,6 +5,9 @@
 #include <array>
 #include <map>
 #include <stdexcept>
+#ifdef PH3_PERF_SCAN
+#include <emscripten/emscripten.h>
+#endif
 
 namespace {
 constexpr HRESULT Invalid=static_cast<HRESULT>(0x8876086c);
@@ -26,7 +29,7 @@ GLuint link(const char* vertex,const char* fragment){
 }
 class Effect final:public ID3DXEffect {
 public:
-    std::string technique,fragment,prefix;
+    std::string technique,fragment,prefix,path;
     std::vector<Binding> bindings;
     bool builtin=false;
     ~Effect()override{if(Active()==this)SetActive(nullptr);if(program)glDeleteProgram(program);for(auto& [name,texture]:textures)if(texture)texture->Release();if(black)black->Release();}
@@ -48,11 +51,20 @@ public:
     HRESULT OnResetDevice()override{return S_OK;}
     const std::vector<D3DXMATRIX>* WorldMatrices()const override{auto it=matrices.find("mWorldMatrixArray");return builtin&&it!=matrices.end()?&it->second:nullptr;}
     UINT GetProgram(const char* vertex)override{
-        if(!program){program=link(vertex,fragment.c_str());GLint count=0;glGetProgramiv(program,GL_ACTIVE_UNIFORMS,&count);uniforms.clear();locations.clear();
-            for(int i=0;i<count;++i){char name[1024];GLint size;GLenum type;glGetActiveUniform(program,i,sizeof(name),nullptr,&size,&type,name);std::string key=name;if(key.size()>3&&key.substr(key.size()-3)=="[0]")key.resize(key.size()-3);uniforms[key]={type,size};}}
+        if(!program){
+#ifdef PH3_PERF_SCAN
+            const double compileBegin=emscripten_get_now();
+#endif
+            program=link(vertex,fragment.c_str());GLint count=0;glGetProgramiv(program,GL_ACTIVE_UNIFORMS,&count);uniforms.clear();locations.clear();
+            for(int i=0;i<count;++i){char name[1024];GLint size;GLenum type;glGetActiveUniform(program,i,sizeof(name),nullptr,&size,&type,name);std::string key=name;if(key.size()>3&&key.substr(key.size()-3)=="[0]")key.resize(key.size()-3);uniforms[key]={type,size};}
+#ifdef PH3_PERF_SCAN
+            const double compileMs=emscripten_get_now()-compileBegin;
+            EM_ASM({const d=globalThis.ph3Diagnostics;if(d){const list=d.effectCompiles||(d.effectCompiles=[]);list.push(({path:UTF8ToString($0),ms:$1}));}},path.c_str(),compileMs);
+#endif
+        }
         return program;
     }
-    void ApplyUniforms(IDirect3DDevice9* device)override{
+    bool ApplyUniforms(IDirect3DDevice9* device)override{
         for(const auto& [name,value]:values){
             auto key=prefix+name;auto found=uniforms.find(key);if(found==uniforms.end()||value.empty())continue;
             GLint location=Location(key);auto [type,size]=found->second;
@@ -71,9 +83,11 @@ public:
             IDirect3DBaseTexture9* texture=device->PeekTexture(binding.slot);
             if(!binding.parameter.empty()){auto found=textures.find(binding.parameter);texture=found==textures.end()?nullptr:found->second;
                 if(!texture){if(!black){if(FAILED(device->CreateTexture(1,1,1,0,D3DFMT_A8R8G8B8,D3DPOOL_MANAGED,&black,nullptr)))throw std::runtime_error("Cannot create null sampler");D3DLOCKED_RECT rect;black->LockRect(0,&rect,nullptr,0);*static_cast<DWORD*>(rect.pBits)=0xff000000;black->UnlockRect(0);}texture=black;}}
-            device->BindTextureUnit(unit,texture,binding.slot,binding.states.data());glUniform1i(Location(binding.uniform),unit++);
+            if(!device->BindTextureUnit(unit,texture,binding.slot,binding.states.data())){glActiveTexture(GL_TEXTURE0);return false;}
+            glUniform1i(Location(binding.uniform),unit++);
         }
         glActiveTexture(GL_TEXTURE0);
+        return true;
     }
 private:
     GLuint program=0;
@@ -93,7 +107,7 @@ HRESULT directx::portable::LoadEffect(IDirect3DDevice9*,const std::wstring& path
         auto reader=gstd::FileManager::GetBase()->GetFileReader(path+L".pfx");if(reader==NULL||!reader->Open())throw std::runtime_error("Missing precompiled effect: "+gstd::StringUtility::ConvertWideToMulti(path,CP_UTF8));
         auto bytes=reader->ReadAllString();if(bytes.size()<8||bytes.substr(0,8)!="PH3FX002")throw std::runtime_error("Unsupported effect bundle version");
         Binary data{bytes};if(data.blob()!=source)throw std::runtime_error("Effect sidecar does not match its source");
-        auto effect=std::make_unique<Effect>();effect->technique=data.blob();effect->fragment=data.blob();effect->prefix=data.blob();DWORD count=data.integer();if(count>16)throw std::runtime_error("Too many effect samplers");
+        auto effect=std::make_unique<Effect>();effect->path=gstd::StringUtility::ConvertWideToMulti(path,CP_UTF8);effect->technique=data.blob();effect->fragment=data.blob();effect->prefix=data.blob();DWORD count=data.integer();if(count>16)throw std::runtime_error("Too many effect samplers");
         for(DWORD i=0;i<count;++i){Binding binding;binding.uniform=data.blob();binding.parameter=data.blob();binding.slot=data.integer();for(auto& state:binding.states)state=data.integer();if(binding.slot>=16)throw std::runtime_error("Invalid effect sampler slot");effect->bindings.push_back(std::move(binding));}
         if(data.offset!=bytes.size())throw std::runtime_error("Unexpected trailing effect data");*output=effect.release();return S_OK;
     }catch(const std::exception& failure){return error(failure,errors);}

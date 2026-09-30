@@ -3,6 +3,10 @@
 #include "Logger.hpp"
 #ifdef __EMSCRIPTEN__
 #include "../portable/Utf16.hpp"
+#include <functional>
+#ifdef PH3_PERF_SCAN
+#include <emscripten/emscripten.h>
+#endif
 #endif
 
 using namespace gstd;
@@ -278,6 +282,146 @@ std::wstring ScriptClientBase::_GetErrorLineSource(int line)
 }
 std::vector<char> ScriptClientBase::_Include(std::vector<char>& source)
 {
+#ifdef __EMSCRIPTEN__
+	// The original implementation expands one directive, rebuilds the entire
+	// flattened source, then rescans it from byte zero. Large ph3 scripts share
+	// many common includes, so that becomes O(includes * flattened bytes) and
+	// costs multiple seconds in WebAssembly. Expand each physical file exactly
+	// once instead. Normalize to UTF-16LE up front so recursive appends never
+	// need to reconvert the already-expanded prefix.
+	auto toUtf16 = [](const std::vector<char>& input) {
+		if (input.size() >= 2 && Encoding::IsUtf16Le(input.data(), input.size())) {
+			std::vector<char> result = input;
+			if (result.size() & 1) result.pop_back();
+			return result;
+		}
+		std::string narrow(input.begin(), input.end());
+		return portable::EncodeUtf16(StringUtility::ConvertMultiToWide(narrow), true);
+	};
+	auto textEnd = [](const std::vector<char>& input) {
+		std::size_t end=input.size();
+		while(end>=2&&input[end-1]==0&&input[end-2]==0)end-=2;
+		return end;
+	};
+	auto newLines = [](const std::vector<char>& input,std::size_t begin,std::size_t end) {
+		int count=0;
+		begin+=(begin&1);
+		end-=((end-begin)&1);
+		for(std::size_t i=begin;i+1<end;i+=2)
+			if(portable::ReadUtf16Unit(input.data()+i)==L'\n')++count;
+		return count;
+	};
+	auto root=toUtf16(source);
+	const std::wstring pathSource=engine_->GetPath();
+	auto mapLine=gstd::ref_count_ptr<ScriptFileLineMap>(new ScriptFileLineMap());
+	engine_->SetScriptFileLineMap(mapLine);
+	const std::size_t rootStart=Encoding::GetBomSize(root.data(),root.size());
+	const std::size_t rootEnd=textEnd(root);
+	mapLine->AddEntry(pathSource,1,newLines(root,rootStart,rootEnd)+1);
+
+	FileManager* fileManager=FileManager::GetBase();
+	std::set<std::wstring> setReadPath;
+	std::vector<char> output;
+	output.reserve(std::max<std::size_t>(1024*1024,root.size()*4));
+	output.push_back(static_cast<char>(Encoding::BOM_UTF16LE[0]));
+	output.push_back(static_cast<char>(Encoding::BOM_UTF16LE[1]));
+	int outputLine=1;
+
+	const auto append=[&](const std::vector<char>& input,std::size_t begin,std::size_t end){
+		if(end<=begin)return;
+		output.insert(output.end(),input.begin()+begin,input.begin()+end);
+		outputLine+=newLines(input,begin,end);
+	};
+	// Parsing include directives dominates repeated boss-script compilation:
+	// each script contains most of the same several-hundred-KiB library tree.
+	// Runtime game files are immutable for the lifetime of a browser instance,
+	// so cache the normalized text and directive locations of physical include
+	// files. Duplicate suppression remains per root compile below, preserving
+	// ph3's original "first include wins" behavior and line-map ordering.
+	struct IncludeDirective {
+		std::size_t begin=0;
+		std::size_t end=0;
+		std::wstring path;
+	};
+	struct IncludeFile {
+		std::vector<char> text;
+		std::size_t begin=0;
+		std::size_t end=0;
+		int lines=1;
+		std::vector<IncludeDirective> directives;
+	};
+	auto prepare=[&](const std::vector<char>& encoded){
+		IncludeFile file;
+		file.text=toUtf16(encoded);
+		file.begin=Encoding::GetBomSize(file.text.data(),file.text.size());
+		file.end=textEnd(file.text);
+		file.lines=newLines(file.text,file.begin,file.end)+1;
+		Scanner scanner(file.text);
+		while(scanner.HasNext()){
+			Token& first=scanner.Next();
+			if(first.GetType()==Token::TK_EOF)break;
+			if(first.GetType()!=Token::TK_SHARP)continue;
+			const int posInclude=first.GetStartPointer();
+			Token& directive=scanner.Next();
+			if(directive.GetElement()!=L"include")continue;
+			Token& pathToken=scanner.Next();
+			if(pathToken.GetType()!=Token::TK_STRING)
+				throw gstd::wexception(L"#include requires a quoted path");
+			const std::wstring includeLiteral=pathToken.GetString();
+			const int posAfterInclude=scanner.GetCurrentPointer();
+			if(scanner.HasNext()){
+				Token& newline=scanner.Next();
+				if(newline.GetType()!=Token::TK_NEWLINE)
+					throw gstd::wexception(L"New line is not found after #include.\r\n(#include後に改行がありません)");
+				scanner.SetCurrentPointer(posAfterInclude);
+			}
+			file.directives.push_back({static_cast<std::size_t>(posInclude),static_cast<std::size_t>(posAfterInclude),includeLiteral});
+		}
+		return file;
+	};
+	static std::map<std::wstring,IncludeFile> includeCache;
+	auto loadInclude=[&](const std::wstring& path)->IncludeFile&{
+		auto found=includeCache.find(path);
+		if(found!=includeCache.end())return found->second;
+		auto reader=fileManager->GetFileReader(path);
+		if(reader==NULL||!reader->Open()){
+			std::wstring error=StringUtility::Format(L"#Include file is not found[%s].\r\n(#includeで置換するファイル[%s]が見つかりません)",path.c_str(),path.c_str());
+			throw gstd::wexception(error);
+		}
+		const int size=reader->GetFileSize();
+		std::vector<char> bytes(size);
+		if(size&&reader->Read(bytes.data(),size)!=static_cast<DWORD>(size))
+			throw gstd::wexception(L"Incomplete #include read");
+		return includeCache.emplace(path,prepare(bytes)).first->second;
+	};
+	IncludeFile rootFile=prepare(root);
+	std::function<void(const std::wstring&,const IncludeFile&)> expand;
+	expand=[&](const std::wstring& currentPath,const IncludeFile& file){
+		std::size_t cursor=file.begin;
+		for(const auto& directive:file.directives){
+			append(file.text,cursor,std::min(directive.begin,file.end));
+			std::wstring includePath=directive.path;
+			if(includePath.find(L"../")==0||includePath.find(L"..\\")==0)
+				includePath=L"./"+includePath;
+			if(includePath.find(L".\\")!=std::wstring::npos||includePath.find(L"./")!=std::wstring::npos){
+				std::wstring directory=PathProperty::GetFileDirectory(currentPath);
+				includePath=directory.substr(PathProperty::GetModuleDirectory().size())+includePath.substr(2);
+			}
+			includePath=PathProperty::GetUnique(PathProperty::GetModuleDirectory()+includePath);
+			if(setReadPath.insert(includePath).second){
+				IncludeFile& child=loadInclude(includePath);
+				mapLine->AddEntry(includePath,outputLine,child.lines);
+				expand(includePath,child);
+			}
+			cursor=std::min(directive.end,file.end);
+		}
+		append(file.text,cursor,file.end);
+	};
+	expand(pathSource,rootFile);
+	output.push_back(0);
+	output.push_back(0);
+	return output;
+#else
 	//TODO とりあえず実装
 	std::wstring pathSource = engine_->GetPath();
 	std::vector<char> res = source;
@@ -532,6 +676,7 @@ std::vector<char> ScriptClientBase::_Include(std::vector<char>& source)
 		res.push_back(0);
 
 	return res;
+#endif
 }
 bool ScriptClientBase::_CreateEngine()
 {
@@ -584,10 +729,27 @@ void ScriptClientBase::SetSource(std::vector<char>& source)
 void ScriptClientBase::Compile()
 {
 	if (engine_->GetEngine() == NULL) {
+#if defined(__EMSCRIPTEN__) && defined(PH3_PERF_SCAN)
+		auto perfPath=StringUtility::ConvertWideToMulti(engine_->GetPath(),CP_UTF8);
+		double perfBegin=emscripten_get_now();
+#endif
 		std::vector<char> source = _Include(engine_->GetSource());
+#if defined(__EMSCRIPTEN__) && defined(PH3_PERF_SCAN)
+		double perfInclude=emscripten_get_now()-perfBegin;
+		perfBegin=emscripten_get_now();
+#endif
 		engine_->SetSource(source);
 
 		_CreateEngine();
+#if defined(__EMSCRIPTEN__) && defined(PH3_PERF_SCAN)
+		double perfEngine=emscripten_get_now()-perfBegin;
+		EM_ASM({
+			const d=globalThis.ph3Diagnostics;if(!d)return;
+			const list=d.scriptCompilePhases||(d.scriptCompilePhases=[]);
+			list.push(({path:UTF8ToString($0),includeMs:$1,engineMs:$2,bytes:$3}));
+			if(list.length>256)list.splice(0,list.length-256);
+		},perfPath.c_str(),perfInclude,perfEngine,double(source.size()));
+#endif
 		if (engine_->GetEngine()->get_error()) {
 			bError_ = true;
 			_RaiseErrorFromEngine();
@@ -1137,12 +1299,11 @@ value ScriptClientBase::Func_GetCommonData(script_machine* machine, int argc, va
 
 	std::string key = to_mbcs(argv[0].as_string());
 	value dv = argv[1];
-	if (!commonDataManager->IsExists(area))
-		return dv;
 	gstd::ref_count_ptr<ScriptCommonData> data = commonDataManager->GetData(area);
-	if (!data->IsExists(key))
+	if (data == NULL)
 		return dv;
-	return data->GetValue(key);
+	value result;
+	return data->TryGetValue(key, result) ? result : dv;
 }
 value ScriptClientBase::Func_ClearCommonData(script_machine* machine, int argc, value const* argv)
 {
@@ -1192,12 +1353,11 @@ value ScriptClientBase::Func_GetAreaCommonData(script_machine* machine, int argc
 	std::string area = to_mbcs(argv[0].as_string());
 	std::string key = to_mbcs(argv[1].as_string());
 	value dv = argv[2];
-	if (!commonDataManager->IsExists(area))
-		return dv;
 	gstd::ref_count_ptr<ScriptCommonData> data = commonDataManager->GetData(area);
-	if (!data->IsExists(key))
+	if (data == NULL)
 		return dv;
-	return data->GetValue(key);
+	value result;
+	return data->TryGetValue(key, result) ? result : dv;
 }
 value ScriptClientBase::Func_ClearAreaCommonData(script_machine* machine, int argc, value const* argv)
 {
@@ -1370,7 +1530,7 @@ void ScriptCommonDataManager::Clear()
 {
 	mapData_.clear();
 }
-bool ScriptCommonDataManager::IsExists(std::string name)
+bool ScriptCommonDataManager::IsExists(const std::string& name)
 {
 	return mapData_.find(name) != mapData_.end();
 }
@@ -1387,11 +1547,10 @@ void ScriptCommonDataManager::CopyArea(std::string nameDest, std::string nameSrc
 	dataDest->Copy(dataSrc);
 	mapData_[nameDest] = dataDest;
 }
-gstd::ref_count_ptr<ScriptCommonData> ScriptCommonDataManager::GetData(std::string name)
+gstd::ref_count_ptr<ScriptCommonData> ScriptCommonDataManager::GetData(const std::string& name)
 {
-	if (!IsExists(name))
-		return NULL;
-	return mapData_[name];
+	auto itr = mapData_.find(name);
+	return itr == mapData_.end() ? gstd::ref_count_ptr<ScriptCommonData>() : itr->second;
 }
 void ScriptCommonDataManager::SetData(std::string name, gstd::ref_count_ptr<ScriptCommonData> commonData)
 {
@@ -1420,15 +1579,22 @@ void ScriptCommonData::Clear()
 {
 	mapValue_.clear();
 }
-bool ScriptCommonData::IsExists(std::string name)
+bool ScriptCommonData::IsExists(const std::string& name)
 {
 	return mapValue_.find(name) != mapValue_.end();
 }
-gstd::value ScriptCommonData::GetValue(std::string name)
+gstd::value ScriptCommonData::GetValue(const std::string& name)
 {
-	if (!IsExists(name))
-		return value();
-	return mapValue_[name];
+	auto itr = mapValue_.find(name);
+	return itr == mapValue_.end() ? value() : itr->second;
+}
+bool ScriptCommonData::TryGetValue(const std::string& name, gstd::value& result)
+{
+	auto itr = mapValue_.find(name);
+	if (itr == mapValue_.end())
+		return false;
+	result = itr->second;
+	return true;
 }
 void ScriptCommonData::SetValue(std::string name, gstd::value v)
 {

@@ -13,6 +13,36 @@ double nextStateReport=0;
 double measureStart=-1;
 unsigned measuredSteps=0,measuredPresents=0;
 std::vector<double> frameCosts;
+#ifdef PH3_PERF_SCAN
+void reportSlowFrame(double cost,int kind){
+    if(cost<1000.0/60)return;
+    auto manager=ETaskManager::GetInstance();
+    if(!manager)return;
+    for(auto task:manager->GetTaskList()){
+        auto system=dynamic_cast<StgSystemController*>(task.GetPointer());
+        if(!system)continue;
+        auto stage=system->GetStageController();
+        if(!stage)return;
+        auto state=stage->GetStageInformation();
+        EM_ASM({
+            const d=globalThis.ph3Diagnostics;if(!d)return;
+            const p=d.perfScan||(d.perfScan=({stages:{},slowFrames:0}));
+            ++p.slowFrames;
+            const index=$2;
+            const s=p.stages[index]||(p.stages[index]=({slow16:0,slow33:0,slow50:0,maxFrameMs:0,maxPresentMs:0}));
+            ++s.slow16;if($0>=1000/30)++s.slow33;if($0>=50)++s.slow50;
+            const field=$1?'maxPresentMs':'maxFrameMs';
+            if($0>s[field]){
+                s[field]=$0;s[$1?'maxPresent':'maxFrame']=({frame:$3,enemies:$4,playerShots:$5,enemyShots:$6});
+            }
+        },cost,kind,state->GetStageIndex(),state->GetCurrentFrame(),
+          stage->GetEnemyManager()->GetEnemyCount(),
+          stage->GetShotManager()->GetShotCount(StgShotObject::OWNER_PLAYER),
+          stage->GetShotManager()->GetShotCount(StgShotObject::OWNER_ENEMY));
+        return;
+    }
+}
+#endif
 void measure(double begin,unsigned steps,bool presented){
     double now=emscripten_get_now();
     if(measureStart<0)measureStart=begin;
@@ -64,12 +94,34 @@ EM_BOOL frame(double now,void*){
     if(EM_ASM_INT({return document.hidden?1:0;})){previous=-1;accumulated=0;nextStateReport=0;measureStart=-1;measuredSteps=measuredPresents=0;frameCosts.clear();return EM_TRUE;}
     accumulated+=previous<0?0:std::min(100.0,now-previous);previous=now;
     try {
+        // Native has a real loader thread. On Web process at most one queued
+        // load per browser callback so unrelated async loads no longer become
+        // one giant synchronous hitch.
+        if(auto* files=FileManager::GetBase())files->PumpLoads();
         const bool observePerformance=EM_ASM_INT({return globalThis.ph3Diagnostics?.observePerformance?1:0;})!=0;
         const double begin=observePerformance?emscripten_get_now():0;
         unsigned steps=0;
         bool rendered=false;
         auto device=EDirectGraphics::GetInstance()->GetDevice();
         device->BeginBrowserFrame();
+#ifdef PH3_PERF_SCAN
+        const int fastSteps=EM_ASM_INT({
+            const value=Number(Module['ph3PerfFastSteps']||0);
+            return Number.isFinite(value)?Math.max(0,Math.min(64,value|0)):0;
+        });
+        if(fastSteps>1){
+            accumulated=0;
+            for(int i=0;i<fastSteps;++i){
+                const bool render=i+1==fastSteps;
+                const double tickBegin=emscripten_get_now();
+                if(!EApplication::GetInstance()->RunFrame(render))return EM_FALSE;
+                const double tickCost=emscripten_get_now()-tickBegin;
+                reportSlowFrame(tickCost,0);
+                if(!EApplication::GetInstance()->DidBrowserFrameWork())continue;
+                ++frames;++steps;rendered=rendered||render;
+            }
+        }else
+#endif
         while(accumulated+0.001>=1000.0/60){
             accumulated-=1000.0/60;
             const bool render=accumulated+0.001<1000.0/60;
@@ -93,8 +145,16 @@ EM_BOOL frame(double now,void*){
             if(!reportState())return EM_FALSE;
             nextStateReport=now+100.0;
         }
-        if(rendered&&FAILED(device->Present(nullptr,nullptr,nullptr,nullptr)))
-            throw std::runtime_error("Browser presentation failed");
+        if(rendered){
+#ifdef PH3_PERF_SCAN
+            const double presentBegin=emscripten_get_now();
+#endif
+            if(FAILED(device->Present(nullptr,nullptr,nullptr,nullptr)))
+                throw std::runtime_error("Browser presentation failed");
+#ifdef PH3_PERF_SCAN
+            reportSlowFrame(emscripten_get_now()-presentBegin,1);
+#endif
+        }
         if(observePerformance)measure(begin,steps,rendered);
         EM_ASM({if(globalThis.ph3Diagnostics)globalThis.ph3Diagnostics.frames=$0;},frames);
     }catch(gstd::wexception& error){fail(gstd::StringUtility::ConvertWideToMulti(error.what(),CP_UTF8));}

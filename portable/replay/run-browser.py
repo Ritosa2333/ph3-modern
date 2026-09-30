@@ -25,6 +25,10 @@ def main() -> None:
     parser.add_argument('--trace', action='store_true', help='Diagnostic build only; not a performance measurement')
     parser.add_argument('--detail-tick', type=int, default=-1)
     parser.add_argument('--stages', type=int, default=0, help='Explicit prefix scope; zero selects the whole fixture')
+    parser.add_argument('--perf-fast-steps', type=int, default=0,
+                        help='Diagnostic PH3_PERF_SCAN build: logic ticks per browser callback (2-64)')
+    parser.add_argument('--allow-mismatch', action='store_true',
+                        help='Keep traversing natural replay boundaries after score/frame divergence')
     args = parser.parse_args()
     fixture_path = GAME / 'script/th_hsob/replay' / args.fixture
     if fixture_path.name != args.fixture or not fixture_path.is_file():
@@ -35,7 +39,10 @@ def main() -> None:
     args.out.mkdir(parents=True, exist_ok=True)
     report = {'fixture': fixture, 'errors': [], 'consoleErrors': [], 'failedRequests': [],
               'checkpoints': [], 'completed': False, 'requestedStages':stage_count,
-              'fullFixture':stage_count==len(fixture['stages'])}
+              'fullFixture':stage_count==len(fixture['stages']),
+              'perfFastSteps':args.perf_fast_steps, 'allowMismatch':args.allow_mismatch}
+    if args.perf_fast_steps and not 2 <= args.perf_fast_steps <= 64:
+        raise ValueError('perf-fast-steps must be 2..64')
     with sync_playwright() as pw:
         browser = pw.chromium.launch(channel='msedge', headless=not args.headed)
         page = browser.new_page(viewport={'width': 1100, 'height': 1000})
@@ -131,8 +138,11 @@ def main() -> None:
             state = checkpoint('04-playing')
             if not state.get('stage', {}).get('replay'):
                 raise RuntimeError('Did not enter native replay mode')
+            if args.perf_fast_steps:
+                page.evaluate('steps => {ph3Runtime.ph3PerfFastSteps=steps;}', args.perf_fast_steps)
             started = time.monotonic()
-            deadline = started + (args.seconds or fixture['declaredFrames'] / 60 * 2 + 240)
+            speed = args.perf_fast_steps or 1
+            deadline = started + (args.seconds or fixture['declaredFrames'] / 60 / speed * 4 + 240)
             last_boundary_count = -1
             checked_ends = 0
             with (args.out / 'samples.jsonl').open('w', encoding='utf-8') as samples:
@@ -156,7 +166,8 @@ def main() -> None:
                         report.setdefault('stageResults', []).append(result)
                         checked_ends += 1
                         save()
-                        if not result['recordedScoreMatches'] or not result['recordedFrameMatches']:
+                        if (not args.allow_mismatch and
+                                (not result['recordedScoreMatches'] or not result['recordedFrameMatches'])):
                             raise RuntimeError(f"First replay mismatch at stage {end['index']}: "
                                                f"frame {end['frame']}/{end['expectedFrame']}, "
                                                f"score {end['score']}/{end['expectedScore']}")

@@ -1,5 +1,59 @@
 #include"StgStageController.hpp"
 #include"StgSystem.hpp"
+#ifdef __EMSCRIPTEN__
+#include <filesystem>
+#include <fstream>
+#if defined(PH3_PERF_SCAN)
+#include <emscripten/emscripten.h>
+#endif
+
+namespace {
+void PrecompileStageScripts(StgStageController* stageController, const std::wstring& mainScriptPath, int stageIndex)
+{
+	namespace fs = std::filesystem;
+	fs::path stageRoot = fs::path(mainScriptPath).parent_path() / ("stage" + std::to_string(stageIndex));
+	if (!fs::exists(stageRoot)) return;
+
+#if defined(PH3_PERF_SCAN)
+	const double begin = emscripten_get_now();
+	int compiled = 0;
+#endif
+	for (const auto& entry : fs::recursive_directory_iterator(stageRoot)) {
+		if (!entry.is_regular_file() || entry.path().extension() != ".dnh") continue;
+		auto filename = entry.path().filename().string();
+		if (filename == "BGTEST.dnh" || filename == "Damage.dnh") continue;
+
+		std::ifstream input(entry.path(), std::ios::binary);
+		if (!input) continue;
+		std::string source((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+		if (source.find("@Initialize") == std::string::npos) continue;
+
+		try {
+			gstd::ref_count_ptr<StgStageScript> script = new StgStageScript(stageController);
+			script->SetSourceFromFile(entry.path().wstring());
+			script->Compile();
+#if defined(PH3_PERF_SCAN)
+			++compiled;
+#endif
+		}
+		catch (gstd::wexception& error) {
+			// Prewarming is opportunistic. An unused/debug script must not make an
+			// otherwise valid stage fail to start; normal loading will still report
+			// the real error if the game actually requests that script later.
+			Logger::WriteTop(StringUtility::Format(L"Web script prewarm skipped [%s]: %s",
+				entry.path().wstring().c_str(), error.what()));
+		}
+	}
+#if defined(PH3_PERF_SCAN)
+	const double elapsed = emscripten_get_now() - begin;
+	EM_ASM({
+		const d=globalThis.ph3Diagnostics;if(!d)return;
+		d.stageScriptPrewarm=({stage:$0,count:$1,ms:$2});
+	}, stageIndex, compiled, elapsed);
+#endif
+}
+}
+#endif
 #if defined(PH3_REPLAY_BOUNDARY) || defined(WOO_REPLAY_VERIFY)
 #include "../../../portable/replay/Boundary.hpp"
 #endif
@@ -158,6 +212,14 @@ void StgStageController::Initialize(ref_count_ptr<StgStageStartData> startData)
 
 	ELogger::WriteTop(StringUtility::Format(L"メインスクリプト[%s]", infoMain->GetScriptPath().c_str()));
 
+#ifdef __EMSCRIPTEN__
+	// Browser builds cannot run the original loader thread without changing the
+	// deployment/threading model. Compile this stage's executable scripts into
+	// the existing ScriptEngineCache up front so dialogue/boss transitions only
+	// instantiate a machine instead of paying a 300-400 ms first compile.
+	PrecompileStageScripts(this, infoMain->GetScriptPath(), infoStage_->GetStageIndex());
+#endif
+
 	//システムスクリプト
 	std::wstring pathSystemScript = infoMain->GetSystemPath();
 	if(pathSystemScript == ScriptInformation::DEFAULT)
@@ -250,6 +312,14 @@ void StgStageController::Initialize(ref_count_ptr<StgStageStartData> startData)
 			player->Play(style);
 		}
 	}
+
+#ifdef __EMSCRIPTEN__
+	// Windows performs LoadScriptInThread/texture/mesh work on its loader
+	// thread. Finish the preload requests created by stage initialization here,
+	// before the first gameplay frame, so boss/dialogue transitions do not pay
+	// hundreds of milliseconds of compile/load work on demand.
+	FileManager::GetBase()->WaitForThreadLoadComplete();
+#endif
 
 	//リプレイ関連(スクリプト初期化後)
 	if(!infoStage_->IsReplay())

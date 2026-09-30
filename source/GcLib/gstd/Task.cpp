@@ -1,4 +1,7 @@
 #include"Task.hpp"
+#if defined(__EMSCRIPTEN__) && defined(PH3_PERF_SCAN)
+#include <emscripten/emscripten.h>
+#endif
 
 using namespace gstd;
 
@@ -216,7 +219,26 @@ void TaskManager::CallFunction(int divFunc)
 			if(*itrFunc==NULL)continue;
 			if((*itrFunc)->bEnable_ == false)continue;
 			if((*itrFunc)->IsDelay())continue;
+#if defined(__EMSCRIPTEN__) && defined(PH3_PERF_SCAN)
+			const double perfBegin=emscripten_get_now();
+#endif
 			(*itrFunc)->Call();
+#if defined(__EMSCRIPTEN__) && defined(PH3_PERF_SCAN)
+			const double perfMs=emscripten_get_now()-perfBegin;
+			if(perfMs>=1000.0/60){
+				auto task=(*itrFunc)->task_;
+				const char* typeName=task!=NULL?typeid(*task.GetPointer()).name():"<null>";
+				const int priority=static_cast<int>(itrPri-vectPri.begin());
+				const int taskId=task!=NULL?task->GetTaskID():TASK_FREE_ID;
+				const double taskIndex=task!=NULL?static_cast<double>(task->GetTaskIndex()):-1;
+				EM_ASM({
+					const d=globalThis.ph3Diagnostics;if(!d)return;
+					const list=d.taskLongCalls||(d.taskLongCalls=[]);
+					list.push(({type:UTF8ToString($0),ms:$1,division:$2,priority:$3,taskId:$4,functionId:$5,taskIndex:$6}));
+					if(list.length>256)list.splice(0,list.length-256);
+				},typeName,perfMs,divFunc,priority,taskId,(*itrFunc)->GetID(),taskIndex);
+			}
+#endif
 		}
 	}
 	_ArrangeTask();

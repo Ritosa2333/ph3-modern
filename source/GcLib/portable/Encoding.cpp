@@ -54,6 +54,7 @@ std::wstring DecodeText(const std::string& text, unsigned codePage) {
 
 std::string EncodeText(const std::wstring& text, unsigned codePage, bool* usedDefault) {
     std::string result;
+    result.reserve(codePage == CP_UTF8 ? text.size() * 2 : text.size());
     if (usedDefault) *usedDefault = false;
     for (std::size_t i = 0; i < text.size(); ++i) {
         unsigned point = static_cast<unsigned>(text[i]);
@@ -62,7 +63,12 @@ std::string EncodeText(const std::wstring& text, unsigned codePage, bool* usedDe
             if (low >= 0xdc00 && low <= 0xdfff) { point = 0x10000 + ((point - 0xd800) << 10) + low - 0xdc00; ++i; }
         }
         if (codePage == 932 || codePage == CP_ACP) {
-            unsigned code = Lookup(Cp932Encode, point, 0xffffffffu);
+            // ASCII and JIS X 0201 half-width katakana are direct CP932 ranges.
+            // Common-data names and keys usually stay on this fast path.
+            unsigned code;
+            if (point <= 0x7f) code = point;
+            else if (point >= 0xff61 && point <= 0xff9f) code = 0xa1 + (point - 0xff61);
+            else code = Lookup(Cp932Encode, point, 0xffffffffu);
             if (code == 0xffffffffu) { code = '?'; if (usedDefault) *usedDefault = true; }
             if (code > 255) result.push_back(static_cast<char>(code >> 8));
             result.push_back(static_cast<char>(code));

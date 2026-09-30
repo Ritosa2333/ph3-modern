@@ -361,7 +361,7 @@ public:
 	void AddListener(FileManager::LoadThreadListener* listener);
 	void RemoveListener(FileManager::LoadThreadListener* listener);
 #ifdef __EMSCRIPTEN__
-	void Drain();
+	void Drain(bool all=false);
 #endif
 
 protected:

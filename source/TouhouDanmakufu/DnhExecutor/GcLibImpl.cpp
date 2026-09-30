@@ -4,6 +4,64 @@
 
 #ifdef __EMSCRIPTEN__
 #include <SDL3/SDL.h>
+#include <algorithm>
+#include <filesystem>
+#include <vector>
+#ifdef PH3_PERF_SCAN
+#include <emscripten/emscripten.h>
+namespace {
+void ReportPerfPhase(const char* phase,double ms){
+	if(ms < 1000.0 / 60)return;
+	EM_ASM({
+		const d=globalThis.ph3Diagnostics;if(!d)return;
+		const all=d.perfPhases||(d.perfPhases=({}));
+		const name=UTF8ToString($0);
+		const p=all[name]||(all[name]=({slow16:0,slow33:0,slow50:0,maxMs:0}));
+		++p.slow16;if($1>=1000/30)++p.slow33;if($1>=50)++p.slow50;if($1>p.maxMs)p.maxMs=$1;
+	},phase,ms);
+}
+}
+#endif
+#ifndef PH3_PERF_SCAN
+namespace {
+#endif
+void PrewarmWebEffects(EShaderManager* shaderManager, EDirectGraphics* graphics){
+	std::vector<std::string> sources;
+	const std::filesystem::path root("/game/script/th_hsob");
+	if(!std::filesystem::exists(root))return;
+	for(const auto& entry:std::filesystem::recursive_directory_iterator(root)){
+		if(!entry.is_regular_file()||entry.path().extension()!=".pfx")continue;
+		auto source=entry.path();
+		source.replace_extension();
+		sources.push_back(source.generic_string());
+	}
+	std::sort(sources.begin(),sources.end());
+	auto device=graphics->GetDevice();
+	for(const auto& source:sources){
+#ifdef PH3_PERF_SCAN
+		const double begin=emscripten_get_now();
+#endif
+		auto path=StringUtility::ConvertMultiToWide(source,CP_UTF8);
+		auto shader=shaderManager->CreateFromFile(path);
+		if(shader==NULL||FAILED(device->WarmEffectProgram(shader->GetEffect())))
+			throw std::runtime_error("Cannot prewarm Web effect: "+source);
+		// CreateFromFile only guarantees ShaderData retention. Keep the Shader
+		// itself in the manager too, otherwise its destructor releases the data
+		// immediately and the first gameplay use links the same program again.
+		shaderManager->AddShader(path,shader);
+#ifdef PH3_PERF_SCAN
+		const double elapsed=emscripten_get_now()-begin;
+		EM_ASM({
+			const d=globalThis.ph3Diagnostics;if(!d)return;
+			const list=d.effectPrewarm||(d.effectPrewarm=[]);
+			list.push(({path:UTF8ToString($0),ms:$1}));
+		},source.c_str(),elapsed);
+#endif
+	}
+}
+#ifndef PH3_PERF_SCAN
+}
+#endif
 #endif
 
 /**********************************************************
@@ -65,6 +123,12 @@ bool EApplication::_Initialize()
 	EDirectSoundManager* soundManager = EDirectSoundManager::CreateInstance();
 	soundManager->Initialize(hWndMain);
 
+#ifdef __EMSCRIPTEN__
+	// WebGL compiles/links Effect programs lazily. Pay that cost while the game
+	// is still starting instead of on the first dialogue/transition draw.
+	PrewarmWebEffects(shaderManager, graphics);
+#endif
+
 	EDirectInput* input = EDirectInput::CreateInstance();
 	input->Initialize(hWndMain);
 
@@ -120,7 +184,13 @@ bool EApplication::_Loop()
 	EDirectGraphics* graphics = EDirectGraphics::GetInstance();
 
 	EDirectInput* input = EDirectInput::GetInstance();
+#ifdef PH3_PERF_SCAN
+	double perfBegin=emscripten_get_now();
+#endif
 	input->Update();
+#ifdef PH3_PERF_SCAN
+	ReportPerfPhase("input",emscripten_get_now()-perfBegin);
+#endif
 #ifdef __EMSCRIPTEN__
 	SDL_Window* sdlFocused = SDL_GetKeyboardFocus();
 	HWND hWndFocused = reinterpret_cast<HWND>(sdlFocused);
@@ -141,20 +211,38 @@ bool EApplication::_Loop()
 #ifdef __EMSCRIPTEN__
 	browserFrameWorked_ = true;
 #endif
+#ifdef PH3_PERF_SCAN
+	perfBegin=emscripten_get_now();
+#endif
 	taskManager->CallWorkFunction();
+#ifdef PH3_PERF_SCAN
+	ReportPerfPhase("work",emscripten_get_now()-perfBegin);
+#endif
 
 #ifdef __EMSCRIPTEN__
 	if (browserRenderEnabled_) {
 #else
 	if (!fpsController->IsSkip()) {
 #endif
+#ifdef PH3_PERF_SCAN
+		perfBegin=emscripten_get_now();
+#endif
 		graphics->BeginScene();
 		taskManager->CallRenderFunction();
 		graphics->EndScene();
+#ifdef PH3_PERF_SCAN
+		ReportPerfPhase("render",emscripten_get_now()-perfBegin);
+#endif
 	}
 
 #ifdef __EMSCRIPTEN__
+#ifdef PH3_PERF_SCAN
+	perfBegin=emscripten_get_now();
+#endif
 	EDirectSoundManager::GetInstance()->Pump();
+#ifdef PH3_PERF_SCAN
+	ReportPerfPhase("audio",emscripten_get_now()-perfBegin);
+#endif
 #else
 	fpsController->Wait();
 #endif
