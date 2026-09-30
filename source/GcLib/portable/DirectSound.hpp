@@ -13,7 +13,7 @@ class SoundInfo;
 class SoundDivision;
 class SoundPlayer;
 class SoundInfoPanel;
-namespace portable { struct AudioClip; }
+namespace portable { struct AudioClip; struct VorbisStream; }
 class DirectSoundManager {
 public:
     friend SoundPlayer;
@@ -107,6 +107,7 @@ protected:
     DirectSoundManager* manager_=nullptr;
     gstd::ref_count_ptr<SoundDivision> division_;
     std::shared_ptr<portable::AudioClip> clip_;
+    std::unique_ptr<portable::VorbisStream> vorbis_;
     bool bLoop_=false,bPause_=false,bDelete_=false,bFadeDelete_=false,bAutoDelete_=false,playing_=false;
     bool streaming_=false;
     double rateVolume_=100,rateVolumeFadePerSec_=0,pan_=0,position_=0,timeLoopStart_=0,timeLoopEnd_=0;

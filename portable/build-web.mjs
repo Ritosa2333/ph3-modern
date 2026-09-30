@@ -58,7 +58,7 @@ const flags = [
   '--use-port=vorbis',
 ];
 // Audio ports can be selected without a second ad-hoc compiler command.
-if (variant === 'verify') flags.push('-DWOO_REPLAY_VERIFY=1', '-DWOO_TRACE_MKM_RNG=1');
+if (variant === 'verify') flags.push('-DWOO_REPLAY_VERIFY=1', '-DWOO_TRACE_MKM_RNG=1', '-DPH3_WEB_GL_ERROR_CHECK=1');
 if (variant === 'boundary') flags.push('-DPH3_REPLAY_BOUNDARY=1');
 if (process.env.PH3_EXTRA_FLAGS) flags.push(...JSON.parse(process.env.PH3_EXTRA_FLAGS));
 const toolchain = spawnSync(python, [emcc, '--version'], {env, encoding: 'utf8', windowsHide: true});

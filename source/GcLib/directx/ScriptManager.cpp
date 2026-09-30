@@ -1,4 +1,7 @@
 #include"ScriptManager.hpp"
+#if defined(__EMSCRIPTEN__) && defined(PH3_PERF_SCAN)
+#include <emscripten/emscripten.h>
+#endif
 
 using namespace gstd;
 using namespace directx;
@@ -96,6 +99,11 @@ void ScriptManager::StartScript(_int64 id)
 
 	if(!script->IsLoad())
 	{
+#ifdef __EMSCRIPTEN__
+		// Native waits for the background loader here. Web preserves the queue
+		// contract cooperatively and only drains it when this script is needed.
+		FileManager::GetBase()->WaitForThreadLoadComplete();
+#endif
 		int count = 0;
 		while(!script->IsLoad())
 		{
@@ -199,10 +207,31 @@ _int64 ScriptManager::_LoadScript(std::wstring path, ref_count_ptr<ManagedScript
 
 	res = script->GetScriptID();
 
+#if defined(__EMSCRIPTEN__) && defined(PH3_PERF_SCAN)
+	auto perfPath=StringUtility::ConvertWideToMulti(path,CP_UTF8);
+	double perfBegin=emscripten_get_now();
+#endif
 	script->SetSourceFromFile(path);
+#if defined(__EMSCRIPTEN__) && defined(PH3_PERF_SCAN)
+	double perfRead=emscripten_get_now()-perfBegin;
+	perfBegin=emscripten_get_now();
+#endif
 	script->Compile();
+#if defined(__EMSCRIPTEN__) && defined(PH3_PERF_SCAN)
+	double perfCompile=emscripten_get_now()-perfBegin;
+	perfBegin=emscripten_get_now();
+#endif
 	if(script->IsEventExists("Loading"))
 		script->Run("Loading");
+#if defined(__EMSCRIPTEN__) && defined(PH3_PERF_SCAN)
+	double perfLoading=emscripten_get_now()-perfBegin;
+	EM_ASM({
+		const d=globalThis.ph3Diagnostics;if(!d)return;
+		const list=d.scriptLoads||(d.scriptLoads=[]);
+		list.push(({path:UTF8ToString($0),readMs:$1,compileMs:$2,loadingMs:$3}));
+		if(list.length>256)list.splice(0,list.length-256);
+	},perfPath.c_str(),perfRead,perfCompile,perfLoading);
+#endif
 	
 	{
 		Lock lock(lock_);

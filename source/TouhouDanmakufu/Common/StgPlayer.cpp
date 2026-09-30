@@ -54,6 +54,13 @@ void StgPlayerObject::_InitializeRebirth()
 }
 void StgPlayerObject::Work()
 {
+#ifdef PH3_PERF_INVINCIBLE
+	// Performance-only diagnostic build: keep the recorded hit/death/rebirth
+	// cadence intact, but never let the last life become a game-over. This is
+	// much less invasive than disabling collision because replay progression can
+	// depend on the normal shoot-down events.
+	if(GetLife() <= 0 && state_ != STATE_END)SetLife(1);
+#endif
 	EDirectInput* input = EDirectInput::GetInstance();
 	StgStageScriptManager* scriptManager = stageController_->GetScriptManagerP();
 	StgEnemyManager* enemyManager = stageController_->GetEnemyManager();

@@ -248,10 +248,10 @@ public:
 
 	std::string GetDefaultAreaName() { return nameAreaDefailt_; }
 	void SetDefaultAreaName(std::string name) { nameAreaDefailt_ = name; }
-	bool IsExists(std::string name);
+	bool IsExists(const std::string& name);
 	void CreateArea(std::string name);
 	void CopyArea(std::string nameDest, std::string nameSrc);
-	gstd::ref_count_ptr<ScriptCommonData> GetData(std::string name);
+	gstd::ref_count_ptr<ScriptCommonData> GetData(const std::string& name);
 	void SetData(std::string name, gstd::ref_count_ptr<ScriptCommonData> commonData);
 	std::vector<std::string> GetKeyList();
 
@@ -271,8 +271,9 @@ public:
 	ScriptCommonData();
 	virtual ~ScriptCommonData();
 	void Clear();
-	bool IsExists(std::string name);
-	gstd::value GetValue(std::string name);
+	bool IsExists(const std::string& name);
+	gstd::value GetValue(const std::string& name);
+	bool TryGetValue(const std::string& name, gstd::value& result);
 	void SetValue(std::string name, gstd::value v);
 	void DeleteValue(std::string name);
 	void Copy(gstd::ref_count_ptr<ScriptCommonData> dataSrc);

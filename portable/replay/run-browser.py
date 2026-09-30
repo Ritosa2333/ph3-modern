@@ -29,9 +29,17 @@ def main() -> None:
     parser.add_argument('--stages', type=int, default=0, help='Explicit prefix scope; zero selects the whole fixture')
     parser.add_argument('--stop-at-frame', type=int, default=-1,
                         help='Diagnostic partial probe: stop after the observed stage reaches this logical frame')
+    parser.add_argument('--perf-fast-steps', type=int, default=0,
+                        help='Diagnostic PH3_PERF_SCAN build: logic ticks per browser callback (2-64)')
+    parser.add_argument('--allow-mismatch', action='store_true',
+                        help='Keep traversing natural replay boundaries after score/frame divergence')
     args = parser.parse_args()
     if not 0 <= args.fast_steps <= 32:
         raise ValueError('--fast-steps must be between 1 and 32, or omitted')
+    if args.perf_fast_steps and not 2 <= args.perf_fast_steps <= 64:
+        raise ValueError('perf-fast-steps must be 2..64')
+    if args.fast_steps and args.perf_fast_steps:
+        raise ValueError('--fast-steps and --perf-fast-steps are mutually exclusive')
     fixture_path = GAME / 'script/th_hsob/replay' / args.fixture
     if fixture_path.name != args.fixture or not fixture_path.is_file():
         raise ValueError('Choose an existing corpus replay basename')
@@ -41,7 +49,9 @@ def main() -> None:
     args.out.mkdir(parents=True, exist_ok=True)
     report = {'fixture': fixture, 'errors': [], 'consoleErrors': [], 'failedRequests': [],
               'checkpoints': [], 'completed': False, 'requestedStages':stage_count,
-              'fullFixture':stage_count==len(fixture['stages']), 'fastSteps':args.fast_steps}
+              'fullFixture':stage_count==len(fixture['stages']),
+              'fastSteps':args.fast_steps, 'perfFastSteps':args.perf_fast_steps,
+              'allowMismatch':args.allow_mismatch}
     with sync_playwright() as pw:
         browser = pw.chromium.launch(channel='msedge', headless=not args.headed)
         page = browser.new_page(viewport={'width': 1100, 'height': 1000})
@@ -141,8 +151,11 @@ def main() -> None:
                 raise RuntimeError('Did not enter native replay mode')
             if args.fast_steps:
                 page.evaluate('count => {ph3Runtime.wooReplayFastSteps=count;}', args.fast_steps)
+            if args.perf_fast_steps:
+                page.evaluate('steps => {ph3Runtime.ph3PerfFastSteps=steps;}', args.perf_fast_steps)
             started = time.monotonic()
-            deadline = started + (args.seconds or fixture['declaredFrames'] / 60 * 2 + 240)
+            speed = args.perf_fast_steps or args.fast_steps or 1
+            deadline = started + (args.seconds or fixture['declaredFrames'] / 60 / speed * 4 + 240)
             last_boundary_count = -1
             checked_ends = 0
             with (args.out / 'samples.jsonl').open('w', encoding='utf-8') as samples:
@@ -168,7 +181,8 @@ def main() -> None:
                         report.setdefault('stageResults', []).append(result)
                         checked_ends += 1
                         save()
-                        if not result['recordedScoreMatches'] or not result['recordedFrameMatches']:
+                        if (not args.allow_mismatch and
+                                (not result['recordedScoreMatches'] or not result['recordedFrameMatches'])):
                             raise RuntimeError(f"First replay mismatch at stage {end['index']}: "
                                                f"frame {end['frame']}/{end['expectedFrame']}, "
                                                f"score {end['score']}/{end['expectedScore']}")

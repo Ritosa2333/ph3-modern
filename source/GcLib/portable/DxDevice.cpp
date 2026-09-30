@@ -192,6 +192,8 @@ struct DeviceState {
     bool feedbackSnapshotReady=false;
     std::map<std::string,GLint> uniformLocations;
     std::array<GLuint,MaxSlots> glSamplers{};
+    struct SamplerCache { bool valid=false; GLint minFilter=0,magFilter=0; GLenum wrapS=0,wrapT=0; };
+    std::array<SamplerCache,MaxSlots> samplerCache{};
     std::map<DWORD,D3DXMATRIX> transforms;
     std::map<DWORD,DWORD> render;
     std::array<std::map<DWORD,DWORD>,MaxSlots> samplers,stages;
@@ -378,8 +380,10 @@ HRESULT IDirect3DDevice9::Present(const RECT*,const RECT*,HWND,const RGNDATA*){
     glBindFramebuffer(GL_READ_FRAMEBUFFER,back.framebuffer);
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER,0);
     glBlitFramebuffer(0,0,back.width,back.height,0,0,width,height,GL_COLOR_BUFFER_BIT,GL_LINEAR);
+#ifdef PH3_WEB_GL_ERROR_CHECK
     const GLenum error=glGetError();
     if(error!=GL_NO_ERROR)throw std::runtime_error("WebGL rendering error: "+std::to_string(error));
+#endif
     glFlush();if(!SDL_GL_SwapWindow(state->window))return E_FAIL;
     ++state->presented;
     EM_ASM({const d=globalThis.ph3Diagnostics;if(d){d.presentedFrames=$0;d.drawCalls=$1;d.actualDrawCalls=$2;d.drawVertices=$3;d.rejectedFeedbackDraws=0;d.resolvedFeedbackDraws=$4;
@@ -444,8 +448,12 @@ HRESULT IDirect3DDevice9::SetVertexDeclaration(IDirect3DVertexDeclaration9* decl
 HRESULT IDirect3DDevice9::SetStreamSource(UINT stream,IDirect3DVertexBuffer9* buffer,UINT offset,UINT stride){if(stream||(!stride&&buffer))return InvalidCall;AssignReference(state->stream,buffer);state->offset=offset;state->stride=stride;return S_OK;}
 HRESULT IDirect3DDevice9::SetIndices(IDirect3DIndexBuffer9* indices){AssignReference(state->indices,indices);return S_OK;}
 HRESULT IDirect3DDevice9::SetFVF(DWORD fvf){state->fvf=fvf;AssignReference(state->declaration,static_cast<IDirect3DVertexDeclaration9*>(nullptr));return S_OK;}
+HRESULT IDirect3DDevice9::WarmEffectProgram(ID3DXEffect* effect){
+    if(!effect)return InvalidCall;
+    return effect->GetProgram(VertexSource)?S_OK:E_FAIL;
+}
 
-void IDirect3DDevice9::BindTextureUnit(UINT unit,IDirect3DBaseTexture9* texture,UINT sourceSlot,const DWORD* overrides){
+bool IDirect3DDevice9::BindTextureUnit(UINT unit,IDirect3DBaseTexture9* texture,UINT sourceSlot,const DWORD* overrides){
     Check(unit<MaxSlots&&sourceSlot<MaxSlots,"Effect texture slot is out of range");
     const DWORD keys[]={D3DSAMP_MINFILTER,D3DSAMP_MAGFILTER,D3DSAMP_MIPFILTER,D3DSAMP_ADDRESSU,D3DSAMP_ADDRESSV};
     DWORD values[5];for(unsigned i=0;i<5;++i)values[i]=overrides&&overrides[i]!=0xffffffffu?overrides[i]:state->samplers[sourceSlot][keys[i]];
@@ -463,9 +471,15 @@ void IDirect3DDevice9::BindTextureUnit(UINT unit,IDirect3DBaseTexture9* texture,
     GLint minFilter=linear?GL_LINEAR:GL_NEAREST;
     if(values[2]==D3DTEXF_POINT)minFilter=linear?GL_LINEAR_MIPMAP_NEAREST:GL_NEAREST_MIPMAP_NEAREST;
     else if(values[2]==D3DTEXF_LINEAR)minFilter=linear?GL_LINEAR_MIPMAP_LINEAR:GL_NEAREST_MIPMAP_LINEAR;
-    glSamplerParameteri(state->glSamplers[unit],GL_TEXTURE_MIN_FILTER,minFilter);
-    glSamplerParameteri(state->glSamplers[unit],GL_TEXTURE_MAG_FILTER,values[1]==D3DTEXF_LINEAR||values[1]==D3DTEXF_ANISOTROPIC?GL_LINEAR:GL_NEAREST);
-    glSamplerParameteri(state->glSamplers[unit],GL_TEXTURE_WRAP_S,Address(values[3]));glSamplerParameteri(state->glSamplers[unit],GL_TEXTURE_WRAP_T,Address(values[4]));
+    const GLint magFilter=values[1]==D3DTEXF_LINEAR||values[1]==D3DTEXF_ANISOTROPIC?GL_LINEAR:GL_NEAREST;
+    const GLenum wrapS=Address(values[3]),wrapT=Address(values[4]);
+    auto& cache=state->samplerCache[unit];
+    if(!cache.valid||cache.minFilter!=minFilter)glSamplerParameteri(state->glSamplers[unit],GL_TEXTURE_MIN_FILTER,minFilter);
+    if(!cache.valid||cache.magFilter!=magFilter)glSamplerParameteri(state->glSamplers[unit],GL_TEXTURE_MAG_FILTER,magFilter);
+    if(!cache.valid||cache.wrapS!=wrapS)glSamplerParameteri(state->glSamplers[unit],GL_TEXTURE_WRAP_S,wrapS);
+    if(!cache.valid||cache.wrapT!=wrapT)glSamplerParameteri(state->glSamplers[unit],GL_TEXTURE_WRAP_T,wrapT);
+    cache={true,minFilter,magFilter,wrapS,wrapT};
+    return true;
 }
 
 namespace directx::portable {
@@ -611,23 +625,33 @@ HRESULT Draw(IDirect3DDevice9& device,DWORD type,UINT primitives,const BYTE* byt
     DWORD mask=s.Render(D3DRS_COLORWRITEENABLE);glColorMask(mask&1,mask&2,mask&4,mask&8);glDisable(GL_SCISSOR_TEST);
     GLuint program=effect?effect->GetProgram(VertexSource):s.program;Check(program!=0,"An active effect did not provide a GLES program");glUseProgram(program);
     s.feedbackSnapshotReady=false;
+    bool uniformsReady=true;
     if(effect){
-        effect->ApplyUniforms(&device);
-        // Alpha test is a D3D9 fixed-function stage after the pixel shader.
-        // Custom FX therefore observe the same state as fixed-function draws.
-        GLint location=glGetUniformLocation(program,"ph3AlphaTest");
-        if(location>=0)glUniform1i(location,int(s.Render(D3DRS_ALPHATESTENABLE)));
-        location=glGetUniformLocation(program,"ph3AlphaFunc");
-        if(location>=0)glUniform1i(location,int(s.Render(D3DRS_ALPHAFUNC)));
-        location=glGetUniformLocation(program,"ph3AlphaRef");
-        if(location>=0)glUniform1f(location,float(s.Render(D3DRS_ALPHAREF))/255.0f);
+        uniformsReady=effect->ApplyUniforms(&device);
+        if(uniformsReady){
+            // Alpha test is a D3D9 fixed-function stage after the pixel shader.
+            // Custom FX therefore observe the same state as fixed-function draws.
+            GLint location=glGetUniformLocation(program,"ph3AlphaTest");
+            if(location>=0)glUniform1i(location,int(s.Render(D3DRS_ALPHATESTENABLE)));
+            location=glGetUniformLocation(program,"ph3AlphaFunc");
+            if(location>=0)glUniform1i(location,int(s.Render(D3DRS_ALPHAFUNC)));
+            location=glGetUniformLocation(program,"ph3AlphaRef");
+            if(location>=0)glUniform1f(location,float(s.Render(D3DRS_ALPHAREF))/255.0f);
+        }
     }
     else{
-        device.BindTextureUnit(0,s.textures[0],0);SetUniform(s,"wooTexture",0);auto& stages=s.stages[0];
+        uniformsReady=device.BindTextureUnit(0,s.textures[0],0);
+        if(uniformsReady){SetUniform(s,"wooTexture",0);auto& stages=s.stages[0];
         glUniform3i(s.Uniform("wooColorStage"),stages[D3DTSS_COLOROP],stages[D3DTSS_COLORARG1],stages[D3DTSS_COLORARG2]);
         glUniform3i(s.Uniform("wooAlphaStage"),stages[D3DTSS_ALPHAOP],stages[D3DTSS_ALPHAARG1],stages[D3DTSS_ALPHAARG2]);
         SetUniform(s,"wooTextureFactor",Color(s.Render(D3DRS_TEXTUREFACTOR)));SetUniform(s,"wooAlphaTest",int(s.Render(D3DRS_ALPHATESTENABLE)));SetUniform(s,"wooAlphaFunc",int(s.Render(D3DRS_ALPHAFUNC)));SetUniform(s,"wooAlphaRef",float(s.Render(D3DRS_ALPHAREF))/255);
         SetUniform(s,"wooFogEnable",int(s.Render(D3DRS_FOGENABLE)));SetUniform(s,"wooFogColor",Color(s.Render(D3DRS_FOGCOLOR)));
+        }
+    }
+    if(!uniformsReady){
+        // D3D rejects this one invalid draw; Woo ignores its HRESULT and keeps
+        // rendering the remaining objects. Do not turn it into a fatal frame.
+        glActiveTexture(GL_TEXTURE0);return InvalidCall;
     }
     if(batchable){
         s.batchKey=batchKey;s.batchVertices.assign(vertices->begin(),vertices->end());s.batchActive=true;
@@ -648,18 +672,18 @@ HRESULT IDirect3DDevice9::DrawIndexedPrimitive(DWORD type,INT base,UINT,UINT,UIN
 HRESULT IDirect3DDevice9::DrawIndexedPrimitiveUP(DWORD type,UINT minimum,UINT number,UINT count,const void* indices,DWORD format,const void* vertices,UINT stride){if(!indices)return InvalidCall;return Draw(*this,type,count,static_cast<const BYTE*>(vertices),stride,std::size_t(minimum)+number,static_cast<const BYTE*>(indices),format,0);}
 
 namespace {
-struct Image {UINT width=0,height=0;D3DXIMAGE_FILEFORMAT format=D3DXIFF_PNG;std::vector<DWORD> pixels;};
+struct Image {UINT width=0,height=0;D3DXIMAGE_FILEFORMAT format=D3DXIFF_PNG;std::vector<BYTE> rgba;std::vector<DWORD> pixels;};
 Image DecodeImage(const void* bytes,UINT size,bool pixels){
     Check(bytes&&size>=8,"Image file is truncated");Image image;
     if(png_sig_cmp(static_cast<png_const_bytep>(bytes),0,8)==0){
         png_image png{};png.version=PNG_IMAGE_VERSION;Check(png_image_begin_read_from_memory(&png,bytes,size)!=0,"Invalid PNG header");
         image.width=png.width;image.height=png.height;Check(image.width&&image.height&&std::uint64_t(image.width)*image.height<=268435456,"PNG dimensions are too large");
-        if(pixels){png.format=PNG_FORMAT_RGBA;std::vector<BYTE> rgba(PNG_IMAGE_SIZE(png));if(!png_image_finish_read(&png,nullptr,rgba.data(),0,nullptr)){std::string error=png.message;png_image_free(&png);throw std::runtime_error(error);}image.pixels.resize(std::size_t(image.width)*image.height);for(std::size_t i=0;i<image.pixels.size();++i)image.pixels[i]=D3DCOLOR_ARGB(rgba[i*4+3],rgba[i*4],rgba[i*4+1],rgba[i*4+2]);}
+        if(pixels){png.format=PNG_FORMAT_RGBA;image.rgba.resize(PNG_IMAGE_SIZE(png));if(!png_image_finish_read(&png,nullptr,image.rgba.data(),0,nullptr)){std::string error=png.message;png_image_free(&png);throw std::runtime_error(error);}}
         png_image_free(&png);
     }else if(static_cast<const BYTE*>(bytes)[0]=='B'&&static_cast<const BYTE*>(bytes)[1]=='M'){
         SDL_Surface* bitmap=SDL_LoadBMP_IO(SDL_IOFromConstMem(bytes,size),true);Check(bitmap!=nullptr,SDL_GetError());
         image.width=bitmap->w;image.height=bitmap->h;image.format=D3DXIFF_BMP;
-        if(pixels){SDL_Surface* rgba=SDL_ConvertSurface(bitmap,SDL_PIXELFORMAT_RGBA32);if(!rgba){SDL_DestroySurface(bitmap);throw std::runtime_error(SDL_GetError());}image.pixels.resize(std::size_t(image.width)*image.height);for(UINT y=0;y<image.height;++y)for(UINT x=0;x<image.width;++x){const BYTE* p=static_cast<BYTE*>(rgba->pixels)+std::size_t(y)*rgba->pitch+x*4;image.pixels[std::size_t(y)*image.width+x]=D3DCOLOR_ARGB(p[3],p[0],p[1],p[2]);}SDL_DestroySurface(rgba);}SDL_DestroySurface(bitmap);
+        if(pixels){SDL_Surface* rgba=SDL_ConvertSurface(bitmap,SDL_PIXELFORMAT_RGBA32);if(!rgba){SDL_DestroySurface(bitmap);throw std::runtime_error(SDL_GetError());}image.rgba.resize(std::size_t(image.width)*image.height*4);for(UINT y=0;y<image.height;++y)std::memcpy(image.rgba.data()+std::size_t(y)*image.width*4,static_cast<BYTE*>(rgba->pixels)+std::size_t(y)*rgba->pitch,std::size_t(image.width)*4);SDL_DestroySurface(rgba);}SDL_DestroySurface(bitmap);
     }else throw std::runtime_error("This Woo Web build supports PNG and BMP images; unsupported image format");
     return image;
 }
@@ -672,6 +696,20 @@ HRESULT D3DXCreateTextureFromFileInMemoryEx(IDirect3DDevice9* device,const void*
         auto image=DecodeImage(bytes,size,true);if(info)*info={image.width,image.height,1,1,D3DFMT_A8R8G8B8,D3DRTYPE_TEXTURE,image.format};
         if(width==D3DX_DEFAULT||!width)width=image.width;if(height==D3DX_DEFAULT||!height)height=image.height;
         if(format==D3DFMT_UNKNOWN||format==D3DX_DEFAULT)format=D3DFMT_A8R8G8B8;
+        // The browser renderer consumes RGBA directly. The common PNG path uses
+        // native dimensions, A8R8G8B8 and no color key, so upload libpng's RGBA
+        // result without materializing a D3D DWORD image only to convert it back
+        // to RGBA in TextureStorage::Upload(). LockRect can still lazily read the
+        // texture back into D3D pixel storage if a caller actually needs it.
+        if(width==image.width&&height==image.height&&!colorKey&&format==D3DFMT_A8R8G8B8){
+            HRESULT result=device->CreateTexture(width,height,levels,usage,format,pool,texture,nullptr);if(FAILED(result))return result;
+            auto& storage=*(*texture)->storage;glBindTexture(GL_TEXTURE_2D,storage.texture);glPixelStorei(GL_UNPACK_ALIGNMENT,1);
+            glTexSubImage2D(GL_TEXTURE_2D,0,0,0,width,height,GL_RGBA,GL_UNSIGNED_BYTE,image.rgba.data());
+            storage.cpuFresh=false;storage.cpuDirty=false;storage.gpuDirty=true;storage.Upload();return S_OK;
+        }
+        image.pixels.resize(std::size_t(image.width)*image.height);
+        for(std::size_t i=0;i<image.pixels.size();++i)image.pixels[i]=D3DCOLOR_ARGB(image.rgba[i*4+3],image.rgba[i*4],image.rgba[i*4+1],image.rgba[i*4+2]);
+        image.rgba.clear();image.rgba.shrink_to_fit();
         if(width!=image.width||height!=image.height){
             // Original callers use native dimensions; reject a filter operation
             // until implemented rather than silently selecting a different one.

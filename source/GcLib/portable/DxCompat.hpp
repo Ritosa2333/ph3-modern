@@ -192,11 +192,12 @@ public:
     HRESULT DrawPrimitiveUP(D3DPRIMITIVETYPE type,UINT count,const void* vertices,UINT stride);
     HRESULT DrawIndexedPrimitive(D3DPRIMITIVETYPE type,INT baseVertex,UINT minVertex,UINT numVertices,UINT startIndex,UINT count);
     HRESULT DrawIndexedPrimitiveUP(D3DPRIMITIVETYPE type,UINT minVertex,UINT numVertices,UINT count,const void* indices,D3DFORMAT indexFormat,const void* vertices,UINT stride);
+    HRESULT WarmEffectProgram(ID3DXEffect* effect);
 
     // Effect bridge: supplied state overrides use the PH3FX002 ordering;
     // 0xffffffff inherits the original D3D sampler slot, rather than forcing a
     // filter/wrap mode. Actual GLES sampler objects keep texture units separate.
-    void BindTextureUnit(UINT unit,IDirect3DBaseTexture9* texture,UINT sourceSlot,const DWORD* overrides=nullptr);
+    bool BindTextureUnit(UINT unit,IDirect3DBaseTexture9* texture,UINT sourceSlot,const DWORD* overrides=nullptr);
     IDirect3DBaseTexture9* PeekTexture(UINT stage) const;
     std::unique_ptr<directx::portable::DeviceState> state;
 };
@@ -229,7 +230,7 @@ public:
     virtual HRESULT OnLostDevice()=0;
     virtual HRESULT OnResetDevice()=0;
     virtual UINT GetProgram(const char* vertexSource)=0;
-    virtual void ApplyUniforms(IDirect3DDevice9* device)=0;
+    virtual bool ApplyUniforms(IDirect3DDevice9* device)=0;
     virtual const std::vector<D3DXMATRIX>* WorldMatrices() const {return nullptr;}
     static ID3DXEffect* Active(){return active_;}
     static void SetActive(ID3DXEffect* effect){active_=effect;}

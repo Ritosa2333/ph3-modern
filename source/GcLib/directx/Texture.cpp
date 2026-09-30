@@ -1,5 +1,8 @@
 #include"Texture.hpp"
 #include"DirectGraphics.hpp"
+#if defined(__EMSCRIPTEN__) && defined(PH3_PERF_SCAN)
+#include <emscripten/emscripten.h>
+#endif
 
 using namespace gstd;
 using namespace directx;
@@ -332,6 +335,9 @@ bool TextureManager::_CreateFromFile(std::wstring path)
 	}
 
 	//まだ作成されていないなら、作成
+#if defined(__EMSCRIPTEN__) && defined(PH3_PERF_SCAN)
+	const double perfBegin=emscripten_get_now();
+#endif
 	try
 	{
 		ref_count_ptr<FileReader> reader = FileManager::GetBase()->GetFileReader(path);
@@ -364,7 +370,7 @@ bool TextureManager::_CreateFromFile(std::wstring path)
 										D3DX_FILTER_BOX,
 										D3DX_DEFAULT,
 										colorKey,
-										NULL,
+										&data->infoImage_,
 										NULL,
 										&data->pTexture_);
 		if(FAILED(hr))
@@ -375,9 +381,16 @@ bool TextureManager::_CreateFromFile(std::wstring path)
 		mapTextureData_[path] = data;
 		data->manager_ = this;
 		data->name_ = path;
-		D3DXGetImageInfoFromFileInMemory(buf.GetPointer(), size, &data->infoImage_);
-
 		Logger::WriteTop(StringUtility::Format(L"TextureManager：テクスチャを読み込みました[%s]", path.c_str()));
+#if defined(__EMSCRIPTEN__) && defined(PH3_PERF_SCAN)
+		auto utf8=StringUtility::ConvertWideToMulti(path,CP_UTF8);
+		const double ms=emscripten_get_now()-perfBegin;
+		EM_ASM({
+			const d=globalThis.ph3Diagnostics;if(!d)return;
+			const list=d.textureLoads||(d.textureLoads=[]);
+			list.push(({path:UTF8ToString($0),ms:$1,bytes:$2}));
+		},utf8.c_str(),ms,size);
+#endif
 	}
 	catch(gstd::wexception& e)
 	{
@@ -467,6 +480,13 @@ gstd::ref_count_ptr<Texture> TextureManager::CreateFromFile(std::wstring path)
 			{
 				res = new Texture();
 				res->data_ = mapTextureData_[path];
+#ifdef __EMSCRIPTEN__
+				// PNG/JPEG decode + WebGL upload is expensive enough to create
+				// visible hitches when boss/dialogue textures are released and then
+				// requested again. Keep ordinary file textures resident for the Web
+				// session; explicit TextureManager::Release/Clear still drops them.
+				mapTexture_[path] = res;
+#endif
 			}
 		}
 	}
@@ -554,6 +574,9 @@ gstd::ref_count_ptr<Texture> TextureManager::CreateFromFileInLoadThread(std::wst
 			else bLoadTarget = false;
 
 			res->data_ = mapTextureData_[path];
+#ifdef __EMSCRIPTEN__
+			mapTexture_[path] = res;
+#endif
 			if(bLoadTarget)
 			{
 				ref_count_ptr<FileManager::LoadObject> source = res;
@@ -611,15 +634,13 @@ void TextureManager::CallFromLoadThread(ref_count_ptr<FileManager::LoadThreadEve
 											D3DX_FILTER_BOX,
 											D3DX_DEFAULT,
 											colorKey,
-											NULL,
+											&data->infoImage_,
 											NULL,
 											&data->pTexture_);
 			if(FAILED(hr))
 			{
 				throw gstd::wexception(L"D3DXCreateTextureFromFileInMemoryEx失敗");
 			}
-
-			D3DXGetImageInfoFromFileInMemory(buf.GetPointer(), size, &data->infoImage_);
 
 			Logger::WriteTop(StringUtility::Format(L"TextureManager：テクスチャを読み込みました(LT)[%s]", path.c_str()));
 		}

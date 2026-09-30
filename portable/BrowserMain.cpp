@@ -15,6 +15,36 @@ unsigned runtimeFpsSteps=0,runtimeFpsPresents=0;
 double measureStart=-1;
 unsigned measuredSteps=0,measuredPresents=0;
 std::vector<double> frameCosts;
+#ifdef PH3_PERF_SCAN
+void reportSlowFrame(double cost,int kind){
+    if(cost<1000.0/60)return;
+    auto manager=ETaskManager::GetInstance();
+    if(!manager)return;
+    for(auto task:manager->GetTaskList()){
+        auto system=dynamic_cast<StgSystemController*>(task.GetPointer());
+        if(!system)continue;
+        auto stage=system->GetStageController();
+        if(!stage)return;
+        auto state=stage->GetStageInformation();
+        EM_ASM({
+            const d=globalThis.ph3Diagnostics;if(!d)return;
+            const p=d.perfScan||(d.perfScan=({stages:{},slowFrames:0}));
+            ++p.slowFrames;
+            const index=$2;
+            const s=p.stages[index]||(p.stages[index]=({slow16:0,slow33:0,slow50:0,maxFrameMs:0,maxPresentMs:0}));
+            ++s.slow16;if($0>=1000/30)++s.slow33;if($0>=50)++s.slow50;
+            const field=$1?'maxPresentMs':'maxFrameMs';
+            if($0>s[field]){
+                s[field]=$0;s[$1?'maxPresent':'maxFrame']=({frame:$3,enemies:$4,playerShots:$5,enemyShots:$6});
+            }
+        },cost,kind,state->GetStageIndex(),state->GetCurrentFrame(),
+          stage->GetEnemyManager()->GetEnemyCount(),
+          stage->GetShotManager()->GetShotCount(StgShotObject::OWNER_PLAYER),
+          stage->GetShotManager()->GetShotCount(StgShotObject::OWNER_ENEMY));
+        return;
+    }
+}
+#endif
 void measure(double begin,unsigned steps,bool presented){
     double now=emscripten_get_now();
     if(measureStart<0)measureStart=begin;
@@ -90,6 +120,10 @@ EM_BOOL frame(double now,void*){
         const int targetBefore=fpsController->GetBrowserTargetFps();
         const double deltaLimit=targetBefore>STANDARD_FPS?1000.0/STANDARD_FPS:100.0;
         accumulated+=previous<0?0:std::min(deltaLimit,now-previous);previous=now;
+        // Native has a real loader thread. On Web process at most one queued
+        // load per browser callback so unrelated async loads no longer become
+        // one giant synchronous hitch.
+        if(auto* files=FileManager::GetBase())files->PumpLoads();
         const bool observePerformance=EM_ASM_INT({return globalThis.ph3Diagnostics?.observePerformance?1:0;})!=0;
         const double begin=observePerformance?emscripten_get_now():0;
         unsigned steps=0;
@@ -97,34 +131,51 @@ EM_BOOL frame(double now,void*){
         bool diagnosticFast=false;
         auto device=EDirectGraphics::GetInstance()->GetDevice();
         device->BeginBrowserFrame();
+        int fastSteps=0;
 #if defined(WOO_REPLAY_VERIFY) || defined(PH3_REPLAY_BOUNDARY)
         // Diagnostic-only fast playback. Each call still consumes exactly one
         // original input/tick; only wall-clock waiting and intermediate draws
         // are omitted. The golden comparison must validate this lane.
         const int requestedFastSteps=EM_ASM_INT({return Module['wooReplayFastSteps']|0;});
-        const int fastSteps=requestedFastSteps>0&&replayActive()?std::min(requestedFastSteps,32):0;
-        if(fastSteps){
+        if(requestedFastSteps>0&&replayActive())fastSteps=std::min(requestedFastSteps,32);
+#endif
+#ifdef PH3_PERF_SCAN
+        bool perfFastMode=false;
+        const int requestedPerfFastSteps=EM_ASM_INT({
+            const value=Number(Module['ph3PerfFastSteps']||0);
+            return Number.isFinite(value)?Math.max(0,Math.min(64,value|0)):0;
+        });
+        if(fastSteps==0&&requestedPerfFastSteps>1){fastSteps=requestedPerfFastSteps;perfFastMode=true;}
+#endif
+        if(fastSteps>0){
             diagnosticFast=true;
             accumulated=0;
             for(int i=0;i<fastSteps;++i){
-                if(!EApplication::GetInstance()->RunFrame(i==fastSteps-1))return EM_FALSE;
-                if(!EApplication::GetInstance()->DidBrowserFrameWork())continue;
-                ++frames;++steps;rendered=i==fastSteps-1;
-            }
-        }else
+                const bool render=i+1==fastSteps;
+#ifdef PH3_PERF_SCAN
+                const double tickBegin=perfFastMode?emscripten_get_now():0;
 #endif
-        for(;;){
-            const int targetFps=fpsController->GetBrowserTargetFps();
-            const double stepMs=1000.0/targetFps;
-            if(accumulated+0.001<stepMs)break;
-            accumulated-=stepMs;
-            const bool renderPermit=fpsController->AdvanceBrowserRenderPermit();
-            const bool render=accumulated+0.001<stepMs&&renderPermit;
-            if(!EApplication::GetInstance()->RunFrame(render))return EM_FALSE;
-            if(!EApplication::GetInstance()->DidBrowserFrameWork())continue;
-            ++frames;
-            ++steps;
-            rendered=render;
+                if(!EApplication::GetInstance()->RunFrame(render))return EM_FALSE;
+#ifdef PH3_PERF_SCAN
+                if(perfFastMode)reportSlowFrame(emscripten_get_now()-tickBegin,0);
+#endif
+                if(!EApplication::GetInstance()->DidBrowserFrameWork())continue;
+                ++frames;++steps;rendered=rendered||render;
+            }
+        }else{
+            for(;;){
+                const int targetFps=fpsController->GetBrowserTargetFps();
+                const double stepMs=1000.0/targetFps;
+                if(accumulated+0.001<stepMs)break;
+                accumulated-=stepMs;
+                const bool renderPermit=fpsController->AdvanceBrowserRenderPermit();
+                const bool render=accumulated+0.001<stepMs&&renderPermit;
+                if(!EApplication::GetInstance()->RunFrame(render))return EM_FALSE;
+                if(!EApplication::GetInstance()->DidBrowserFrameWork())continue;
+                ++frames;
+                ++steps;
+                rendered=render;
+            }
         }
         // Diagnostics are an observer, not part of the 60 Hz simulation.
         // Crossing Wasm->JS and transcoding the script path for every catch-up
@@ -140,8 +191,16 @@ EM_BOOL frame(double now,void*){
             if(!reportState())return EM_FALSE;
             nextStateReport=now+100.0;
         }
-        if(rendered&&FAILED(device->Present(nullptr,nullptr,nullptr,nullptr)))
-            throw std::runtime_error("Browser presentation failed");
+        if(rendered){
+#ifdef PH3_PERF_SCAN
+            const double presentBegin=emscripten_get_now();
+#endif
+            if(FAILED(device->Present(nullptr,nullptr,nullptr,nullptr)))
+                throw std::runtime_error("Browser presentation failed");
+#ifdef PH3_PERF_SCAN
+            reportSlowFrame(emscripten_get_now()-presentBegin,1);
+#endif
+        }
         if(!diagnosticFast)updateRuntimeFps(now,steps,rendered);
         if(observePerformance)measure(begin,steps,rendered);
         EM_ASM({if(globalThis.ph3Diagnostics)globalThis.ph3Diagnostics.frames=$0;},frames);

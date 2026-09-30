@@ -10,8 +10,10 @@ namespace directx::portable {
 struct AudioClip {
     int rate=48000,channels=2;
     bool streamed=false;
+    std::size_t frameCount=0;
     std::vector<float> samples;
-    std::size_t Frames() const { return samples.size()/channels; }
+    std::shared_ptr<std::vector<char>> encodedVorbis;
+    std::size_t Frames() const { return frameCount?frameCount:samples.size()/channels; }
 };
 namespace {
 struct EncodedAudio { const std::vector<char>* bytes; std::size_t offset=0; };
@@ -28,6 +30,7 @@ int VorbisSeek(void* source,ogg_int64_t offset,int origin) {
     input.offset=static_cast<std::size_t>(base+offset);return 0;
 }
 long VorbisTell(void* source){return static_cast<long>(static_cast<EncodedAudio*>(source)->offset);}
+constexpr std::size_t VorbisWindowFrames=4096;
 
 std::shared_ptr<AudioClip> DecodeAudio(const std::vector<char>& bytes) {
     if(bytes.size()<12)throw std::runtime_error("Truncated audio file");
@@ -42,6 +45,15 @@ std::shared_ptr<AudioClip> DecodeAudio(const std::vector<char>& bytes) {
             clip->channels=info->channels;clip->rate=info->rate;clip->streamed=true;
             ogg_int64_t frames=ov_pcm_total(&file,-1);
             if(frames<0||frames>static_cast<ogg_int64_t>(clip->rate)*60*30)throw std::runtime_error("Vorbis duration exceeds the Web decode limit");
+            clip->frameCount=static_cast<std::size_t>(frames);
+            // Long music tracks must not be decoded synchronously on the game
+            // thread. Keep the compressed bytes and give each voice a small
+            // Vorbis decode window instead. Short OGG effects stay resident.
+            if(frames>static_cast<ogg_int64_t>(clip->rate)*20){
+                clip->encodedVorbis=std::make_shared<std::vector<char>>(bytes);
+                ov_clear(&file);
+                return clip;
+            }
             clip->samples.reserve(static_cast<std::size_t>(frames)*clip->channels);
             int section=0;
             for(;;){
@@ -69,6 +81,59 @@ std::shared_ptr<AudioClip> DecodeAudio(const std::vector<char>& bytes) {
 }
 double VolumeGain(double rate){return rate<=0?0:rate>=1?1:std::pow(10.0,std::max(-10000,int(3320*std::log10(rate)))/2000.0);}
 }
+
+struct VorbisStream {
+    explicit VorbisStream(const std::shared_ptr<AudioClip>& clip):clip_(clip),input_{clip->encodedVorbis.get()} {
+        if(!clip_||!clip_->encodedVorbis)throw std::runtime_error("Streaming Vorbis clip has no encoded data");
+        ov_callbacks callbacks{VorbisRead,VorbisSeek,nullptr,VorbisTell};
+        if(ov_open_callbacks(&input_,&file_,nullptr,0,callbacks)<0)throw std::runtime_error("Cannot open streaming Vorbis audio");
+        open_=true;
+    }
+    ~VorbisStream(){if(open_)ov_clear(&file_);}
+    void Seek(std::size_t frame){
+        if(ov_pcm_seek(&file_,static_cast<ogg_int64_t>(std::min(frame,clip_->Frames())))!=0)
+            throw std::runtime_error("Cannot seek streaming Vorbis audio");
+        start_=frame;frames_=0;buffer_.clear();
+    }
+    float Sample(std::size_t frame,int channel){
+        if(frame>=clip_->Frames())return 0;
+        if(frame<start_||frame>=start_+frames_)Fill(frame);
+        if(frame<start_||frame>=start_+frames_)return 0;
+        channel=std::clamp(channel,0,clip_->channels-1);
+        return buffer_[(frame-start_)*clip_->channels+channel];
+    }
+private:
+    void Fill(std::size_t frame){
+        const auto current=ov_pcm_tell(&file_);
+        if(current<0||static_cast<std::size_t>(current)!=frame){
+            if(ov_pcm_seek(&file_,static_cast<ogg_int64_t>(frame))!=0)
+                throw std::runtime_error("Cannot seek streaming Vorbis window");
+        }
+        start_=frame;frames_=0;buffer_.clear();
+        buffer_.reserve(VorbisWindowFrames*clip_->channels);
+        int section=0;
+        while(frames_<VorbisWindowFrames){
+            float** pcm=nullptr;
+            const long wanted=static_cast<long>(VorbisWindowFrames-frames_);
+            long count=ov_read_float(&file_,&pcm,wanted,&section);
+            if(count==0)break;
+            if(count<0)throw std::runtime_error("Corrupt streaming Vorbis packet");
+            auto* info=ov_info(&file_,section);
+            if(!info||info->rate!=clip_->rate||info->channels!=clip_->channels)
+                throw std::runtime_error("Streaming Vorbis format changed");
+            for(long i=0;i<count;++i)
+                for(int channel=0;channel<clip_->channels;++channel)
+                    buffer_.push_back(pcm[channel][i]);
+            frames_+=static_cast<std::size_t>(count);
+        }
+    }
+    std::shared_ptr<AudioClip> clip_;
+    EncodedAudio input_;
+    OggVorbis_File file_{};
+    bool open_=false;
+    std::size_t start_=0,frames_=0;
+    std::vector<float> buffer_;
+};
 }
 
 DirectSoundManager* DirectSoundManager::thisBase_=nullptr;
@@ -94,14 +159,25 @@ gstd::ref_count_ptr<SoundPlayer> DirectSoundManager::GetPlayer(std::wstring path
     if(!createAlways&&found!=mapPlayer_.end())for(auto& player:found->second)if(!player->bDelete_)return player;
     auto clip=clips_[path].lock();
     if(!clip){
+        const double decodeBegin=emscripten_get_now();
         auto reader=FileManager::GetBase()->GetFileReader(path);
         if(reader==NULL||!reader->Open()){Logger::WriteTop(ErrorUtility::GetFileNotFoundErrorMessage(path));return NULL;}
         int size=reader->GetFileSize();if(size<=0||size>256*1024*1024)throw std::runtime_error("Invalid encoded audio size");
         std::vector<char> bytes(size);if(reader->Read(bytes.data(),size)!=static_cast<DWORD>(size))throw std::runtime_error("Incomplete audio archive read");
         clip=portable::DecodeAudio(bytes);clips_[path]=clip;
-        std::printf("[Woo audio] decoded %s (%zu frames)\n",StringUtility::ConvertWideToMulti(path,CP_UTF8).c_str(),clip->Frames());
+        const double decodeMs=emscripten_get_now()-decodeBegin;
+        auto pathUtf8=StringUtility::ConvertWideToMulti(path,CP_UTF8);
+        std::printf("[Woo audio] %s %s (%zu frames, %.1f ms)\n",clip->encodedVorbis?"opened stream":"decoded",pathUtf8.c_str(),clip->Frames(),decodeMs);
+#ifdef PH3_PERF_SCAN
+        EM_ASM({
+            const d=globalThis.ph3Diagnostics;if(!d)return;
+            const list=d.audioDecodes||(d.audioDecodes=[]);
+            list.push(({path:UTF8ToString($0),ms:$1,frames:$2,bytes:$3,lazy:!!$4}));
+        },pathUtf8.c_str(),decodeMs,double(clip->Frames()),size,clip->encodedVorbis?1:0);
+#endif
     }
     gstd::ref_count_ptr<SoundPlayer> player=new SoundPlayer();player->manager_=this;player->path_=path;player->clip_=clip;player->streaming_=clip->streamed;
+    if(clip->encodedVorbis)player->vorbis_=std::make_unique<portable::VorbisStream>(clip);
     mapPlayer_[path].push_back(player);return player;
 }
 bool DirectSoundManager::AddSoundInfoFromFile(std::wstring path){
@@ -143,7 +219,7 @@ bool SoundPlayer::Play(PlayStyle& style){
     bPause_=false;playing_=true;return true;
 }
 bool SoundPlayer::Stop(){if(playing_)bPause_=true;playing_=false;return true;}
-bool SoundPlayer::Seek(double seconds){if(!clip_||!std::isfinite(seconds))return false;position_=std::clamp(seconds*clip_->rate,0.0,double(clip_->Frames()));return true;}
+bool SoundPlayer::Seek(double seconds){if(!clip_||!std::isfinite(seconds))return false;position_=std::clamp(seconds*clip_->rate,0.0,double(clip_->Frames()));if(vorbis_)vorbis_->Seek(static_cast<std::size_t>(position_));return true;}
 WAVEFORMATEX SoundPlayer::GetWaveFormat(){WAVEFORMATEX format;if(clip_){format.nChannels=clip_->channels;format.nSamplesPerSec=clip_->rate;format.nBlockAlign=2*clip_->channels;format.nAvgBytesPerSec=format.nSamplesPerSec*format.nBlockAlign;}return format;}
 bool SoundPlayer::SetVolumeRate(double rate){if(!std::isfinite(rate))return false;rateVolume_=std::clamp(rate,0.0,100.0);return true;}
 bool SoundPlayer::SetPanRate(double rate){if(!std::isfinite(rate))return false;pan_=std::clamp(rate,-100.0,100.0);return true;}
@@ -179,7 +255,12 @@ void DirectSoundManager::Pump(){
                 if(voice->position_>=end){if(voice->bLoop_&&end>start)voice->position_=start+std::fmod(voice->position_-start,end-start);else{voice->playing_=false;voice->bPause_=false;break;}}
                 std::size_t a=std::min(static_cast<std::size_t>(voice->position_),clip.Frames()-1),b=std::min(a+1,clip.Frames()-1);float fraction=voice->position_-a;
                 if(voice->bLoop_&&b>=static_cast<std::size_t>(end))b=static_cast<std::size_t>(start);
-                for(int channel=0;channel<2;++channel){int source=std::min(channel,clip.channels-1);float sample=clip.samples[a*clip.channels+source]*(1-fraction)+clip.samples[b*clip.channels+source]*fraction;mix[frame*2+channel]+=sample*float(channel?right:left);}
+                for(int channel=0;channel<2;++channel){
+                    int source=std::min(channel,clip.channels-1);
+                    float sa=voice->vorbis_?voice->vorbis_->Sample(a,source):clip.samples[a*clip.channels+source];
+                    float sb=voice->vorbis_?voice->vorbis_->Sample(b,source):clip.samples[b*clip.channels+source];
+                    float sample=sa*(1-fraction)+sb*fraction;mix[frame*2+channel]+=sample*float(channel?right:left);
+                }
                 voice->position_+=step;
             }
         }

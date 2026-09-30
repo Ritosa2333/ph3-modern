@@ -1,5 +1,8 @@
 #include "Script.hpp"
 #ifdef __EMSCRIPTEN__
+#include <unordered_map>
+#endif
+#ifdef __EMSCRIPTEN__
 #include "../portable/Utf16.hpp"
 #endif
 #include "GstdUtility.hpp"
@@ -1416,7 +1419,13 @@ public:
 		int variable;
 	};
 
-	struct scope : public std::map<std::string, symbol> {
+	struct scope
+#ifdef __EMSCRIPTEN__
+		: public std::unordered_map<std::string, symbol>
+#else
+		: public std::map<std::string, symbol>
+#endif
+	{
 		script_engine::block_kind kind;
 
 		scope(script_engine::block_kind the_kind)
@@ -1470,6 +1479,12 @@ parser::parser(script_engine* e, scanner* s, int funcc, function const* funcv)
 	, error(false)
 {
 	frame.push_back(scope(script_engine::bk_normal));
+#ifdef __EMSCRIPTEN__
+	// A ph3 root scope contains the built-ins plus hundreds of engine functions,
+	// and every identifier parsed performs scope lookups. Avoid tree walks and
+	// repeated rehashing in the Web compiler; scope ordering is never observed.
+	frame[0].reserve(funcc + sizeof(operations) / sizeof(function) + 64);
+#endif
 
 	for (int i = 0; i < sizeof(operations) / sizeof(function); ++i)
 		register_function(operations[i]);

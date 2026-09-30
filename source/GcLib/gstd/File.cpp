@@ -6,6 +6,9 @@
 #ifdef __EMSCRIPTEN__
 #include "../portable/Utf16.hpp"
 #include "../portable/Path.hpp"
+#ifdef PH3_PERF_SCAN
+#include <emscripten/emscripten.h>
+#endif
 #include <filesystem>
 #include <limits>
 #include <sys/stat.h>
@@ -900,11 +903,6 @@ void FileManager::AddLoadThreadEvent(ref_count_ptr<FileManager::LoadThreadEvent>
 			return;
 		threadLoad_->AddEvent(event);
 	}
-#ifdef __EMSCRIPTEN__
-	// The Web platform has no background loader. Complete the original queued
-	// callback on this owner, on the main thread, with explicit reentrancy.
-	PumpLoads();
-#endif
 }
 void FileManager::AddLoadThreadListener(FileManager::LoadThreadListener* listener)
 {
@@ -927,7 +925,8 @@ void FileManager::RemoveLoadThreadListener(FileManager::LoadThreadListener* list
 void FileManager::WaitForThreadLoadComplete()
 {
 #ifdef __EMSCRIPTEN__
-	PumpLoads();
+	if (threadLoad_ != NULL)
+		threadLoad_->Drain(true);
 #else
 	while (!threadLoad_->IsThreadLoadComplete()) {
 		Sleep(1);
@@ -936,19 +935,41 @@ void FileManager::WaitForThreadLoadComplete()
 }
 
 #ifdef __EMSCRIPTEN__
-void FileManager::PumpLoads() { if (threadLoad_ != NULL) threadLoad_->Drain(); }
-void FileManager::LoadThread::Drain()
+void FileManager::PumpLoads() { if (threadLoad_ != NULL) threadLoad_->Drain(false); }
+void FileManager::LoadThread::Drain(bool all)
 {
 	if (draining_) return;
 	draining_ = true;
 	try {
-		while (!listEvent_.empty()) {
-			auto event = listEvent_.front();
-			listEvent_.pop_front();
+		do {
+			ref_count_ptr<FileManager::LoadThreadEvent> event = NULL;
+			{
+				Lock lock(lockEvent_);
+				if (listEvent_.empty()) break;
+				event = listEvent_.front();
+				listEvent_.pop_front();
+			}
 			auto* listener = event->GetListener();
-			if (std::find(listListener_.begin(), listListener_.end(), listener) != listListener_.end())
+			if (std::find(listListener_.begin(), listListener_.end(), listener) != listListener_.end()) {
+#ifdef PH3_PERF_SCAN
+				const double perfBegin=emscripten_get_now();
+#endif
 				listener->CallFromLoadThread(event);
-		}
+#ifdef PH3_PERF_SCAN
+				const double perfMs=emscripten_get_now()-perfBegin;
+				if(perfMs>=1000.0/60){
+					auto path=StringUtility::ConvertWideToMulti(event->GetPath(),CP_UTF8);
+					const char* typeName=typeid(*listener).name();
+					EM_ASM({
+						const d=globalThis.ph3Diagnostics;if(!d)return;
+						const list=d.loadLongEvents||(d.loadLongEvents=[]);
+						list.push(({listener:UTF8ToString($0),path:UTF8ToString($1),ms:$2}));
+						if(list.length>256)list.splice(0,list.length-256);
+					},typeName,path.c_str(),perfMs);
+				}
+#endif
+			}
+		} while (all);
 		draining_ = false;
 	} catch (...) { draining_ = false; throw; }
 }
@@ -964,7 +985,7 @@ FileManager::LoadThread::~LoadThread()
 void FileManager::LoadThread::_Run()
 {
 #ifdef __EMSCRIPTEN__
-	Drain();
+	Drain(true);
 #else
 	while (this->GetStatus() == RUN) {
 		signal_.Wait(10);

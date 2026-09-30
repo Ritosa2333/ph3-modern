@@ -1,6 +1,9 @@
 #include"MetasequoiaMesh.hpp"
 #include"DxUtility.hpp"
 #include"DirectGraphics.hpp"
+#if defined(__EMSCRIPTEN__) && defined(PH3_PERF_SCAN)
+#include <emscripten/emscripten.h>
+#endif
 
 using namespace gstd;
 using namespace directx;
@@ -22,6 +25,9 @@ bool MetasequoiaMeshData::CreateFromFileReader(gstd::ref_count_ptr<gstd::FileRea
 {
 	bool res = false;
 	path_ = reader->GetOriginalPath();
+#if defined(__EMSCRIPTEN__) && defined(PH3_PERF_SCAN)
+	const double perfBegin=emscripten_get_now();
+#endif
 	std::string text;
 	int size = reader->GetFileSize();
 	text.resize(size);
@@ -50,6 +56,17 @@ bool MetasequoiaMeshData::CreateFromFileReader(gstd::ref_count_ptr<gstd::FileRea
 		Logger::WriteTop(StringUtility::Format(L"MetasequoiaMeshData読み込み失敗 %s %d", e.what(), scanner.GetCurrentLine()));
 		res = false;
 	}	
+#if defined(__EMSCRIPTEN__) && defined(PH3_PERF_SCAN)
+	if(res){
+		auto utf8=StringUtility::ConvertWideToMulti(path_,CP_UTF8);
+		const double ms=emscripten_get_now()-perfBegin;
+		EM_ASM({
+			const d=globalThis.ph3Diagnostics;if(!d)return;
+			const list=d.meshLoads||(d.meshLoads=[]);
+			list.push(({path:UTF8ToString($0),ms:$1,bytes:$2}));
+		},utf8.c_str(),ms,size);
+	}
+#endif
 	return res;
 }
 void MetasequoiaMeshData::_ReadMaterial(gstd::Scanner& scanner)

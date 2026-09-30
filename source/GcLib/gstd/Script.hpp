@@ -25,6 +25,9 @@
 #pragma warning(disable : 4018) //signed と unsigned の数値を比較
 #pragma warning(disable : 4244) //double' から 'float' に変換
 #include <list>
+#ifdef __EMSCRIPTEN__
+#include <deque>
+#endif
 #include <map>
 #include <string>
 #include <vector>
@@ -611,14 +614,26 @@ private:
 		}
 	};
 
+#ifdef __EMSCRIPTEN__
+	// push_back on deque keeps references/pointers to existing elements valid,
+	// which is the property the VM needs here, without one heap allocation per
+	// block as std::list requires in WebAssembly.
+	std::deque<block> blocks;
+#else
 	std::list<block> blocks; //中身のポインタを使うのでアドレスが変わらないようにlist
+#endif
 	block* main_block;
 	std::map<std::string, block*> events;
 
 	block* new_block(int level, block_kind kind)
 	{
+#ifdef __EMSCRIPTEN__
+		blocks.emplace_back(level, kind);
+		return &blocks.back();
+#else
 		block x(level, kind);
 		return &*blocks.insert(blocks.end(), x);
+#endif
 	}
 
 	friend class parser;
