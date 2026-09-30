@@ -1,5 +1,6 @@
 #include "GcLibImpl.hpp"
 #include "StgSystem.hpp"
+#include "DirectInput.hpp"
 #include <emscripten.h>
 #include <emscripten/html5.h>
 #include <clocale>
@@ -15,6 +16,8 @@ unsigned runtimeFpsSteps=0,runtimeFpsPresents=0;
 double measureStart=-1;
 unsigned measuredSteps=0,measuredPresents=0;
 std::vector<double> frameCosts;
+bool directTouchActive=false;
+double directTouchCanvasX=0,directTouchCanvasY=0;
 #ifdef PH3_PERF_SCAN
 void reportSlowFrame(double cost,int kind){
     if(cost<1000.0/60)return;
@@ -99,6 +102,36 @@ bool reportState(){
     }
     return true;
 }
+void applyDirectTouchInput(){
+    auto input=EDirectInput::GetInstance();
+    if(!input)return;
+    bool left=false,right=false,up=false,down=false;
+    if(directTouchActive){
+        auto manager=ETaskManager::GetInstance();
+        if(manager)for(auto task:manager->GetTaskList()){
+            auto system=dynamic_cast<StgSystemController*>(task.GetPointer());
+            if(!system)continue;
+            auto stage=system->GetStageController();
+            auto player=stage?stage->GetPlayerObject():nullptr;
+            if(stage==NULL||player==NULL)continue;
+            const RECT rect=stage->GetStageInformation()->GetStgFrameRect();
+            const double targetX=std::clamp(directTouchCanvasX-double(rect.left),0.0,double(rect.right-rect.left));
+            const double targetY=std::clamp(directTouchCanvasY-double(rect.top),0.0,double(rect.bottom-rect.top));
+            const double dx=targetX-player->GetX(),dy=targetY-player->GetY();
+            constexpr double deadZone=2.0;
+            left=dx<-deadZone;right=dx>deadZone;up=dy<-deadZone;down=dy>deadZone;
+            break;
+        }
+    }
+    input->SetDirectTouchKeyState(DIK_LEFT,left);
+    input->SetDirectTouchKeyState(DIK_RIGHT,right);
+    input->SetDirectTouchKeyState(DIK_UP,up);
+    input->SetDirectTouchKeyState(DIK_DOWN,down);
+}
+bool runGameFrame(bool render){
+    applyDirectTouchInput();
+    return EApplication::GetInstance()->RunFrame(render);
+}
 #if defined(WOO_REPLAY_VERIFY) || defined(PH3_REPLAY_BOUNDARY)
 bool replayActive(){
     auto manager=ETaskManager::GetInstance();
@@ -155,7 +188,7 @@ EM_BOOL frame(double now,void*){
 #ifdef PH3_PERF_SCAN
                 const double tickBegin=perfFastMode?emscripten_get_now():0;
 #endif
-                if(!EApplication::GetInstance()->RunFrame(render))return EM_FALSE;
+                if(!runGameFrame(render))return EM_FALSE;
 #ifdef PH3_PERF_SCAN
                 if(perfFastMode)reportSlowFrame(emscripten_get_now()-tickBegin,0);
 #endif
@@ -170,7 +203,7 @@ EM_BOOL frame(double now,void*){
                 accumulated-=stepMs;
                 const bool renderPermit=fpsController->AdvanceBrowserRenderPermit();
                 const bool render=accumulated+0.001<stepMs&&renderPermit;
-                if(!EApplication::GetInstance()->RunFrame(render))return EM_FALSE;
+                if(!runGameFrame(render))return EM_FALSE;
                 if(!EApplication::GetInstance()->DidBrowserFrameWork())continue;
                 ++frames;
                 ++steps;
@@ -209,6 +242,31 @@ EM_BOOL frame(double now,void*){
     return failed?EM_FALSE:EM_TRUE;
 }
 }
+
+extern "C" {
+EMSCRIPTEN_KEEPALIVE void hsob_input_key(int key,int down){
+    auto input=EDirectInput::GetInstance();
+    if(input)input->SetInjectedKeyState(key,down!=0);
+}
+EMSCRIPTEN_KEEPALIVE void hsob_input_pulse(int key){
+    auto input=EDirectInput::GetInstance();
+    if(input)input->PulseInjectedKey(key);
+}
+EMSCRIPTEN_KEEPALIVE void hsob_input_clear(){
+    auto input=EDirectInput::GetInstance();
+    if(input)input->ClearInjectedKeyState();
+}
+EMSCRIPTEN_KEEPALIVE void hsob_direct_touch(int active,double canvasX,double canvasY){
+    directTouchActive=active!=0;
+    directTouchCanvasX=canvasX;
+    directTouchCanvasY=canvasY;
+    if(!directTouchActive){
+        auto input=EDirectInput::GetInstance();
+        if(input)input->ClearDirectTouchKeyState();
+    }
+}
+}
+
 int main(){
     try {
         // musl's wide formatter converts through LC_CTYPE. Without UTF-8,

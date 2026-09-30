@@ -65,6 +65,11 @@ public:
   void ResetPadState();
   int GetPadDeviceCount() { return static_cast<int>(bufPad_.size()); }
 #ifdef __EMSCRIPTEN__
+  void SetInjectedKeyState(int key, bool down);
+  void SetDirectTouchKeyState(int key, bool down);
+  void PulseInjectedKey(int key);
+  void ClearInjectedKeyState();
+  void ClearDirectTouchKeyState();
   bool IsWindowFocused();
   bool _IdleKeyboard();
   bool _IdleMouse();
@@ -84,6 +89,10 @@ protected:
 #ifdef __EMSCRIPTEN__
   bool bKeyState_[MAX_KEY]{};
   bool bKeyPressed_[MAX_KEY]{};
+  bool bInjectedKeyState_[MAX_KEY]{};
+  bool bDirectTouchKeyState_[MAX_KEY]{};
+  bool bPulseKeyState_[MAX_KEY]{};
+  BYTE injectedPulseFrames_[MAX_KEY]{};
   bool bMouseButton_[MAX_MOUSE_BUTTON]{};
   Uint32 dwFrameTick_ = 0;
   static int SDLScancodeToDIK(SDL_Scancode sc);

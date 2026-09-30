@@ -13,7 +13,17 @@ import struct
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
-GAME = ROOT.parents[1] / "games/th_hsob_ver1.12/dnh"
+
+
+def _default_game_root() -> Path:
+    candidates = [
+        ROOT.parents[1] / "games/th_hsob_ver1.12/dnh",
+        ROOT.parents[1] / "fangame/games/th_hsob_ver1.12/dnh",
+    ]
+    return next((path for path in candidates if (path / "script/th_hsob/Main.dnh").is_file()), candidates[0])
+
+
+GAME = _default_game_root()
 
 
 class Reader:

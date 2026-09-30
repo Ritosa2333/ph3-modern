@@ -4,7 +4,9 @@ import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const root=fileURLToPath(new URL('../',import.meta.url));
-const sdk=resolve(process.env.EMSDK||resolve(root,'../../../toolchains/emsdk'));
+const sdkCandidates=[resolve(root,'../../../toolchains/emsdk'),resolve(root,'../../toolchains/emsdk')];
+const sdk=resolve(process.env.EMSDK||sdkCandidates.find(candidate=>
+  ['upstream/emscripten/emcc.py','install/emscripten/emcc.py'].some(path=>existsSync(resolve(candidate,path))))||sdkCandidates[0]);
 const compiler=['upstream/emscripten/emcc.py','install/emscripten/emcc.py'].map(p=>resolve(sdk,p)).find(existsSync);
 if(!compiler)throw new Error('Emscripten not found; set EMSDK');
 mkdirSync(resolve(root,'build'),{recursive:true});

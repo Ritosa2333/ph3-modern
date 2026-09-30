@@ -14,11 +14,19 @@ MIME = {".mjs": "text/javascript; charset=utf-8", ".wasm": "application/wasm",
         ".json": "application/json; charset=utf-8", ".html": "text/html; charset=utf-8"}
 
 
+def default_game_root() -> Path:
+    candidates = [
+        ROOT.parents[1] / "games/th_hsob_ver1.12/dnh",
+        ROOT.parents[1] / "fangame/games/th_hsob_ver1.12/dnh",
+    ]
+    return next((path for path in candidates if (path / "script/th_hsob/Main.dnh").is_file()), candidates[0])
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--port", type=int, default=8797)
     parser.add_argument("--runtime", type=Path, default=ROOT / "build/web")
-    parser.add_argument("--game-root", type=Path, default=ROOT.parents[1] / "games/th_hsob_ver1.12/dnh")
+    parser.add_argument("--game-root", type=Path, default=default_game_root())
     parser.add_argument("--font", type=Path, default=Path("C:/Windows/Fonts/msgothic.ttc"))
     args = parser.parse_args()
     game = args.game_root.resolve()
@@ -95,7 +103,7 @@ def main() -> None:
                     path = (base / route.removeprefix("/effects/")).resolve()
                 else:
                     base = runtime
-                    path = (base / ("index.html" if route == "/" else route.lstrip("/"))).resolve()
+                    path = (base / ("hsob.html" if route == "/" else route.lstrip("/"))).resolve()
                 if not path.is_relative_to(base) or not path.is_file():
                     self.send_error(404)
                     return

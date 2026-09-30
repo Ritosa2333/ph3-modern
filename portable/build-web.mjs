@@ -1,12 +1,13 @@
 import {spawn, spawnSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
-import {existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync} from 'node:fs';
+import {existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync} from 'node:fs';
 import {basename, dirname, extname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
-const workspace = resolve(root, '../../..');
-const sdk = resolve(process.env.EMSDK || resolve(workspace, 'toolchains/emsdk'));
+const sdkCandidates = [resolve(root, '../../../toolchains/emsdk'), resolve(root, '../../toolchains/emsdk')];
+const sdk = resolve(process.env.EMSDK || sdkCandidates.find(candidate =>
+  ['upstream/emscripten/emcc.py', 'install/emscripten/emcc.py'].some(path => existsSync(resolve(candidate, path)))) || sdkCandidates[0]);
 const emcc = ['upstream/emscripten/emcc.py', 'install/emscripten/emcc.py']
   .map(p => resolve(sdk, p)).find(existsSync);
 if (!emcc) throw new Error('Emscripten not found; set EMSDK.');
@@ -119,7 +120,7 @@ if (report.failures.length || changed.length) {
   process.exitCode = 2;
 } else if (!compileOnly) {
   const linkFlags = [
-    '-sMODULARIZE=1', '-sEXPORT_ES6=1', '-sENVIRONMENT=web,node', '-sINVOKE_RUN=0',
+    '-sMODULARIZE=1', '-sEXPORT_ES6=1', '-sENVIRONMENT=web', '-sINVOKE_RUN=0',
     '-sALLOW_MEMORY_GROWTH=1', '-sINITIAL_MEMORY=67108864', '-sMAXIMUM_MEMORY=2147483648',
     '-sSTACK_SIZE=8388608', '-sEXIT_RUNTIME=0', '-sFORCE_FILESYSTEM=1',
     '-sMIN_WEBGL_VERSION=2', '-sMAX_WEBGL_VERSION=2',
@@ -132,10 +133,11 @@ if (report.failures.length || changed.length) {
     console.error(result.stderr.slice(-24000));
     process.exitCode = 2;
   } else {
-    for (const name of ['index.html', 'shell.mjs'])
+    rmSync(resolve(out, 'index.html'), {force: true});
+    for (const name of ['hsob.html', 'shell.mjs', 'eagler-host.mjs'])
       writeFileSync(resolve(out, name), readFileSync(resolve(root, 'portable/web', name)));
-    const files = ['ph3-open.mjs', 'ph3-open.wasm', 'index.html', 'shell.mjs'];
-    const manifest = {
+    const files = ['ph3-open.mjs', 'ph3-open.wasm', 'hsob.html', 'shell.mjs', 'eagler-host.mjs'];
+    const buildManifest = {
       project: 'ph3-open-web', variant,
       gameplayAuthority: '5c92f28e17b6ef3721a3ac4caa9de3af3164b51e',
       datSource: '900aa3ebeb329187e8c2852b8ad41caa5200ca9e',
@@ -147,7 +149,41 @@ if (report.failures.length || changed.length) {
       })),
       verification: {compiled: true, linked: true, browser: false, gameplay: false},
     };
-    writeFileSync(resolve(out, 'build.json'), JSON.stringify(manifest, null, 2) + '\n');
+    writeFileSync(resolve(out, 'build.json'), JSON.stringify(buildManifest, null, 2) + '\n');
+    const runtimeManifest = {
+      game: 'hsob',
+      protocol: 'eagler-touhou/1',
+      adapter: 'danmakufu-ph3-eagler',
+      profile: variant === 'standard' ? 'production' : 'diagnostic',
+      version: 'hsob-1.12-ph3-open-web',
+      features: {thprac: false, languages: false, focusHitbox: false},
+      music: ['ogg-stream', 'ogg-full', 'none'],
+      touchReplay: false,
+      execution: {
+        kind: 'cpp-sdl3',
+        sha256: sha(readFileSync(resolve(out, 'ph3-open.wasm'))),
+        loaderSha256: sha(readFileSync(resolve(out, 'ph3-open.mjs'))),
+        architecture: {
+          loop: 'original-60hz-logic-display-cadence',
+          audio: 'sdl3-webaudio-vorbis',
+          renderer: 'd3d9-semantic-webgl2',
+          files: 'managed-data-memfs-idbfs',
+          fonts: 'freetype-ms-gothic',
+          input: 'directinput-sdl-launcher-bridge',
+          launcher: 'eagler-touhou/1',
+        },
+      },
+    };
+    writeFileSync(resolve(out, 'manifest.json'), JSON.stringify(runtimeManifest, null, 2) + '\n');
+    const runtimeNames = ['hsob.html', 'shell.mjs', 'eagler-host.mjs', 'manifest.json',
+      'ph3-open.mjs', 'ph3-open.wasm', 'build.json'];
+    const runtimeFiles = Object.fromEntries(runtimeNames.map(path => {
+      const bytes = readFileSync(resolve(out, path));
+      return [path, {bytes: bytes.length, sha256: sha(bytes)}];
+    }));
+    writeFileSync(resolve(out, 'runtime-files.json'), JSON.stringify({
+      schema: 'eagler-touhou/runtime-directory/1', files: runtimeFiles,
+    }, null, 2) + '\n');
     console.log(`Linked complete Woo Web runtime: ${out}`);
   }
 }

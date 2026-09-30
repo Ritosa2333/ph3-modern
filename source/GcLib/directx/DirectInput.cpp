@@ -26,6 +26,10 @@ DirectInput::DirectInput()
 		bufKey_[i] = KEY_FREE;
 		bKeyState_[i] = false;
 		bKeyPressed_[i] = false;
+		bInjectedKeyState_[i] = false;
+		bDirectTouchKeyState_[i] = false;
+		bPulseKeyState_[i] = false;
+		injectedPulseFrames_[i] = 0;
 	}
 	for (int i = 0; i < MAX_MOUSE_BUTTON; i++) {
 		bufMouse_[i] = KEY_FREE;
@@ -275,7 +279,7 @@ bool DirectInput::_IdleKeyboard()
 	for (int i = 0; i < MAX_KEY; i++) {
 		SDL_Scancode sc = DIKToSDLScancode(i);
 		if (sc == SDL_SCANCODE_UNKNOWN) continue;
-		bool pressed = keyState[sc] != 0;
+		bool pressed = keyState[sc] != 0 || bInjectedKeyState_[i] || bDirectTouchKeyState_[i] || bPulseKeyState_[i];
 		if (pressed && !bKeyState_[i]) {
 			bKeyPressed_[i] = true;
 		} else if (!pressed && bKeyState_[i]) {
@@ -382,6 +386,10 @@ void DirectInput::Update()
 
 	for (int iKey = 0; iKey < 255; iKey++)
 		bufKey_[iKey] = _GetKey(iKey, bufKey_[iKey]);
+	for (int iKey = 0; iKey < MAX_KEY; iKey++) {
+		if (injectedPulseFrames_[iKey] > 0 && --injectedPulseFrames_[iKey] == 0)
+			bPulseKeyState_[iKey] = false;
+	}
 
 	for (int iButton = 0; iButton < 3; iButton++)
 		bufMouse_[iButton] = _GetMouseButton(iButton, bufMouse_[iButton]);
@@ -404,6 +412,8 @@ void DirectInput::ResetKeyState()
 	for (int iKey = 0; iKey < MAX_KEY; iKey++)
 		bufKey_[iKey] = KEY_FREE;
 	ZeroMemory(bKeyState_, sizeof(bKeyState_));
+	ClearInjectedKeyState();
+	ClearDirectTouchKeyState();
 }
 void DirectInput::ResetPadState()
 {
@@ -422,6 +432,34 @@ int DirectInput::GetKeyState(int key) { return key >= 0 && key < MAX_KEY ? bufKe
 int DirectInput::GetMouseState(int button) { return button >= 0 && button < MAX_MOUSE_BUTTON ? bufMouse_[button] : KEY_FREE; }
 int DirectInput::GetPadState(int pad,int button) {
 	return pad >= 0 && pad < static_cast<int>(bufPad_.size()) && button >= 0 && button < static_cast<int>(bufPad_[pad].size()) ? bufPad_[pad][button] : KEY_FREE;
+}
+
+void DirectInput::SetInjectedKeyState(int key, bool down)
+{
+	if (key < 0 || key >= MAX_KEY) return;
+	bInjectedKeyState_[key] = down;
+	if (!down) injectedPulseFrames_[key] = 0;
+}
+void DirectInput::SetDirectTouchKeyState(int key, bool down)
+{
+	if (key < 0 || key >= MAX_KEY) return;
+	bDirectTouchKeyState_[key] = down;
+}
+void DirectInput::PulseInjectedKey(int key)
+{
+	if (key < 0 || key >= MAX_KEY) return;
+	bPulseKeyState_[key] = true;
+	injectedPulseFrames_[key] = 1;
+}
+void DirectInput::ClearInjectedKeyState()
+{
+	ZeroMemory(bInjectedKeyState_, sizeof(bInjectedKeyState_));
+	ZeroMemory(bPulseKeyState_, sizeof(bPulseKeyState_));
+	ZeroMemory(injectedPulseFrames_, sizeof(injectedPulseFrames_));
+}
+void DirectInput::ClearDirectTouchKeyState()
+{
+	ZeroMemory(bDirectTouchKeyState_, sizeof(bDirectTouchKeyState_));
 }
 
 #else
