@@ -43,6 +43,9 @@ ScriptEngineCache::~ScriptEngineCache()
 void ScriptEngineCache::Clear()
 {
 	cache_.clear();
+#if defined(__EMSCRIPTEN__) && !defined(PH3_LEGACY_STAGE_SCRIPT_CACHE)
+	browserPrewarm_.Clear();
+#endif
 }
 void ScriptEngineCache::AddCache(std::wstring name, ref_count_ptr<ScriptEngineData> data)
 {
@@ -58,6 +61,21 @@ bool ScriptEngineCache::IsExists(std::wstring name)
 {
 	return cache_.find(name) != cache_.end();
 }
+#if defined(__EMSCRIPTEN__) && !defined(PH3_LEGACY_STAGE_SCRIPT_CACHE)
+ScriptEngineCache::PrewarmRetirement ScriptEngineCache::RetireBrowserStagePrewarm()
+{
+	PrewarmRetirement result;
+	result.entries = browserPrewarm_.RetireUnused(cache_, [&](auto& data) {
+		if(data != NULL) result.sourceBytes += data->GetSource().capacity();
+	});
+	return result;
+}
+void ScriptEngineCache::RememberBrowserStagePrewarm(const std::wstring& path)
+{
+	const auto key = PathProperty::GetUnique(path);
+	if(cache_.find(key) != cache_.end()) browserPrewarm_.Remember(key);
+}
+#endif
 
 /**********************************************************
 //ScriptClientBase

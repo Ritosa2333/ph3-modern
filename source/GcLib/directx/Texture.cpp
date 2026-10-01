@@ -1,6 +1,6 @@
 #include"Texture.hpp"
 #include"DirectGraphics.hpp"
-#if defined(__EMSCRIPTEN__) && defined(PH3_PERF_SCAN)
+#if defined(__EMSCRIPTEN__)
 #include <emscripten/emscripten.h>
 #endif
 
@@ -151,6 +151,18 @@ void Texture::SetTexture(IDirect3DTexture9 *pTexture)
 
 IDirect3DTexture9* Texture::GetD3DTexture()
 {
+#ifdef __EMSCRIPTEN__
+	// Web has no background loader that could make progress during Sleep.
+	// Finish the required queued upload before handing the texture to a draw.
+	if(data_ == NULL)return NULL;
+	if(!data_->bLoad_){
+		FileManager::GetBase()->WaitForThreadLoadComplete();
+		if(data_ == NULL)return NULL;
+		if(!data_->bLoad_)throw gstd::wexception(
+			L"Texture did not finish cooperative loading: " + data_->GetName());
+	}
+	return _GetTextureData()->pTexture_;
+#else
 	IDirect3DTexture9* res = NULL;
 	{
 		bool bWait = true;
@@ -181,6 +193,7 @@ IDirect3DTexture9* Texture::GetD3DTexture()
 
 	}
 	return res;
+#endif
 }
 IDirect3DSurface9* Texture::GetD3DSurface()
 {
@@ -262,6 +275,9 @@ void TextureManager::Clear()
 {
 	{
 		Lock lock(lock_);
+#if defined(__EMSCRIPTEN__) && !defined(PH3_LEGACY_TEXTURE_CACHE)
+		browserCache_.Clear();
+#endif
 		mapTexture_.clear();
 		mapTextureData_.clear();
 	}
@@ -472,6 +488,9 @@ gstd::ref_count_ptr<Texture> TextureManager::CreateFromFile(std::wstring path)
 		if(bExist)
 		{
 			res = mapTexture_[path];
+#if defined(__EMSCRIPTEN__) && !defined(PH3_LEGACY_TEXTURE_CACHE)
+			browserCache_.Touch(path);
+#endif
 		}
 		else
 		{
@@ -481,11 +500,11 @@ gstd::ref_count_ptr<Texture> TextureManager::CreateFromFile(std::wstring path)
 				res = new Texture();
 				res->data_ = mapTextureData_[path];
 #ifdef __EMSCRIPTEN__
-				// PNG/JPEG decode + WebGL upload is expensive enough to create
-				// visible hitches when boss/dialogue textures are released and then
-				// requested again. Keep ordinary file textures resident for the Web
-				// session; explicit TextureManager::Release/Clear still drops them.
+#ifdef PH3_LEGACY_TEXTURE_CACHE
 				mapTexture_[path] = res;
+#else
+				_RememberBrowserTexture(path, res);
+#endif
 #endif
 			}
 		}
@@ -526,6 +545,9 @@ gstd::ref_count_ptr<Texture> TextureManager::CreateFromFileInLoadThread(std::wst
 		if(bExist)
 		{
 			res = mapTexture_[path];
+#if defined(__EMSCRIPTEN__) && !defined(PH3_LEGACY_TEXTURE_CACHE)
+			browserCache_.Touch(path);
+#endif
 		}
 		else
 		{
@@ -575,7 +597,11 @@ gstd::ref_count_ptr<Texture> TextureManager::CreateFromFileInLoadThread(std::wst
 
 			res->data_ = mapTextureData_[path];
 #ifdef __EMSCRIPTEN__
+#ifdef PH3_LEGACY_TEXTURE_CACHE
 			mapTexture_[path] = res;
+#else
+			_RememberBrowserTexture(path, res);
+#endif
 #endif
 			if(bLoadTarget)
 			{
@@ -650,6 +676,9 @@ void TextureManager::CallFromLoadThread(ref_count_ptr<FileManager::LoadThreadEve
 			Logger::WriteTop(str);
 		}
 		data->bLoad_ = true;
+#if defined(__EMSCRIPTEN__) && !defined(PH3_LEGACY_TEXTURE_CACHE)
+		browserCache_.Reweight(path, _BrowserTextureBytes(data.GetPointer()));
+#endif
 	}
 }
 
@@ -676,6 +705,9 @@ gstd::ref_count_ptr<Texture> TextureManager::GetTexture(std::wstring name)
 		if(bExist)
 		{
 			res = mapTexture_[name];
+#if defined(__EMSCRIPTEN__) && !defined(PH3_LEGACY_TEXTURE_CACHE)
+			browserCache_.Touch(name);
+#endif
 		}
 	}
 	return res;
@@ -685,6 +717,10 @@ void TextureManager::Add(std::wstring name, gstd::ref_count_ptr<Texture> texture
 {
 	{
 		Lock lock(lock_);
+#if defined(__EMSCRIPTEN__) && !defined(PH3_LEGACY_TEXTURE_CACHE)
+		// An explicit pin is not opportunistic cache ownership.
+		browserCache_.Forget(name);
+#endif
 		bool bExist = mapTexture_.find(name) != mapTexture_.end();
 		if(!bExist)
 		{
@@ -696,9 +732,56 @@ void TextureManager::Release(std::wstring name)
 {
 	{
 		Lock lock(lock_);
+#if defined(__EMSCRIPTEN__) && !defined(PH3_LEGACY_TEXTURE_CACHE)
+		browserCache_.Forget(name);
+#endif
 		mapTexture_.erase(name);
 	}
 }
+#ifdef __EMSCRIPTEN__
+#ifndef PH3_LEGACY_TEXTURE_CACHE
+std::size_t TextureManager::_BrowserTextureBytes(const TextureData* data)
+{
+	if(!data || !data->pTexture_)return 0;
+	// Ordinary images use 32-bit color and a complete mip chain: count logical
+	// GPU storage, not compressed file size or physical driver residency.
+	std::size_t bytes=0, width=data->infoImage_.Width, height=data->infoImage_.Height;
+	if(!width||!height)return 0;
+	for(;;){bytes+=width*height*4;if(width==1&&height==1)break;width=std::max<std::size_t>(1,width/2);height=std::max<std::size_t>(1,height/2);}
+	return bytes;
+}
+void TextureManager::_RememberBrowserTexture(const std::wstring& path, gstd::ref_count_ptr<Texture> texture)
+{
+	mapTexture_[path]=texture;
+	browserCache_.Remember(path, _BrowserTextureBytes(texture->data_.GetPointer()));
+}
+#endif
+void TextureManager::TrimBrowserCache()
+{
+#ifndef PH3_LEGACY_TEXTURE_CACHE
+	Lock lock(lock_);
+#ifdef PH3_BROWSER_TEXTURE_CACHE_BYTES
+	constexpr std::size_t budget=PH3_BROWSER_TEXTURE_CACHE_BYTES;
+#else
+	constexpr std::size_t budget=64u*1024u*1024u;
+#endif
+	const auto evicted=browserCache_.Trim(budget,192,[&](const std::wstring& path){
+		auto found=mapTexture_.find(path);if(found==mapTexture_.end())return true;
+		auto& texture=found->second;
+		if(texture==NULL||texture->data_==NULL)return true;
+		// Only the cache wrapper and the data map remain. Scripts, objects,
+		// pending loads and render targets cannot be evicted here.
+		return texture.GetReferenceCount()==1&&texture->data_.GetReferenceCount()==2&&
+			texture->data_->bLoad_&&texture->data_->type_==TextureData::TYPE_TEXTURE;
+	},[&](const std::wstring& path){mapTexture_.erase(path);});
+	browserEvictions_+=evicted;
+	EM_ASM({
+		const d=globalThis.ph3Diagnostics;if(d&&d.observeStage)d.textureCache=({
+			bytes:$0,entries:$1,evictions:$2,budget:$3,activeMayExceedBudget:true});
+	},double(browserCache_.Bytes()),double(browserCache_.Size()),double(browserEvictions_),double(budget));
+#endif
+}
+#endif
 bool TextureManager::IsDataExists(std::wstring name)
 {
 	bool res = false;

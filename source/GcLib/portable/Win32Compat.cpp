@@ -38,7 +38,13 @@ extern "C" {
 DWORD GetCurrentThreadId(){return 1;}
 BOOL QueryPerformanceCounter(LARGE_INTEGER* value){if(!value)return FALSE;value->QuadPart=static_cast<std::int64_t>(emscripten_get_now()*1000);return TRUE;}
 BOOL QueryPerformanceFrequency(LARGE_INTEGER* value){if(!value)return FALSE;value->QuadPart=1000000;return TRUE;}
-void Sleep(DWORD milliseconds){if(milliseconds)throw std::runtime_error("Blocking Sleep reached the Web main thread; use the cooperative owner");}
+void Sleep(DWORD milliseconds){
+    if(!milliseconds)return;
+    // Retain the caller when an unported blocking owner is reached. Never
+    // busy-wait or silently skip a wait for a resource that is not ready.
+    EM_ASM({console.error(new Error('Blocking Sleep owner').stack);});
+    throw std::runtime_error("Blocking Sleep reached the Web main thread; use the cooperative owner");
+}
 void GetLocalTime(SYSTEMTIME* output){
     if(!output)return;
     auto now=std::chrono::system_clock::now();auto seconds=std::chrono::system_clock::to_time_t(now);std::tm local{};localtime_r(&seconds,&local);

@@ -6,13 +6,14 @@ const MAX_FILE_BYTES=256*1024*1024;
 
 export function normalizeOptions(value={}){
  const modes=['touch','touch-unlimited','joystick','joystick-free'];
+ const focusModes=['hold-button','toggle-button','two-finger'];
  const sensitivity=Number(value.touchSensitivity??100);
  return {...value,
   limitPresentationTo60:!!value.limitPresentationTo60,
   touchEnabled:!!value.touchEnabled,
   touchMovementMode:modes.includes(value.touchMovementMode)?value.touchMovementMode:'touch',
   touchSensitivity:Number.isFinite(sensitivity)?Math.max(100,Math.min(300,sensitivity)):100,
-  touchFocusMode:value.touchFocusMode==='two-finger'?'two-finger':'button',
+  touchFocusMode:focusModes.includes(value.touchFocusMode)?value.touchFocusMode:'hold-button',
   doubleTapBombEnabled:!!value.doubleTapBombEnabled,
   alwaysHitbox:!!value.alwaysHitbox,
   oggDecodeMode:value.oggDecodeMode==='full'?'full':'stream',

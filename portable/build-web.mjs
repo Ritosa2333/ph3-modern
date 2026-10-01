@@ -16,12 +16,18 @@ const env = {...process.env, EMSDK: sdk, EM_CONFIG: process.env.EM_CONFIG || res
 const args = process.argv.slice(2);
 const variant = args.find(arg => arg.startsWith('--variant='))?.slice(10) || 'standard';
 if (!['standard', 'boundary', 'verify'].includes(variant)) throw new Error('Unknown build variant');
+const exceptionMode = args.find(arg => arg.startsWith('--exceptions='))?.slice(13) || 'js';
+if (!['js', 'wasm'].includes(exceptionMode)) throw new Error('Unknown exception mode');
+const buildLabel = args.find(arg => arg.startsWith('--label='))?.slice(8) || '';
+if (buildLabel && !/^[a-z0-9][a-z0-9-]{0,47}$/.test(buildLabel)) throw new Error('Invalid build label');
 const only = args.find(arg => arg.startsWith('--only='))?.slice(7);
 const compileOnly = args.includes('--compile-only') || !!only;
 const force = args.includes('--force');
 const jobs = Math.max(1, Math.min(8, Number(process.env.PH3_JOBS || 4)));
-const objectDir = resolve(root, variant === 'verify' ? 'build/web-verify-objects' : variant === 'boundary' ? 'build/web-boundary-objects' : 'build/web-objects');
-const out = resolve(root, variant === 'verify' ? 'build/web-verify' : variant === 'boundary' ? 'build/web-boundary' : 'build/web');
+const outputStem = 'web' + (variant === 'standard' ? '' : '-' + variant) +
+  (exceptionMode === 'wasm' ? '-wasm-exceptions' : '') + (buildLabel ? '-' + buildLabel : '');
+const objectDir = resolve(root, 'build/' + outputStem + '-objects');
+const out = resolve(root, 'build/' + outputStem);
 mkdirSync(objectDir, {recursive: true});
 mkdirSync(out, {recursive: true});
 const sha = data => createHash('sha256').update(data).digest('hex');
@@ -51,7 +57,7 @@ const sources = only ? allSources.filter(path => path.includes(only)) : allSourc
 if (!sources.length) throw new Error(`No source matches ${only || 'the executor project'}`);
 
 const flags = [
-  '-std=c++17', '-O2', '-g2', '-fexceptions', '-ffp-contract=off',
+  '-std=c++17', '-O2', '-g2', exceptionMode === 'wasm' ? '-fwasm-exceptions' : '-fexceptions', '-ffp-contract=off',
   '-DUNICODE', '-D_UNICODE', '-sDEFAULT_TO_CXX=1',
   ...['source', 'source/GcLib', 'source/GcLib/gstd', 'source/GcLib/directx',
     'source/TouhouDanmakufu/Common', 'source/TouhouDanmakufu/DnhExecutor'].map(path => '-I' + resolve(root, path)),
@@ -138,7 +144,7 @@ if (report.failures.length || changed.length) {
       writeFileSync(resolve(out, name), readFileSync(resolve(root, 'portable/web', name)));
     const files = ['ph3-open.mjs', 'ph3-open.wasm', 'hsob.html', 'shell.mjs', 'eagler-host.mjs'];
     const buildManifest = {
-      project: 'ph3-open-web', variant,
+      project: 'ph3-open-web', variant, exceptionMode, buildLabel,
       gameplayAuthority: '5c92f28e17b6ef3721a3ac4caa9de3af3164b51e',
       datSource: '900aa3ebeb329187e8c2852b8ad41caa5200ca9e',
       builtAt: new Date().toISOString(), toolchain: report.toolchain, sources: Object.fromEntries(snapshot),

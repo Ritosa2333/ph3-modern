@@ -7,6 +7,8 @@
 #include <limits>
 
 namespace directx::portable {
+namespace { bool gVorbisFullDecode=false; }
+void SetVorbisFullDecode(bool enabled){gVorbisFullDecode=enabled;}
 struct AudioClip {
     int rate=48000,channels=2;
     bool streamed=false;
@@ -49,7 +51,7 @@ std::shared_ptr<AudioClip> DecodeAudio(const std::vector<char>& bytes) {
             // Long music tracks must not be decoded synchronously on the game
             // thread. Keep the compressed bytes and give each voice a small
             // Vorbis decode window instead. Short OGG effects stay resident.
-            if(frames>static_cast<ogg_int64_t>(clip->rate)*20){
+            if(!gVorbisFullDecode&&frames>static_cast<ogg_int64_t>(clip->rate)*20){
                 clip->encodedVorbis=std::make_shared<std::vector<char>>(bytes);
                 ov_clear(&file);
                 return clip;

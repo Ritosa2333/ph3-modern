@@ -8,6 +8,9 @@
 #include "MersenneTwister.hpp"
 #include "Script.hpp"
 #include "Thread.hpp"
+#if defined(__EMSCRIPTEN__) && !defined(PH3_LEGACY_STAGE_SCRIPT_CACHE)
+#include "PrewarmCacheScope.hpp"
+#endif
 
 namespace gstd {
 
@@ -62,9 +65,20 @@ public:
 	void AddCache(std::wstring name, ref_count_ptr<ScriptEngineData> data);
 	ref_count_ptr<ScriptEngineData> GetCache(std::wstring name);
 	bool IsExists(std::wstring name);
+#if defined(__EMSCRIPTEN__) && !defined(PH3_LEGACY_STAGE_SCRIPT_CACHE)
+	struct PrewarmRetirement {
+		std::size_t entries = 0;
+		std::size_t sourceBytes = 0; // Expanded source only; excludes bytecode and literals.
+	};
+	PrewarmRetirement RetireBrowserStagePrewarm();
+	void RememberBrowserStagePrewarm(const std::wstring& path);
+#endif
 
 protected:
 	std::map<std::wstring, ref_count_ptr<ScriptEngineData>> cache_;
+#if defined(__EMSCRIPTEN__) && !defined(PH3_LEGACY_STAGE_SCRIPT_CACHE)
+	PrewarmCacheScope<std::wstring> browserPrewarm_;
+#endif
 };
 
 /**********************************************************

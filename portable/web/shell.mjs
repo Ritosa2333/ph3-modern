@@ -73,41 +73,36 @@ function runtimeKeyboardCode(message){
  const byKey={z:'KeyZ',x:'KeyX',r:'KeyR',shift:location===2?'ShiftRight':'ShiftLeft',control:location===2?'ControlRight':'ControlLeft',escape:'Escape',esc:'Escape',arrowup:'ArrowUp',arrowdown:'ArrowDown',arrowleft:'ArrowLeft',arrowright:'ArrowRight',home:'Home',enter:'Enter',tab:'Tab',backspace:'Backspace'};
  return byKey[key]||'';
 }
-const keyboard=new Map(),touch=new Map();
+const keyboard=new Map();
 function ccall(name,args=[],types=[]){return Module.ccall(name,null,types,args);}
-function applyKey(dik){ccall('hsob_input_key',[dik,(keyboard.get(dik)||touch.get(dik))?1:0],['number','number']);}
+function applyKey(dik){ccall('hsob_input_key',[dik,keyboard.get(dik)?1:0],['number','number']);}
 function setSource(source,dik,down){if(down)source.set(dik,true);else source.delete(dik);applyKey(dik);}
 function clearSource(source){const keys=[...source.keys()];source.clear();for(const key of keys)applyKey(key);}
-function pulse(dik){ccall('hsob_input_pulse',[dik],['number']);}
-let lastBomb=0,lastEscape=0,directId=null;
+let touchBaselineReady=false;
+function applyTouchConfig(){
+ const modes={touch:0,'touch-unlimited':1,joystick:2,'joystick-free':3};
+ const focusMode=options.touchFocusMode==='two-finger'?2:options.touchFocusMode==='toggle-button'?1:0;
+ ccall('hsob_touch_config',[options.touchEnabled?1:0,modes[options.touchMovementMode]??0,options.touchSensitivity/100,focusMode,options.doubleTapBombEnabled?1:0],['number','number','number','number','number']);
+}
 function cancelTouches(){
- clearSource(touch);directId=null;ccall('hsob_direct_touch',[0,0,0],['number','number','number']);
+ ccall('hsob_touch_cancel');
 }
 function applyTouchControls(message){
  const state=touchSnapshot(options,message);
- if(!options.touchEnabled){cancelTouches();lastBomb=state.bomb;lastEscape=state.escape;return;}
- setSource(touch,DIK.KeyZ,state.fire);setSource(touch,DIK.ShiftLeft,state.focus);
- if(options.touchMovementMode.startsWith('joystick')){
-  const threshold=4096;setSource(touch,DIK.ArrowLeft,state.x<-threshold);setSource(touch,DIK.ArrowRight,state.x>threshold);
-  setSource(touch,DIK.ArrowUp,state.y<-threshold);setSource(touch,DIK.ArrowDown,state.y>threshold);
- }else{
-  for(const key of [DIK.ArrowLeft,DIK.ArrowRight,DIK.ArrowUp,DIK.ArrowDown])setSource(touch,key,false);
- }
- if(state.bomb!==lastBomb){lastBomb=state.bomb;pulse(DIK.KeyX);}if(state.escape!==lastEscape){lastEscape=state.escape;pulse(DIK.Escape);}
+ applyTouchConfig();
+ const fn=touchBaselineReady?'hsob_touch_controls':'hsob_touch_controls_baseline';
+ ccall(fn,[state.fire?1:0,state.focus?1:0,state.bomb,state.escape,state.x,state.y],['number','number','number','number','number','number']);
+ touchBaselineReady=true;
 }
 function directTouch(message){
- if(!options.touchEnabled||options.touchMovementMode.startsWith('joystick'))return;
+ if(!options.touchEnabled)return;
  const type=message.type??message.action,id=Number(message.id),x=Number(message.x),y=Number(message.y);
- if(!Number.isSafeInteger(id))return;
- if(type==='up'||type==='cancel'){
-  if(id===directId){directId=null;ccall('hsob_direct_touch',[0,0,0],['number','number','number']);}return;
- }
- if(type!=='down'&&type!=='move'||!Number.isFinite(x)||!Number.isFinite(y))return;
- if(directId===null)directId=id;if(directId!==id)return;
+ if(!Number.isSafeInteger(id)||!Number.isFinite(x)||!Number.isFinite(y))return;
+ const typeId=type==='down'?0:type==='move'?1:(type==='up'||type==='cancel')?2:-1;if(typeId<0)return;
  const rect=canvas.getBoundingClientRect();if(rect.width<=0||rect.height<=0)return;
  const clientX=x*innerWidth,clientY=y*innerHeight;
- const logicalX=(clientX-rect.left)*640/rect.width,logicalY=(clientY-rect.top)*480/rect.height;
- ccall('hsob_direct_touch',[1,logicalX,logicalY],['number','number','number']);
+ const normalizedX=(clientX-rect.left)/rect.width,normalizedY=(clientY-rect.top)/rect.height;
+ ccall('hsob_touch_pointer',[typeId,id,normalizedX,normalizedY,performance.now()],['number','number','number','number','number']);
 }
 
 async function installLocalManifest(){
@@ -135,14 +130,15 @@ async function installConfiguredResources(message){
 async function configure(message){
  if(launched)throw Error('Cannot configure a running game');
  if(!['ogg','none'].includes(message.music))throw Error('HSoB supports OGG or no music');
- options=normalizeOptions(message.options);musicMode=message.music;Module.hsobLimitPresentationTo60=options.limitPresentationTo60;Module.hsobAlwaysHitbox=options.alwaysHitbox;Module.hsobOggDecodeMode=options.oggDecodeMode;
+ options=normalizeOptions(message.options);musicMode=message.music;applyTouchConfig();
+ ccall('hsob_set_ogg_decode_mode',[options.oggDecodeMode==='full'?1:0],['number']);
  await installConfiguredResources(message);configured=true;return {};
 }
 function launch(){
  if(launched)return;if(managed&&!configured)throw Error('Runtime must be configured before launch');
  if(exists('/msgothic.ttc'))ensureFontAlias(Module);else if(!exists('/game/msgothic.ttc'))throw Error('Japanese font is unavailable');
  if(musicMode==='none'&&exists('/game/script/th_hsob/music/music.dat'))Module.FS.unlink('/game/script/th_hsob/music/music.dat');
- Module.FS.chdir('/game');diagnostics.observeStage=true;diagnostics.observePerformance=true;diagnostics.phase='running';
+ Module.FS.chdir('/game');diagnostics.observeStage=true;diagnostics.observePerformance=true;diagnostics.phase='running';touchBaselineReady=false;ccall('hsob_touch_begin_session');
  launched=true;firstFrame=false;reportedError=false;canvas.focus({preventScroll:true});Module.callMain([]);
  emit('runtime-info',{renderer:'SDL3 / WebGL2 / Danmakufu ph3',architecture:'eagler-touhou/1',version:'HSoB 1.12 / ph3-open-web'});
  start.disabled=true;start.textContent='游戏运行中';start.style.display=managed?'none':'';

@@ -3,6 +3,9 @@
 
 #include"DxConstant.hpp"
 #include"DirectGraphics.hpp"
+#ifdef __EMSCRIPTEN__
+#include "../gstd/BudgetLru.hpp"
+#endif
 
 namespace directx
 {
@@ -87,6 +90,12 @@ namespace directx
 			std::map<std::wstring, gstd::ref_count_ptr<Texture> > mapTexture_;
 			std::map<std::wstring, gstd::ref_count_ptr<TextureData> > mapTextureData_;
 			gstd::ref_count_ptr<TextureInfoPanel> panelInfo_;
+#if defined(__EMSCRIPTEN__) && !defined(PH3_LEGACY_TEXTURE_CACHE)
+			gstd::BudgetLru<std::wstring> browserCache_;
+			std::size_t browserEvictions_ = 0;
+			void _RememberBrowserTexture(const std::wstring& path, gstd::ref_count_ptr<Texture> texture);
+			static std::size_t _BrowserTextureBytes(const TextureData* data);
+#endif
 
 			void _ReleaseTextureData(std::wstring name);
 			bool _CreateFromFile(std::wstring path);
@@ -99,6 +108,10 @@ namespace directx
 			gstd::CriticalSection& GetLock(){return lock_;}
 
 			virtual void Clear();
+#ifdef __EMSCRIPTEN__
+			// Call only after Present/EndScene has submitted pending GL batches.
+			void TrimBrowserCache();
+#endif
 			virtual void Add(std::wstring name, gstd::ref_count_ptr<Texture> texture);//テクスチャの参照を保持します
 			virtual void Release(std::wstring name);//保持している参照を解放します
 			virtual bool IsDataExists(std::wstring name);			

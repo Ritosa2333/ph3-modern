@@ -13,7 +13,11 @@ class SoundInfo;
 class SoundDivision;
 class SoundPlayer;
 class SoundInfoPanel;
-namespace portable { struct AudioClip; struct VorbisStream; }
+namespace portable {
+    struct AudioClip;
+    struct VorbisStream;
+    void SetVorbisFullDecode(bool enabled);
+}
 class DirectSoundManager {
 public:
     friend SoundPlayer;

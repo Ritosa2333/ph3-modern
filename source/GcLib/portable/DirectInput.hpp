@@ -70,6 +70,7 @@ public:
   void PulseInjectedKey(int key);
   void ClearInjectedKeyState();
   void ClearDirectTouchKeyState();
+  bool IsNonTouchKeyDown(int key) const { return key >= 0 && key < MAX_KEY && bNonTouchKeyState_[key]; }
   bool IsWindowFocused();
   bool _IdleKeyboard();
   bool _IdleMouse();
@@ -92,6 +93,7 @@ protected:
   bool bInjectedKeyState_[MAX_KEY]{};
   bool bDirectTouchKeyState_[MAX_KEY]{};
   bool bPulseKeyState_[MAX_KEY]{};
+  bool bNonTouchKeyState_[MAX_KEY]{};
   BYTE injectedPulseFrames_[MAX_KEY]{};
   bool bMouseButton_[MAX_MOUSE_BUTTON]{};
   Uint32 dwFrameTick_ = 0;

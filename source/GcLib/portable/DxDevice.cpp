@@ -1,4 +1,10 @@
 #include "DxCompat.hpp"
+#include "TriangleTopology.hpp"
+#include "StateTable.hpp"
+#include "VertexStream.hpp"
+#include "ScreenVertex.hpp"
+#include "FixedModulate.hpp"
+#include "DrawTransforms.hpp"
 #include "../gstd/GstdUtility.hpp"
 #include <SDL3/SDL.h>
 #include <GLES3/gl3.h>
@@ -151,6 +157,9 @@ struct TextureStorage {
     D3DSURFACE_DESC Description() const {return {format,D3DRTYPE_SURFACE,usage,pool,D3DMULTISAMPLE_NONE,0,width,height};}
     void Upload(){
         if(!texture||depthOnly)return;
+        // GetGLTexture() is also queried for unchanged textures at every
+        // draw. Binding belongs to BindTextureUnit unless data/mips need work.
+        if(!cpuDirty&&(!gpuDirty||levels<=1))return;
         glBindTexture(GL_TEXTURE_2D,texture);
         if(cpuDirty){
             std::vector<BYTE> rgba(pixels.size()*4);
@@ -188,6 +197,8 @@ struct DeviceState {
     SDL_GLContext context=nullptr;
     bool ownWindow=false,inScene=false;
     GLuint program=0,vao=0,vbo=0,white=0,feedbackTexture=0;
+    std::array<GLuint,5> modulatePrograms{};
+    UINT modulateSubmissions=0;
     UINT feedbackWidth=0,feedbackHeight=0;
     bool feedbackSnapshotReady=false;
     std::map<std::string,GLint> uniformLocations;
@@ -195,8 +206,8 @@ struct DeviceState {
     struct SamplerCache { bool valid=false; GLint minFilter=0,magFilter=0; GLenum wrapS=0,wrapT=0; };
     std::array<SamplerCache,MaxSlots> samplerCache{};
     std::map<DWORD,D3DXMATRIX> transforms;
-    std::map<DWORD,DWORD> render;
-    std::array<std::map<DWORD,DWORD>,MaxSlots> samplers,stages;
+    StateTable<256> render;
+    std::array<StateTable<64>,MaxSlots> samplers,stages;
     std::array<IDirect3DBaseTexture9*,MaxSlots> textures{};
     std::map<DWORD,D3DLIGHT9> lights;
     std::map<DWORD,bool> lightEnabled;
@@ -233,6 +244,16 @@ struct DeviceState {
     FixedBatchKey batchKey{};
     std::vector<Vertex> batchVertices;
     bool batchActive=false;
+    static constexpr std::size_t StreamVertices=32768;
+    VertexStream<StreamVertices> vertexStream;
+    // Only this backend changes GL raster state. Clear invalidates the cache
+    // because it forces write masks. No GL queries are needed in the hot path.
+    bool rasterValid=false;
+    std::array<DWORD,15> rasterState{};
+    bool rasterBack=false;
+    bool fixedUniformsValid=false;
+    std::array<DWORD,6> fixedStageState{};
+    std::array<DWORD,6> fixedRenderState{};
 
     ~DeviceState(){
         if(context)SDL_GL_MakeCurrent(window,context);
@@ -241,9 +262,10 @@ struct DeviceState {
         AssignReference(target,static_cast<IDirect3DSurface9*>(nullptr));AssignReference(depth,static_cast<IDirect3DSurface9*>(nullptr));
         if(back)back->Release();if(backDepth)backDepth->Release();
         glDeleteSamplers(MaxSlots,glSamplers.data());if(white)glDeleteTextures(1,&white);if(feedbackTexture)glDeleteTextures(1,&feedbackTexture);if(vbo)glDeleteBuffers(1,&vbo);if(vao)glDeleteVertexArrays(1,&vao);if(program)glDeleteProgram(program);
+        for(GLuint specialized:modulatePrograms)if(specialized)glDeleteProgram(specialized);
         if(context)SDL_GL_DestroyContext(context);if(ownWindow&&window)SDL_DestroyWindow(window);
     }
-    DWORD Render(DWORD type)const{auto found=render.find(type);return found==render.end()?0:found->second;}
+    DWORD Render(DWORD type)const{return render.Get(type);}
     GLint Uniform(const char* name){auto found=uniformLocations.find(name);if(found!=uniformLocations.end())return found->second;return uniformLocations.emplace(name,glGetUniformLocation(program,name)).first->second;}
     D3DXMATRIX Transform(DWORD type)const{auto found=transforms.find(type);if(found!=transforms.end())return found->second;D3DXMATRIX identity;D3DXMatrixIdentity(&identity);return identity;}
     FixedBatchKey MakeFixedBatchKey(GLenum primitive) const {
@@ -253,18 +275,88 @@ struct DeviceState {
             D3DRS_FILLMODE,D3DRS_COLORWRITEENABLE,D3DRS_TEXTUREFACTOR,D3DRS_ALPHATESTENABLE,D3DRS_ALPHAFUNC,D3DRS_ALPHAREF,D3DRS_FOGENABLE,D3DRS_FOGCOLOR};
         for(std::size_t i=0;i<key.render.size();++i)key.render[i]=Render(renderKeys[i]);
         const DWORD stageKeys[]={D3DTSS_COLOROP,D3DTSS_COLORARG1,D3DTSS_COLORARG2,D3DTSS_ALPHAOP,D3DTSS_ALPHAARG1,D3DTSS_ALPHAARG2};
-        for(std::size_t i=0;i<key.stage.size();++i){auto found=stages[0].find(stageKeys[i]);key.stage[i]=found==stages[0].end()?0:found->second;}
+        for(std::size_t i=0;i<key.stage.size();++i)key.stage[i]=stages[0].Get(stageKeys[i]);
         const DWORD samplerKeys[]={D3DSAMP_MINFILTER,D3DSAMP_MAGFILTER,D3DSAMP_MIPFILTER,D3DSAMP_ADDRESSU,D3DSAMP_ADDRESSV};
-        for(std::size_t i=0;i<key.sampler.size();++i){auto found=samplers[0].find(samplerKeys[i]);key.sampler[i]=found==samplers[0].end()?0:found->second;}
+        for(std::size_t i=0;i<key.sampler.size();++i)key.sampler[i]=samplers[0].Get(samplerKeys[i]);
         return key;
+    }
+    void ApplyRasterState(){
+#ifdef PH3_LEGACY_GL_STATE
+        rasterValid=false;
+#endif
+        const DWORD keys[]={D3DRS_ZENABLE,D3DRS_ZFUNC,D3DRS_ZWRITEENABLE,D3DRS_ALPHABLENDENABLE,
+            D3DRS_SEPARATEALPHABLENDENABLE,D3DRS_SRCBLEND,D3DRS_DESTBLEND,D3DRS_SRCBLENDALPHA,
+            D3DRS_DESTBLENDALPHA,D3DRS_BLENDOP,D3DRS_BLENDOPALPHA,D3DRS_CULLMODE,
+            D3DRS_COLORWRITEENABLE,D3DRS_FILLMODE,D3DRS_SHADEMODE};
+        std::array<DWORD,15> next{};
+        for(std::size_t i=0;i<next.size();++i)next[i]=Render(keys[i]);
+        const auto changed=[&](std::size_t i){return !rasterValid||next[i]!=rasterState[i];};
+        if(changed(0))(next[0]?glEnable:glDisable)(GL_DEPTH_TEST);
+        if(changed(1))glDepthFunc(Compare(next[1]));
+        if(changed(2))glDepthMask(next[2]?GL_TRUE:GL_FALSE);
+        if(changed(3))(next[3]?glEnable:glDisable)(GL_BLEND);
+        if(changed(4)||changed(5)||changed(6)||changed(7)||changed(8)){
+            if(next[4])glBlendFuncSeparate(Blend(next[5]),Blend(next[6]),Blend(next[7]),Blend(next[8]));
+            else glBlendFunc(Blend(next[5]),Blend(next[6]));
+        }
+        if(changed(4)||changed(9)||changed(10)){
+            if(next[4])glBlendEquationSeparate(BlendOperation(next[9]),BlendOperation(next[10]));
+            else glBlendEquation(BlendOperation(next[9]));
+        }
+        const bool back=target->storage->back;
+        if(changed(11)||!rasterValid||back!=rasterBack){
+            if(next[11]==D3DCULL_NONE)glDisable(GL_CULL_FACE);
+            else{glEnable(GL_CULL_FACE);glFrontFace(back?GL_CCW:GL_CW);glCullFace(next[11]==D3DCULL_CCW?GL_BACK:GL_FRONT);}
+        }
+        if(changed(12)){const DWORD mask=next[12];glColorMask(mask&1,mask&2,mask&4,mask&8);}
+        if(!rasterValid)glDisable(GL_SCISSOR_TEST);
+        rasterState=next;rasterBack=back;rasterValid=true;
+    }
+    void ApplyFixedUniforms(){
+#ifdef PH3_LEGACY_GL_STATE
+        fixedUniformsValid=false;
+#endif
+        const DWORD stageKeys[]={D3DTSS_COLOROP,D3DTSS_COLORARG1,D3DTSS_COLORARG2,
+            D3DTSS_ALPHAOP,D3DTSS_ALPHAARG1,D3DTSS_ALPHAARG2};
+        const DWORD renderKeys[]={D3DRS_TEXTUREFACTOR,D3DRS_ALPHATESTENABLE,D3DRS_ALPHAFUNC,
+            D3DRS_ALPHAREF,D3DRS_FOGENABLE,D3DRS_FOGCOLOR};
+        std::array<DWORD,6> nextStage{},nextRender{};
+        for(std::size_t i=0;i<6;++i){nextStage[i]=stages[0].Get(stageKeys[i]);nextRender[i]=Render(renderKeys[i]);}
+        if(!fixedUniformsValid)glUniform1i(Uniform("wooTexture"),0);
+        if(!fixedUniformsValid||!std::equal(nextStage.begin(),nextStage.begin()+3,fixedStageState.begin()))
+            glUniform3i(Uniform("wooColorStage"),nextStage[0],nextStage[1],nextStage[2]);
+        if(!fixedUniformsValid||!std::equal(nextStage.begin()+3,nextStage.end(),fixedStageState.begin()+3))
+            glUniform3i(Uniform("wooAlphaStage"),nextStage[3],nextStage[4],nextStage[5]);
+        const auto changed=[&](std::size_t i){return !fixedUniformsValid||nextRender[i]!=fixedRenderState[i];};
+        if(changed(0)){auto c=Color(nextRender[0]);glUniform4f(Uniform("wooTextureFactor"),c.x,c.y,c.z,c.w);}
+        if(changed(1))glUniform1i(Uniform("wooAlphaTest"),nextRender[1]);
+        if(changed(2))glUniform1i(Uniform("wooAlphaFunc"),nextRender[2]);
+        if(changed(3))glUniform1f(Uniform("wooAlphaRef"),float(nextRender[3])/255);
+        if(changed(4))glUniform1i(Uniform("wooFogEnable"),nextRender[4]);
+        if(changed(5)){auto c=Color(nextRender[5]);glUniform4f(Uniform("wooFogColor"),c.x,c.y,c.z,c.w);}
+        fixedStageState=nextStage;fixedRenderState=nextRender;fixedUniformsValid=true;
+    }
+    void SubmitVertices(GLenum primitive,const std::vector<Vertex>& vertices){
+        glBindVertexArray(vao);glBindBuffer(GL_ARRAY_BUFFER,vbo);
+#ifdef PH3_LEGACY_VERTEX_UPLOAD
+        glBufferData(GL_ARRAY_BUFFER,vertices.size()*sizeof(Vertex),vertices.data(),GL_STREAM_DRAW);
+        glDrawArrays(primitive,0,static_cast<GLsizei>(vertices.size()));
+#else
+        const auto reservation=vertexStream.Reserve(vertices.size());
+        if(reservation.direct){
+            glBufferData(GL_ARRAY_BUFFER,vertices.size()*sizeof(Vertex),vertices.data(),GL_STREAM_DRAW);
+        }else{
+            if(reservation.orphan)glBufferData(GL_ARRAY_BUFFER,StreamVertices*sizeof(Vertex),nullptr,GL_STREAM_DRAW);
+            glBufferSubData(GL_ARRAY_BUFFER,reservation.first*sizeof(Vertex),vertices.size()*sizeof(Vertex),vertices.data());
+        }
+        glDrawArrays(primitive,static_cast<GLint>(reservation.first),static_cast<GLsizei>(vertices.size()));
+#endif
+        ++actualDraws;
     }
     void FlushBatch(){
         if(!batchActive)return;
         if(!batchVertices.empty()){
-            glBindVertexArray(vao);glBindBuffer(GL_ARRAY_BUFFER,vbo);
-            glBufferData(GL_ARRAY_BUFFER,batchVertices.size()*sizeof(Vertex),batchVertices.data(),GL_STREAM_DRAW);
-            glDrawArrays(batchKey.primitive,0,static_cast<GLsizei>(batchVertices.size()));
-            ++actualDraws;
+            SubmitVertices(batchKey.primitive,batchVertices);
         }
         batchVertices.clear();batchActive=false;
     }
@@ -335,6 +427,16 @@ IDirect3DDevice9::IDirect3DDevice9(UINT width,UINT height,SDL_Window* existing):
     s.context=SDL_GL_CreateContext(s.window);Check(s.context!=nullptr,SDL_GetError());
     Check(SDL_GL_MakeCurrent(s.window,s.context),SDL_GetError());SDL_GL_SetSwapInterval(0);
     s.program=LinkProgram(VertexSource,FragmentSource);glGenVertexArrays(1,&s.vao);glGenBuffers(1,&s.vbo);glGenSamplers(MaxSlots,s.glSamplers.data());
+#ifndef PH3_LEGACY_MODULATE_SHADER
+    // Compile the small bounded family during initialization, never on Boss
+    // entry. Unsupported states still use the unchanged generic program.
+    for(unsigned i=1;i<s.modulatePrograms.size();++i){
+        const auto fragment=ModulateFragmentSource(static_cast<ModulateProgram>(i));
+        s.modulatePrograms[i]=LinkProgram(VertexSource,fragment.c_str());
+        glUseProgram(s.modulatePrograms[i]);
+        glUniform1i(glGetUniformLocation(s.modulatePrograms[i],"wooTexture"),0);
+    }
+#endif
     glBindVertexArray(s.vao);glBindBuffer(GL_ARRAY_BUFFER,s.vbo);
     const GLint sizes[]={4,2,4,2,1};const std::size_t offsets[]={offsetof(Vertex,position),offsetof(Vertex,uv),offsetof(Vertex,tint),offsetof(Vertex,pixel),offsetof(Vertex,fog)};
     for(unsigned i=0;i<5;++i){glEnableVertexAttribArray(i);glVertexAttribPointer(i,sizes[i],GL_FLOAT,GL_FALSE,sizeof(Vertex),reinterpret_cast<void*>(offsets[i]));}
@@ -368,7 +470,7 @@ SDL_Window* IDirect3DDevice9::GetWindow()const{return state->window;}
 HRESULT IDirect3DDevice9::GetDeviceCaps(D3DCAPS9* caps){if(!caps)return InvalidCall;*caps={};GLint size=0;glGetIntegerv(GL_MAX_TEXTURE_SIZE,&size);caps->MaxTextureWidth=caps->MaxTextureHeight=size;caps->VertexShaderVersion=D3DVS_VERSION(3,0);caps->PixelShaderVersion=D3DPS_VERSION(3,0);return S_OK;}
 HRESULT IDirect3DDevice9::TestCooperativeLevel(){return SDL_GL_GetCurrentContext()==state->context?S_OK:static_cast<HRESULT>(D3DERR_DEVICELOST);}
 HRESULT IDirect3DDevice9::Reset(D3DPRESENT_PARAMETERS* params){if(!params||params->BackBufferWidth!=state->back->storage->width||params->BackBufferHeight!=state->back->storage->height)return InvalidCall;return TestCooperativeLevel();}
-void IDirect3DDevice9::BeginBrowserFrame(){state->draws=state->actualDraws=state->verticesDrawn=0;}
+void IDirect3DDevice9::BeginBrowserFrame(){state->draws=state->actualDraws=state->verticesDrawn=state->modulateSubmissions=0;state->vertexStream.BeginFrame();}
 HRESULT IDirect3DDevice9::BeginScene(){if(state->inScene)return InvalidCall;state->inScene=true;return S_OK;}
 HRESULT IDirect3DDevice9::EndScene(){if(!state->inScene)return InvalidCall;state->FlushBatch();state->inScene=false;return S_OK;}
 HRESULT IDirect3DDevice9::Present(const RECT*,const RECT*,HWND,const RGNDATA*){
@@ -387,9 +489,9 @@ HRESULT IDirect3DDevice9::Present(const RECT*,const RECT*,HWND,const RGNDATA*){
     glFlush();if(!SDL_GL_SwapWindow(state->window))return E_FAIL;
     ++state->presented;
     EM_ASM({const d=globalThis.ph3Diagnostics;if(d){d.presentedFrames=$0;d.drawCalls=$1;d.actualDrawCalls=$2;d.drawVertices=$3;d.rejectedFeedbackDraws=0;d.resolvedFeedbackDraws=$4;
-        d.feedbackFixed=$5;d.feedbackEffect=$6;d.feedbackBack=$7;d.feedbackOffscreen=$8;}},
+        d.feedbackFixed=$5;d.feedbackEffect=$6;d.feedbackBack=$7;d.feedbackOffscreen=$8;d.modulateSubmissions=$9;}},
         state->presented,state->draws,state->actualDraws,state->verticesDrawn,state->feedbackResolved,
-        state->feedbackFixed,state->feedbackEffect,state->feedbackBack,state->feedbackOffscreen);
+        state->feedbackFixed,state->feedbackEffect,state->feedbackBack,state->feedbackOffscreen,state->modulateSubmissions);
     EM_ASM({const d=globalThis.ph3Diagnostics;if(d){d.feedbackUnit0=$0;d.feedbackUnit1=$1;d.feedbackUnit2=$2;d.feedbackUnit3=$3;
         d.feedbackSlot0=$4;d.feedbackSlot1=$5;d.feedbackSlot2=$6;d.feedbackSlot3=$7;}},
         state->feedbackByUnit[0],state->feedbackByUnit[1],state->feedbackByUnit[2],state->feedbackByUnit[3],
@@ -397,7 +499,7 @@ HRESULT IDirect3DDevice9::Present(const RECT*,const RECT*,HWND,const RGNDATA*){
     return S_OK;
 }
 HRESULT IDirect3DDevice9::Clear(DWORD count,const D3DRECT* rects,DWORD flags,D3DCOLOR color,float depth,DWORD stencil){
-    if(count&&!rects)return InvalidCall;auto& s=*state;s.FlushBatch();s.BindTarget();auto rgba=Color(color);glClearColor(rgba.x,rgba.y,rgba.z,rgba.w);glClearDepthf(depth);glClearStencil(stencil);glColorMask(GL_TRUE,GL_TRUE,GL_TRUE,GL_TRUE);glDepthMask(GL_TRUE);
+    if(count&&!rects)return InvalidCall;auto& s=*state;s.FlushBatch();s.BindTarget();s.rasterValid=false;auto rgba=Color(color);glClearColor(rgba.x,rgba.y,rgba.z,rgba.w);glClearDepthf(depth);glClearStencil(stencil);glColorMask(GL_TRUE,GL_TRUE,GL_TRUE,GL_TRUE);glDepthMask(GL_TRUE);
     GLbitfield bits=((flags&D3DCLEAR_TARGET)?GL_COLOR_BUFFER_BIT:0)|((flags&D3DCLEAR_ZBUFFER)?GL_DEPTH_BUFFER_BIT:0)|((flags&D3DCLEAR_STENCIL)?GL_STENCIL_BUFFER_BIT:0);
     if(!count){glDisable(GL_SCISSOR_TEST);glClear(bits);}else{glEnable(GL_SCISSOR_TEST);for(UINT i=0;i<count;++i){const auto& r=rects[i];glScissor(r.x1,s.target->storage->back?LONG(s.target->storage->height)-r.y2:r.y1,std::max(0,r.x2-r.x1),std::max(0,r.y2-r.y1));glClear(bits);}glDisable(GL_SCISSOR_TEST);}
     if(flags&D3DCLEAR_TARGET){s.target->storage->cpuFresh=false;s.target->storage->gpuDirty=true;}return S_OK;
@@ -529,7 +631,7 @@ DecodedVertex Decode(DeviceState& state,const BYTE* bytes,UINT stride){
     return v;
 }
 
-Vertex Convert(DeviceState& s,const DecodedVertex& source){
+Vertex Convert(DeviceState& s,const DecodedVertex& source,DrawTransforms& transforms){
     Vertex result;result.uv=source.uv;result.tint=source.color;
     const bool back=s.target->storage->back;
     const auto& viewport=s.viewport;
@@ -545,20 +647,29 @@ Vertex Convert(DeviceState& s,const DecodedVertex& source){
         result.position={(2*(x-viewport.X)/viewport.Width-1)*w,(back?-1.f:1.f)*(2*(y-viewport.Y)/viewport.Height-1)*w,(2*depth-1)*w,w};
         result.pixel={source.position.x,source.position.y};
     }else{
+        transforms.Prepare(s,D3DTS_WORLD,D3DTS_VIEW,D3DTS_PROJECTION);
         D3DXVECTOR4 worldPosition;D3DXVECTOR3 worldNormal;
+        const bool lighting=source.hasNormal&&s.Render(D3DRS_LIGHTING);
+#ifdef PH3_LEGACY_VERTEX_CONSTANTS
+        const bool transformNormal=true;
+#else
+        const bool transformNormal=lighting;
+#endif
         const auto* bones=ID3DXEffect::Active()?ID3DXEffect::Active()->WorldMatrices():nullptr;
         if(source.skinned){
             for(unsigned i=0;i<4;++i){if(source.weights[i]==0)continue;D3DXMATRIX matrix;
                 if(bones){Check(source.bones[i]>=0&&std::size_t(source.bones[i])<bones->size(),"Bone index exceeds effect matrices");matrix=(*bones)[source.bones[i]];}
                 else matrix=s.Transform(D3DTS_WORLDMATRIX(source.bones[i]));
                 D3DXVECTOR4 position=source.position;D3DXVec4Transform(&position,&position,&matrix);worldPosition=worldPosition+position*source.weights[i];
-                D3DXVECTOR3 normal=source.normal;D3DXVec3TransformNormal(&normal,&normal,&matrix);worldNormal+=normal*source.weights[i];
+                if(transformNormal){D3DXVECTOR3 normal=source.normal;D3DXVec3TransformNormal(&normal,&normal,&matrix);worldNormal+=normal*source.weights[i];}
             }
-        }else{worldPosition=source.position;D3DXMATRIX world=s.Transform(D3DTS_WORLD);D3DXVec4Transform(&worldPosition,&worldPosition,&world);worldNormal=source.normal;D3DXVec3TransformNormal(&worldNormal,&worldNormal,&world);}
-        D3DXVECTOR4 viewed=worldPosition;D3DXMATRIX view=s.Transform(D3DTS_VIEW),projection=s.Transform(D3DTS_PROJECTION);D3DXVec4Transform(&viewed,&viewed,&view);D3DXVECTOR4 clip=viewed;D3DXVec4Transform(&clip,&clip,&projection);
+        }else{worldPosition=source.position;D3DXVec4Transform(&worldPosition,&worldPosition,&transforms.world);if(transformNormal){worldNormal=source.normal;D3DXVec3TransformNormal(&worldNormal,&worldNormal,&transforms.world);}}
+        // Preserve three separate transformations and their float operation
+        // order. Combining them into an MVP matrix changes rasterized pixels.
+        D3DXVECTOR4 viewed=worldPosition;D3DXVec4Transform(&viewed,&viewed,&transforms.view);D3DXVECTOR4 clip=viewed;D3DXVec4Transform(&clip,&clip,&transforms.projection);
         if(clip.w!=0)result.pixel={(clip.x/clip.w+1)*viewport.Width*.5f+viewport.X,(1-clip.y/clip.w)*viewport.Height*.5f+viewport.Y};
         clip.x+=clip.w/viewport.Width;clip.y-=clip.w/viewport.Height;if(!back)clip.y=-clip.y;clip.z=2*clip.z-clip.w;result.position=clip;
-        if(source.hasNormal&&s.Render(D3DRS_LIGHTING)){
+        if(lighting){
             D3DXVec3Normalize(&worldNormal,&worldNormal);
             auto ambient=Color(s.Render(D3DRS_AMBIENT));D3DXVECTOR4 illumination{ambient.x*s.material.Ambient.r+s.material.Emissive.r,ambient.y*s.material.Ambient.g+s.material.Emissive.g,ambient.z*s.material.Ambient.b+s.material.Emissive.b,s.material.Diffuse.a};
             for(const auto& [index,light]:s.lights)if(s.lightEnabled[index]){
@@ -589,22 +700,49 @@ HRESULT Draw(IDirect3DDevice9& device,DWORD type,UINT primitives,const BYTE* byt
     DWORD fill=s.Render(D3DRS_FILLMODE);GLenum primitive=Primitive(type);
     const bool wireframe=fill==D3DFILL_WIREFRAME&&type>=D3DPT_TRIANGLELIST;
     if(fill==D3DFILL_POINT)primitive=GL_POINTS;else if(wireframe)primitive=GL_LINES;
+    const bool expandTriangles=!effect&&!wireframe&&fill!=D3DFILL_POINT&&
+        (type==D3DPT_TRIANGLESTRIP||type==D3DPT_TRIANGLEFAN);
+    if(expandTriangles)primitive=GL_TRIANGLES;
     const bool listPrimitive=primitive==GL_POINTS||primitive==GL_LINES||primitive==GL_TRIANGLES;
     const bool originalList=type==D3DPT_POINTLIST||type==D3DPT_LINELIST||type==D3DPT_TRIANGLELIST;
-    const bool batchable=!effect&&(originalList||wireframe||fill==D3DFILL_POINT)&&listPrimitive;
+    const bool batchable=!effect&&(originalList||expandTriangles||wireframe||fill==D3DFILL_POINT)&&listPrimitive;
     DeviceState::FixedBatchKey batchKey{};
     if(batchable)batchKey=s.MakeFixedBatchKey(primitive);
     if(s.batchActive&&(!batchable||!(s.batchKey==batchKey)))s.FlushBatch();
     const bool appendBatch=batchable&&s.batchActive;
 
     s.converted.resize(count);
+#ifndef PH3_LEGACY_VERTEX_DECODE
+    const DWORD screenFVF = D3DFVF_XYZRHW | D3DFVF_DIFFUSE;
+    const bool screenStream = !indices && !s.declaration &&
+        (s.fvf == screenFVF || s.fvf == (screenFVF | D3DFVF_TEX1));
+    if(screenStream){
+        const bool textured = (s.fvf & D3DFVF_TEXCOUNT_MASK) != 0;
+        Check(stride >= (textured ? 28u : 20u), "D3D vertex element exceeds its stride");
+        if(baseVertex < 0 || std::uint64_t(baseVertex) > availableVertices ||
+           count > availableVertices - std::size_t(baseVertex))return InvalidCall;
+        const auto& v=s.viewport;
+        const ScreenVertexConverter converter{v.X,v.Y,v.Width,v.Height,
+            s.target->storage->back,s.Render(D3DRS_ZENABLE)!=0};
+        const BYTE* source=bytes+std::size_t(baseVertex)*stride;
+        for(std::size_t i=0;i<count;++i,source+=stride)
+            converter.Convert(s.converted[i],source,textured);
+    }else
+#endif
+    {
+    DrawTransforms transforms;
     for(std::size_t i=0;i<count;++i){
         std::int64_t index=static_cast<std::int64_t>(i);
         if(indices){if(indexFormat==D3DFMT_INDEX16){WORD value;std::memcpy(&value,indices+i*2,2);index=value;}else if(indexFormat==D3DFMT_INDEX32){DWORD value;std::memcpy(&value,indices+i*4,4);index=value;}else return InvalidCall;}
         index+=baseVertex;if(index<0||static_cast<std::uint64_t>(index)>=availableVertices)return InvalidCall;
-        s.converted[i]=Convert(s,Decode(s,bytes+std::size_t(index)*stride,stride));
+        s.converted[i]=Convert(s,Decode(s,bytes+std::size_t(index)*stride,stride),transforms);
+    }
     }
     const std::vector<Vertex>* vertices=&s.converted;
+    if(expandTriangles){
+        ExpandTriangles(s.converted,s.wireframe,primitives,type==D3DPT_TRIANGLESTRIP);
+        vertices=&s.wireframe;
+    }
     if(wireframe){
         s.wireframe.clear();s.wireframe.reserve(std::size_t(primitives)*6);
         for(UINT i=0;i<primitives;++i){UINT a,b,c;if(type==D3DPT_TRIANGLELIST){a=i*3;b=a+1;c=a+2;}else if(type==D3DPT_TRIANGLESTRIP){a=i;b=i+1;c=i+2;}else{a=0;b=i+1;c=i+2;}
@@ -617,13 +755,22 @@ HRESULT Draw(IDirect3DDevice9& device,DWORD type,UINT primitives,const BYTE* byt
     }
 
     s.BindTarget();
-    (s.Render(D3DRS_ZENABLE)?glEnable:glDisable)(GL_DEPTH_TEST);glDepthFunc(Compare(s.Render(D3DRS_ZFUNC)));glDepthMask(s.Render(D3DRS_ZWRITEENABLE)?GL_TRUE:GL_FALSE);
-    (s.Render(D3DRS_ALPHABLENDENABLE)?glEnable:glDisable)(GL_BLEND);
-    if(s.Render(D3DRS_SEPARATEALPHABLENDENABLE)){glBlendFuncSeparate(Blend(s.Render(D3DRS_SRCBLEND)),Blend(s.Render(D3DRS_DESTBLEND)),Blend(s.Render(D3DRS_SRCBLENDALPHA)),Blend(s.Render(D3DRS_DESTBLENDALPHA)));glBlendEquationSeparate(BlendOperation(s.Render(D3DRS_BLENDOP)),BlendOperation(s.Render(D3DRS_BLENDOPALPHA)));}
-    else{glBlendFunc(Blend(s.Render(D3DRS_SRCBLEND)),Blend(s.Render(D3DRS_DESTBLEND)));glBlendEquation(BlendOperation(s.Render(D3DRS_BLENDOP)));}
-    DWORD cull=s.Render(D3DRS_CULLMODE);if(cull==D3DCULL_NONE)glDisable(GL_CULL_FACE);else{glEnable(GL_CULL_FACE);glFrontFace(s.target->storage->back?GL_CCW:GL_CW);glCullFace(cull==D3DCULL_CCW?GL_BACK:GL_FRONT);}
-    DWORD mask=s.Render(D3DRS_COLORWRITEENABLE);glColorMask(mask&1,mask&2,mask&4,mask&8);glDisable(GL_SCISSOR_TEST);
-    GLuint program=effect?effect->GetProgram(VertexSource):s.program;Check(program!=0,"An active effect did not provide a GLES program");glUseProgram(program);
+    s.ApplyRasterState();
+    ModulateProgram modulate=ModulateProgram::Generic;
+#ifndef PH3_LEGACY_MODULATE_SHADER
+    if(!effect){
+        const DWORD keys[]={D3DTSS_COLOROP,D3DTSS_COLORARG1,D3DTSS_COLORARG2,
+            D3DTSS_ALPHAOP,D3DTSS_ALPHAARG1,D3DTSS_ALPHAARG2};
+        std::array<DWORD,6> stage;
+        for(unsigned i=0;i<stage.size();++i)stage[i]=s.stages[0].Get(keys[i]);
+        modulate=SelectModulateProgram(stage,s.Render(D3DRS_ALPHATESTENABLE),
+            s.Render(D3DRS_ALPHAFUNC),s.Render(D3DRS_ALPHAREF),s.Render(D3DRS_FOGENABLE));
+    }
+#endif
+    const bool specialized=modulate!=ModulateProgram::Generic;
+    GLuint program=effect?effect->GetProgram(VertexSource):
+        specialized?s.modulatePrograms[static_cast<unsigned>(modulate)]:s.program;
+    Check(program!=0,"An active effect did not provide a GLES program");glUseProgram(program);
     s.feedbackSnapshotReady=false;
     bool uniformsReady=true;
     if(effect){
@@ -631,21 +778,15 @@ HRESULT Draw(IDirect3DDevice9& device,DWORD type,UINT primitives,const BYTE* byt
         if(uniformsReady){
             // Alpha test is a D3D9 fixed-function stage after the pixel shader.
             // Custom FX therefore observe the same state as fixed-function draws.
-            GLint location=glGetUniformLocation(program,"ph3AlphaTest");
-            if(location>=0)glUniform1i(location,int(s.Render(D3DRS_ALPHATESTENABLE)));
-            location=glGetUniformLocation(program,"ph3AlphaFunc");
-            if(location>=0)glUniform1i(location,int(s.Render(D3DRS_ALPHAFUNC)));
-            location=glGetUniformLocation(program,"ph3AlphaRef");
-            if(location>=0)glUniform1f(location,float(s.Render(D3DRS_ALPHAREF))/255.0f);
+            effect->ApplyAlphaTest(s.Render(D3DRS_ALPHATESTENABLE),
+                s.Render(D3DRS_ALPHAFUNC),s.Render(D3DRS_ALPHAREF));
         }
     }
     else{
         uniformsReady=device.BindTextureUnit(0,s.textures[0],0);
-        if(uniformsReady){SetUniform(s,"wooTexture",0);auto& stages=s.stages[0];
-        glUniform3i(s.Uniform("wooColorStage"),stages[D3DTSS_COLOROP],stages[D3DTSS_COLORARG1],stages[D3DTSS_COLORARG2]);
-        glUniform3i(s.Uniform("wooAlphaStage"),stages[D3DTSS_ALPHAOP],stages[D3DTSS_ALPHAARG1],stages[D3DTSS_ALPHAARG2]);
-        SetUniform(s,"wooTextureFactor",Color(s.Render(D3DRS_TEXTUREFACTOR)));SetUniform(s,"wooAlphaTest",int(s.Render(D3DRS_ALPHATESTENABLE)));SetUniform(s,"wooAlphaFunc",int(s.Render(D3DRS_ALPHAFUNC)));SetUniform(s,"wooAlphaRef",float(s.Render(D3DRS_ALPHAREF))/255);
-        SetUniform(s,"wooFogEnable",int(s.Render(D3DRS_FOGENABLE)));SetUniform(s,"wooFogColor",Color(s.Render(D3DRS_FOGCOLOR)));
+        if(uniformsReady){
+            if(specialized)++s.modulateSubmissions;
+            else s.ApplyFixedUniforms();
         }
     }
     if(!uniformsReady){
@@ -657,10 +798,8 @@ HRESULT Draw(IDirect3DDevice9& device,DWORD type,UINT primitives,const BYTE* byt
         s.batchKey=batchKey;s.batchVertices.assign(vertices->begin(),vertices->end());s.batchActive=true;
         ++s.draws;s.verticesDrawn+=vertices->size();s.target->storage->cpuFresh=false;s.target->storage->gpuDirty=true;return S_OK;
     }
-    glBindVertexArray(s.vao);glBindBuffer(GL_ARRAY_BUFFER,s.vbo);
-    glBufferData(GL_ARRAY_BUFFER,vertices->size()*sizeof(Vertex),vertices->data(),GL_STREAM_DRAW);
-    glDrawArrays(primitive,0,static_cast<GLsizei>(vertices->size()));
-    ++s.actualDraws;++s.draws;s.verticesDrawn+=vertices->size();s.target->storage->cpuFresh=false;s.target->storage->gpuDirty=true;return S_OK;
+    s.SubmitVertices(primitive,*vertices);
+    ++s.draws;s.verticesDrawn+=vertices->size();s.target->storage->cpuFresh=false;s.target->storage->gpuDirty=true;return S_OK;
 }
 
 }

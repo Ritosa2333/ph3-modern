@@ -339,6 +339,17 @@ void StgEnemyBossSceneObject::Activate()
 				throw gstd::wexception(StringUtility::Format(L"読み込まれていないスクリプト：%s", data->GetPath().c_str()).c_str());
 			if(!script->IsLoad())
 			{
+#ifdef __EMSCRIPTEN__
+				// Native can wait for its loader thread. Web must finish required
+				// queued loads before requesting boss life/timer data, without
+				// sleeping or advancing the gameplay tick.
+				Logger::WriteTop(StringUtility::Format(
+					L"Web required script load (BossScene): %s", data->GetPath().c_str()));
+				FileManager::GetBase()->WaitForThreadLoadComplete();
+				if(!script->IsLoad())
+					throw gstd::wexception(StringUtility::Format(
+						L"Boss script did not finish cooperative loading: %s", data->GetPath().c_str()).c_str());
+#else
 				int count = 0;
 				while(!script->IsLoad())
 				{
@@ -352,6 +363,7 @@ void StgEnemyBossSceneObject::Activate()
 					Sleep(1);
 					count++;
 				}
+#endif
 			}
 
 			if(stageController_->GetSystemInformation()->IsError())continue;

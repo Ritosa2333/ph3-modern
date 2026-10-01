@@ -29,6 +29,7 @@ DirectInput::DirectInput()
 		bInjectedKeyState_[i] = false;
 		bDirectTouchKeyState_[i] = false;
 		bPulseKeyState_[i] = false;
+		bNonTouchKeyState_[i] = false;
 		injectedPulseFrames_[i] = 0;
 	}
 	for (int i = 0; i < MAX_MOUSE_BUTTON; i++) {
@@ -279,7 +280,9 @@ bool DirectInput::_IdleKeyboard()
 	for (int i = 0; i < MAX_KEY; i++) {
 		SDL_Scancode sc = DIKToSDLScancode(i);
 		if (sc == SDL_SCANCODE_UNKNOWN) continue;
-		bool pressed = keyState[sc] != 0 || bInjectedKeyState_[i] || bDirectTouchKeyState_[i] || bPulseKeyState_[i];
+		const bool nonTouchPressed = keyState[sc] != 0 || bInjectedKeyState_[i] || bPulseKeyState_[i];
+		bNonTouchKeyState_[i] = nonTouchPressed;
+		bool pressed = nonTouchPressed || bDirectTouchKeyState_[i];
 		if (pressed && !bKeyState_[i]) {
 			bKeyPressed_[i] = true;
 		} else if (!pressed && bKeyState_[i]) {
@@ -412,6 +415,7 @@ void DirectInput::ResetKeyState()
 	for (int iKey = 0; iKey < MAX_KEY; iKey++)
 		bufKey_[iKey] = KEY_FREE;
 	ZeroMemory(bKeyState_, sizeof(bKeyState_));
+	ZeroMemory(bNonTouchKeyState_, sizeof(bNonTouchKeyState_));
 	ClearInjectedKeyState();
 	ClearDirectTouchKeyState();
 }
