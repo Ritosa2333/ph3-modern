@@ -6,12 +6,19 @@
 #include"DxText.hpp"
 #include"RenderObject.hpp"
 #include"DirectSound.hpp"
+#if defined(__EMSCRIPTEN__) && !defined(PH3_LEGACY_RENDER_NODE_POOL)
+#include "../gstd/ListNodePool.hpp"
+#endif
+#ifdef WOO_REPLAY_VERIFY
+#include <stdexcept>
+#endif
 
 namespace directx
 {
 	class DxScript;
 	class DxScriptObjectManager;
 	class DxScriptObjectBase;
+	class DxScriptMeshObject;
 	/**********************************************************
 	//DxScriptObjectBase
 	**********************************************************/
@@ -39,6 +46,11 @@ namespace directx
 			virtual void Work(){}
 			virtual void Render() = 0;
 			virtual void SetRenderState() = 0;
+#ifdef __EMSCRIPTEN__
+			// A render capability, not a script-visible type tag. Derived mesh
+			// objects inherit the positive query even if their script type differs.
+			virtual DxScriptMeshObject* GetMeshObjectForRender(){return nullptr;}
+#endif
 
 			int GetObjectID(){return idObject_;}
 			int GetObjectType(){return typeObject_;}
@@ -266,6 +278,9 @@ namespace directx
 			void _UpdateMeshState();
 		public:
 			DxScriptMeshObject();
+#ifdef __EMSCRIPTEN__
+			DxScriptMeshObject* GetMeshObjectForRender() override{return this;}
+#endif
 			virtual void Render();
 			virtual void SetRenderState();
 			virtual void SetColor(int r, int g, int b);
@@ -286,6 +301,22 @@ namespace directx
 			virtual void SetScaleZ(float z){scale_.z = z;_UpdateMeshState();}
 			virtual void SetShader(gstd::ref_count_ptr<Shader> shader);
 	};
+
+	inline DxScriptMeshObject* QueryRenderMesh(DxScriptObjectBase* object)
+	{
+#if defined(__EMSCRIPTEN__) && !defined(PH3_LEGACY_RENDER_MESH_QUERY)
+		auto* mesh = object->GetMeshObjectForRender();
+#ifdef WOO_REPLAY_VERIFY
+		// Every real replay render query is checked against the old RTTI path.
+		// Standard builds do not pay for this differential observer.
+		if(mesh != dynamic_cast<DxScriptMeshObject*>(object))
+			throw std::runtime_error("Render mesh query differs from RTTI");
+#endif
+		return mesh;
+#else
+		return dynamic_cast<DxScriptMeshObject*>(object);
+#endif
+	}
 
 	/**********************************************************
 	//DxScriptTextObject
@@ -462,6 +493,9 @@ namespace directx
 
 			std::vector<std::list<gstd::ref_count_ptr<DxScriptObjectBase>::unsync > > objRender_;//描画バケットソート
 			std::vector<gstd::ref_count_ptr<Shader> > listShader_;
+#if defined(__EMSCRIPTEN__) && !defined(PH3_LEGACY_RENDER_NODE_POOL)
+			gstd::ListNodePool<gstd::ref_count_ptr<DxScriptObjectBase>::unsync, 4096> renderNodes_;
+#endif
 
 			void _SetObjectID(DxScriptObjectBase* obj, int index){obj->idObject_ = index;obj->manager_ = this;}
 			void _ArrangeActiveObjectList();
@@ -488,6 +522,7 @@ namespace directx
 
 			void PrepareRenderObject();
 			void ClearRenderObject();
+			void ClearRenderBucket(int index);
 			std::vector<std::list<gstd::ref_count_ptr<DxScriptObjectBase>::unsync > >* GetRenderObjectListPointer(){return &objRender_;}
 
 			void SetShader(gstd::ref_count_ptr<Shader> shader, double min, double max);

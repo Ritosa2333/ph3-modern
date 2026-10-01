@@ -110,16 +110,16 @@ void value::concatenate(value const& x)
 
 gstd::script_real value::as_real() const
 {
-	if (data == NULL)
+	if (!has_data())
 		return gstd::script_real(0);
 	else {
-		switch (data->type->get_kind()) {
+		switch (get_type()->get_kind()) {
 		case type_data::tk_real:
-			return data->real_value;
+			return read_real();
 		case type_data::tk_char:
-			return static_cast<gstd::script_real>(data->char_value);
+			return static_cast<gstd::script_real>(read_char());
 		case type_data::tk_boolean:
-			return (data->boolean_value) ? gstd::script_real(1) : gstd::script_real(0);
+			return read_boolean() ? gstd::script_real(1) : gstd::script_real(0);
 		case type_data::tk_array:
 			if (data->type->get_element()->get_kind() == type_data::tk_char)
 				return std::atof(to_mbcs(as_string()).c_str());
@@ -134,16 +134,16 @@ gstd::script_real value::as_real() const
 
 wchar_t value::as_char() const
 {
-	if (data == NULL)
+	if (!has_data())
 		return 0.0L;
 	else {
-		switch (data->type->get_kind()) {
+		switch (get_type()->get_kind()) {
 		case type_data::tk_real:
-			return data->real_value;
+			return read_real();
 		case type_data::tk_char:
-			return data->char_value;
+			return read_char();
 		case type_data::tk_boolean:
-			return (data->boolean_value) ? L'1' : L'0';
+			return read_boolean() ? L'1' : L'0';
 		case type_data::tk_array:
 			return L'\0';
 		default:
@@ -155,16 +155,16 @@ wchar_t value::as_char() const
 
 bool value::as_boolean() const
 {
-	if (data == NULL)
+	if (!has_data())
 		return false;
 	else {
-		switch (data->type->get_kind()) {
+		switch (get_type()->get_kind()) {
 		case type_data::tk_real:
-			return data->real_value != 0.0L;
+			return read_real() != 0.0L;
 		case type_data::tk_char:
-			return data->char_value != L'\0';
+			return read_char() != L'\0';
 		case type_data::tk_boolean:
-			return data->boolean_value;
+			return read_boolean();
 		case type_data::tk_array:
 			return data->array_value.size() != 0;
 		default:
@@ -176,31 +176,31 @@ bool value::as_boolean() const
 
 std::wstring value::as_string() const
 {
-	if (data == NULL)
+	if (!has_data())
 		return L"(VOID)";
 
 	else {
-		switch (data->type->get_kind()) {
+		switch (get_type()->get_kind()) {
 		case type_data::tk_real: {
 			wchar_t buffer[128];
 			// MSVC's long double is binary64; the portable VM uses double to
 			// preserve that contract. Match the vararg format to its actual type.
 #ifdef __EMSCRIPTEN__
-			std::swprintf(buffer, sizeof(buffer) / sizeof(buffer[0]), L"%f", data->real_value);
+			std::swprintf(buffer, sizeof(buffer) / sizeof(buffer[0]), L"%f", read_real());
 #else
-			std::swprintf(buffer, sizeof(buffer) / sizeof(buffer[0]), L"%Lf", data->real_value);
+			std::swprintf(buffer, sizeof(buffer) / sizeof(buffer[0]), L"%Lf", read_real());
 #endif
 			return std::wstring(buffer);
 		}
 
 		case type_data::tk_char: {
 			std::wstring result;
-			result += data->char_value;
+			result += read_char();
 			return result;
 		}
 
 		case type_data::tk_boolean:
-			return (data->boolean_value) ? L"true" : L"false";
+			return read_boolean() ? L"true" : L"false";
 
 		case type_data::tk_array: {
 			if (data->type->get_element()->get_kind() == type_data::tk_char) {
@@ -248,12 +248,18 @@ value& value::index_as_array(unsigned i)
 
 type_data* value::get_type() const
 {
+#ifdef PH3_SCRIPT_INLINE_SCALARS
+	if(scalar_type_ != NULL)return scalar_type_;
+#endif
 	assert(data != NULL);
 	return data->type;
 }
 
 void value::overwrite(value const& source)
 {
+#ifdef PH3_SCRIPT_INLINE_SCALARS
+	if(source.scalar_type_ != NULL)source.unique();
+#endif
 	assert(data != NULL);
 	if (data == source.data)
 		return;
@@ -1409,6 +1415,25 @@ function const operations[] = {
 	{ "assert", assert_, 2 }
 };
 
+#ifdef PH3_SCRIPT_FAST_ARITHMETIC
+script_engine::code::code(int the_line, command_kind the_command, block* the_sub, int the_arguments)
+	: command(the_command), line(the_line), sub(the_sub), arguments(the_arguments)
+{
+	// Match immutable native function identity, never a script/API function
+	// name. Non-real operands still call the original implementation, including
+	// recursive vector arithmetic, conversions and all original error paths.
+	if(the_command!=pc_call_and_push_result || the_sub==NULL)return;
+	if(the_arguments==1 && the_sub->func==::negative)command=pc_real_negative;
+	else if(the_arguments==2){
+		if(the_sub->func==::add)command=pc_real_add;
+		else if(the_sub->func==::subtract)command=pc_real_subtract;
+		else if(the_sub->func==::multiply)command=pc_real_multiply;
+		else if(the_sub->func==::divide)command=pc_real_divide;
+		else if(the_sub->func==::compare)command=pc_real_compare;
+	}
+}
+#endif
+
 /* parser */
 
 class gstd::parser {
@@ -1692,10 +1717,10 @@ void parser::parse_parentheses(script_engine::block* block)
 void parser::parse_clause(script_engine::block* block)
 {
 	if (lex->next == tk_real) {
-		block->codes.push_back(code(lex->line, script_engine::pc_push_value, value(engine->get_real_type(), lex->real_value)));
+		block->codes.push_back(engine->make_literal(lex->line, value(engine->get_real_type(), lex->real_value)));
 		lex->advance();
 	} else if (lex->next == tk_char) {
-		block->codes.push_back(code(lex->line, script_engine::pc_push_value, value(engine->get_char_type(), lex->char_value)));
+		block->codes.push_back(engine->make_literal(lex->line, value(engine->get_char_type(), lex->char_value)));
 		lex->advance();
 	} else if (lex->next == tk_string) {
 		std::wstring str = lex->string_value;
@@ -1704,7 +1729,7 @@ void parser::parse_clause(script_engine::block* block)
 			str += (lex->next == tk_string) ? lex->string_value : (std::wstring() + lex->char_value);
 			lex->advance();
 		}
-		block->codes.push_back(code(lex->line, script_engine::pc_push_value, value(engine->get_string_type(), str)));
+		block->codes.push_back(engine->make_literal(lex->line, value(engine->get_string_type(), str)));
 	} else if (lex->next == tk_word) {
 		symbol* s = search(lex->word);
 		if (s == NULL) {
@@ -1742,7 +1767,7 @@ void parser::parse_clause(script_engine::block* block)
 		}
 	} else if (lex->next == tk_open_bra) {
 		lex->advance();
-		block->codes.push_back(code(lex->line, script_engine::pc_push_value, value(engine->get_string_type(), std::wstring())));
+		block->codes.push_back(engine->make_literal(lex->line, value(engine->get_string_type(), std::wstring())));
 		while (lex->next != tk_close_bra) {
 			parse_expression(block);
 			write_operation(block, "append", 2);
@@ -2251,7 +2276,7 @@ void parser::parse_statements(script_engine::block* block)
 					block->codes.push_back(code(lex->line, script_engine::pc_pop));
 
 				} while (lex->next == tk_comma);
-				block->codes.push_back(code(lex->line, script_engine::pc_push_value, value(engine->get_boolean_type(), false)));
+				block->codes.push_back(engine->make_literal(lex->line, value(engine->get_boolean_type(), false)));
 				block->codes.push_back(code(lex->line, script_engine::pc_case_end));
 				if (lex->next != tk_close_par) {
 					std::wstring error;
@@ -2536,7 +2561,9 @@ script_machine::environment* script_machine::new_environment(environment* parent
 	result->ref_count = 1;
 	result->sub = b;
 	result->ip = 0;
+#if !defined(__EMSCRIPTEN__) || defined(PH3_LEGACY_SCRIPT_ENVIRONMENT)
 	result->variables.release();
+#endif
 	result->stack.length = 0;
 	result->has_result = false;
 
@@ -2552,6 +2579,12 @@ script_machine::environment* script_machine::new_environment(environment* parent
 void script_machine::dispose_environment(environment* object)
 {
 	assert(object->ref_count == 0);
+#if defined(__EMSCRIPTEN__) && !defined(PH3_LEGACY_SCRIPT_ENVIRONMENT)
+	// No thread or child can still reach this environment (ref_count == 0).
+	// Drop dead value references now, but bound and reuse its small storage.
+	object->variables.reset_for_reuse(64);
+	object->stack.reset_for_reuse(64);
+#endif
 
 	//使用中リストからの削除
 	*((object->pred != NULL) ? &object->pred->succ : &first_using_environment) = object->succ;
@@ -2644,6 +2677,9 @@ int script_machine::get_current_line()
 
 void script_machine::advance()
 {
+#if defined(__EMSCRIPTEN__) && !defined(PH3_LEGACY_VM_DISPATCH)
+dispatch_next:
+#endif
 	assert(current_thread_index < threads.length);
 	environment* current = threads.at[current_thread_index];
 
@@ -2690,6 +2726,16 @@ void script_machine::advance()
 		script_engine::code* c = &(current->sub->codes.at[current->ip]);
 		error_line = c->line; //ぉ
 		++(current->ip);
+		const auto skipLoopBack = [current,c]() {
+#if defined(__EMSCRIPTEN__) && !defined(PH3_LEGACY_SCRIPT_JUMPS)
+			if(c->cached_jump >= 0){current->ip=c->cached_jump;return;}
+#endif
+			do ++(current->ip);
+			while(current->sub->codes.at[current->ip-1].command != script_engine::pc_loop_back);
+#if defined(__EMSCRIPTEN__) && !defined(PH3_LEGACY_SCRIPT_JUMPS)
+			c->cached_jump=current->ip;
+#endif
+		};
 
 		switch (c->command) {
 		case script_engine::pc_assign: {
@@ -2714,7 +2760,11 @@ void script_machine::advance()
 						error += L"(代入によって型が変えられようとしました)";
 						raise_error(error);
 					}
+#if defined(__EMSCRIPTEN__) && !defined(PH3_LEGACY_SCRIPT_MOVES)
+					*dest = std::move(*src);
+#else
 					*dest = *src;
+#endif
 					stack->pop_back();
 					break;
 				}
@@ -2766,25 +2816,73 @@ void script_machine::advance()
 			break;
 
 		case script_engine::pc_call:
+#ifdef PH3_SCRIPT_FAST_ARITHMETIC
+		case script_engine::pc_real_add:
+		case script_engine::pc_real_subtract:
+		case script_engine::pc_real_multiply:
+		case script_engine::pc_real_divide:
+		case script_engine::pc_real_negative:
+		case script_engine::pc_real_compare:
+#endif
 		case script_engine::pc_call_and_push_result: {
 			stack_t* current_stack = &current->stack;
+			const bool wantsResult=c->command!=script_engine::pc_call;
 			assert(current_stack->length >= c->arguments);
 			if (c->sub->func != NULL) {
 				//ネイティブ呼び出し
 				value* argv = &((*current_stack).at[current_stack->length - c->arguments]);
 				value ret;
+#ifdef PH3_SCRIPT_FAST_ARITHMETIC
+				const bool arithmetic=c->command>=script_engine::pc_real_add &&
+					c->command<=script_engine::pc_real_compare;
+				if(arithmetic && argv[0].has_data() && argv[0].get_type()->get_kind()==type_data::tk_real &&
+					(c->arguments==1 || (argv[1].has_data() && argv[1].get_type()->get_kind()==type_data::tk_real)) &&
+					// compare requires identical type objects, not just equal kinds.
+					// Arithmetic addition intentionally has no such restriction.
+					(c->command!=script_engine::pc_real_compare || argv[0].get_type()==argv[1].get_type())){
+					const gstd::script_real a=argv[0].as_real();
+					const gstd::script_real b=c->arguments==2?argv[1].as_real():0;
+					gstd::script_real result=0;
+					switch(c->command){
+					case script_engine::pc_real_add:result=a+b;break;
+					case script_engine::pc_real_subtract:result=a-b;break;
+					case script_engine::pc_real_multiply:result=a*b;break;
+					case script_engine::pc_real_divide:result=a/b;break;
+					case script_engine::pc_real_negative:result=-a;break;
+					// This intentionally preserves ph3's existing NaN comparison,
+					// rather than replacing it with ordinary ordered comparisons.
+					case script_engine::pc_real_compare:result=a==b?0:(a<b?-1:1);break;
+					default:assert(false);
+					}
+					ret.set(engine->get_real_type(),result);
+				}else
+#endif
 				ret = c->sub->func(this, c->arguments, argv);
 				if (stopped) {
 					--(current->ip);
 				} else {
 					resuming = false;
+#if defined(__EMSCRIPTEN__) && !defined(PH3_LEGACY_SCRIPT_MOVES)
+					// Preserve arguments on a suspended call. On a completed call,
+					// consume them and reuse the first argument slot for its result
+					// instead of pop-all/copy-push on every math and engine API call.
+					if(wantsResult && c->arguments > 0) {
+						for(unsigned i=1;i<c->arguments;++i)current_stack->pop_back();
+						current_stack->at[current_stack->length-1] = std::move(ret);
+					} else {
+						for(unsigned i=0;i<c->arguments;++i)current_stack->pop_back();
+						if(wantsResult)
+							current_stack->push_back(std::move(ret));
+					}
+#else
 					//詰まれた引数を削除
 					for (int i = 0; i < c->arguments; ++i)
 						current_stack->pop_back();
 					// current_stack->length -= c->arguments;
 					//戻り値
-					if (c->command == script_engine::pc_call_and_push_result)
+					if (wantsResult)
 						current_stack->push_back(ret);
+#endif
 				}
 			} else if (c->sub->kind == script_engine::bk_microthread) {
 				//マイクロスレッド起動
@@ -2794,18 +2892,26 @@ void script_machine::advance()
 				threads.insert(threads.begin() + current_thread_index, e);
 				//引数の積み替え
 				for (unsigned i = 0; i < c->arguments; ++i) {
+#if defined(__EMSCRIPTEN__) && !defined(PH3_LEGACY_SCRIPT_MOVES)
+					e->stack.push_back(std::move(current_stack->at[current_stack->length - 1]));
+#else
 					e->stack.push_back(current_stack->at[current_stack->length - 1]);
+#endif
 					current_stack->pop_back();
 				}
 			} else {
 				//スクリプト間の呼び出し
 				++(current->ref_count);
 				environment* e = new_environment(current, c->sub);
-				e->has_result = c->command == script_engine::pc_call_and_push_result;
+				e->has_result = wantsResult;
 				threads[current_thread_index] = e;
 				//引数の積み替え
 				for (unsigned i = 0; i < c->arguments; ++i) {
+#if defined(__EMSCRIPTEN__) && !defined(PH3_LEGACY_SCRIPT_MOVES)
+					e->stack.push_back(std::move(current_stack->at[current_stack->length - 1]));
+#else
 					e->stack.push_back(current_stack->at[current_stack->length - 1]);
+#endif
 					current_stack->pop_back();
 				}
 			}
@@ -2827,6 +2933,9 @@ void script_machine::advance()
 				current_stack->pop_back();
 			}
 			if (exit) {
+#if defined(__EMSCRIPTEN__) && !defined(PH3_LEGACY_SCRIPT_JUMPS)
+				if(c->cached_jump >= 0){current->ip=c->cached_jump;break;}
+#endif
 				int nested = 0;
 				for (;;) {
 					switch (current->sub->codes.at[current->ip].command) {
@@ -2847,9 +2956,9 @@ void script_machine::advance()
 					}
 					++(current->ip);
 				}
-			next:
-#ifdef _MSC_VER
-				;
+			next:;
+#if defined(__EMSCRIPTEN__) && !defined(PH3_LEGACY_SCRIPT_JUMPS)
+				c->cached_jump=current->ip;
 #endif
 			}
 		} break;
@@ -2909,9 +3018,7 @@ void script_machine::advance()
 			stack_t* stack = &current->stack;
 			value* i = &stack->at[stack->length - 1];
 			if (i->as_real() <= 0) {
-				do
-					++(current->ip);
-				while (current->sub->codes.at[current->ip - 1].command != script_engine::pc_loop_back);
+				skipLoopBack();
 			}
 			current->stack.pop_back();
 		} break;
@@ -2920,9 +3027,7 @@ void script_machine::advance()
 			stack_t* stack = &current->stack;
 			value* i = &stack->at[stack->length - 1];
 			if (i->as_real() >= 0) {
-				do
-					++(current->ip);
-				while (current->sub->codes.at[current->ip - 1].command != script_engine::pc_loop_back);
+				skipLoopBack();
 			}
 			current->stack.pop_back();
 		} break;
@@ -2935,9 +3040,7 @@ void script_machine::advance()
 			if (r > 0)
 				i->set(engine->get_real_type(), r - 1);
 			else {
-				do
-					++(current->ip);
-				while (current->sub->codes.at[current->ip - 1].command != script_engine::pc_loop_back);
+				skipLoopBack();
 			}
 		} break;
 
@@ -2946,9 +3049,7 @@ void script_machine::advance()
 			bool c = stack->at[stack->length - 1].as_boolean();
 			current->stack.pop_back();
 			if (!c) {
-				do
-					++(current->ip);
-				while (current->sub->codes.at[current->ip - 1].command != script_engine::pc_loop_back);
+				skipLoopBack();
 			}
 		} break;
 
@@ -2958,7 +3059,7 @@ void script_machine::advance()
 			break;
 
 		case script_engine::pc_push_value:
-			current->stack.push_back(c->data);
+			current->stack.push_back(c->literal());
 			break;
 
 		case script_engine::pc_push_variable:
@@ -2985,9 +3086,13 @@ void script_machine::advance()
 		case script_engine::pc_swap: {
 			int len = current->stack.length;
 			assert(len >= 2);
+#if defined(__EMSCRIPTEN__) && !defined(PH3_LEGACY_SCRIPT_MOVES)
+			current->stack[len - 1].swap(current->stack[len - 2]);
+#else
 			value t = current->stack[len - 1];
 			current->stack[len - 1] = current->stack[len - 2];
 			current->stack[len - 2] = t;
+#endif
 		} break;
 
 		case script_engine::pc_yield:
@@ -2998,4 +3103,10 @@ void script_machine::advance()
 			assert(false);
 		}
 	}
+#if defined(__EMSCRIPTEN__) && !defined(PH3_LEGACY_VM_DISPATCH)
+	// All three callers run exactly this condition around advance(). Fuse that
+	// dispatch loop, not game ticks: yield/event/termination semantics and the
+	// selected thread are re-read at the same instruction boundaries as before.
+	if (!finished && !bTerminate) goto dispatch_next;
+#endif
 }

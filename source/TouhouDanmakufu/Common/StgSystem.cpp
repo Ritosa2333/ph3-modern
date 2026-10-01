@@ -479,7 +479,7 @@ void StgSystemController::RenderScriptObject(int priMin, int priMax)
 				{
 					if(!bClearZBufferFor2DCoordinate)
 					{
-						DxScriptMeshObject* objMesh = dynamic_cast<DxScriptMeshObject*>((*itr).GetPointer());
+						DxScriptMeshObject* objMesh = QueryRenderMesh((*itr).GetPointer());
 						if(objMesh != NULL)
 						{
 							gstd::ref_count_ptr<DxMesh> mesh = objMesh->GetMesh();
@@ -492,7 +492,7 @@ void StgSystemController::RenderScriptObject(int priMin, int priMax)
 					}
 					(*itr)->Render();
 				}
-				(*pRenderListStage)[iPri].clear();
+				objectManagerStage->ClearRenderBucket(iPri);
 
 			}
 
@@ -519,7 +519,7 @@ void StgSystemController::RenderScriptObject(int priMin, int priMax)
 				{
 					if(!bClearZBufferFor2DCoordinate)
 					{
-						DxScriptMeshObject* objMesh = dynamic_cast<DxScriptMeshObject*>((*itr).GetPointer());
+						DxScriptMeshObject* objMesh = QueryRenderMesh((*itr).GetPointer());
 						if(objMesh != NULL)
 						{
 							gstd::ref_count_ptr<DxMesh> mesh = objMesh->GetMesh();
@@ -532,7 +532,7 @@ void StgSystemController::RenderScriptObject(int priMin, int priMax)
 					}
 					(*itr)->Render();
 				}
-				(*pRenderListPackage)[iPri].clear();
+				objectManagerPackage->ClearRenderBucket(iPri);
 			}
 			if(shader != NULL)
 			{

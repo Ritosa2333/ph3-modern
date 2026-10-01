@@ -1,4 +1,5 @@
 #include "Effect.hpp"
+#include "UniformValueCache.hpp"
 #include "../gstd/File.hpp"
 #include "../directx/HLSL.hpp"
 #include <GLES3/gl3.h>
@@ -47,7 +48,7 @@ public:
     HRESULT BeginPass(UINT pass)override{if(pass!=0)throw std::runtime_error("Effect pass index is out of range");SetActive(this);return S_OK;}
     HRESULT EndPass()override{if(Active()==this)SetActive(nullptr);return S_OK;}
     HRESULT End()override{return EndPass();}
-    HRESULT OnLostDevice()override{if(program)glDeleteProgram(program);program=0;return S_OK;}
+    HRESULT OnLostDevice()override{if(program)glDeleteProgram(program);program=0;uniformValues.Clear();return S_OK;}
     HRESULT OnResetDevice()override{return S_OK;}
     const std::vector<D3DXMATRIX>* WorldMatrices()const override{auto it=matrices.find("mWorldMatrixArray");return builtin&&it!=matrices.end()?&it->second:nullptr;}
     UINT GetProgram(const char* vertex)override{
@@ -55,7 +56,7 @@ public:
 #ifdef PH3_PERF_SCAN
             const double compileBegin=emscripten_get_now();
 #endif
-            program=link(vertex,fragment.c_str());GLint count=0;glGetProgramiv(program,GL_ACTIVE_UNIFORMS,&count);uniforms.clear();locations.clear();
+            program=link(vertex,fragment.c_str());GLint count=0;glGetProgramiv(program,GL_ACTIVE_UNIFORMS,&count);uniforms.clear();locations.clear();uniformValues.Clear();
             for(int i=0;i<count;++i){char name[1024];GLint size;GLenum type;glGetActiveUniform(program,i,sizeof(name),nullptr,&size,&type,name);std::string key=name;if(key.size()>3&&key.substr(key.size()-3)=="[0]")key.resize(key.size()-3);uniforms[key]={type,size};}
 #ifdef PH3_PERF_SCAN
             const double compileMs=emscripten_get_now()-compileBegin;
@@ -69,27 +70,57 @@ public:
             auto key=prefix+name;auto found=uniforms.find(key);if(found==uniforms.end()||value.empty())continue;
             GLint location=Location(key);auto [type,size]=found->second;
             switch(type){
-                case GL_FLOAT:glUniform1fv(location,std::min<int>(size,value.size()),value.data());break;
-                case GL_FLOAT_VEC2:if(value.size()<2)throw std::runtime_error("Effect vec2 value is short");glUniform2fv(location,std::min<int>(size,value.size()/2),value.data());break;
-                case GL_FLOAT_VEC3:if(value.size()<3)throw std::runtime_error("Effect vec3 value is short");glUniform3fv(location,std::min<int>(size,value.size()/3),value.data());break;
-                case GL_FLOAT_VEC4:if(value.size()<4)throw std::runtime_error("Effect vec4 value is short");glUniform4fv(location,std::min<int>(size,value.size()/4),value.data());break;
-                case GL_INT:case GL_BOOL:glUniform1i(location,static_cast<int>(value[0]));break;
+                case GL_FLOAT:FloatUniform(location,UniformKind::Float1,1,std::min<int>(size,value.size()),value.data(),glUniform1fv);break;
+                case GL_FLOAT_VEC2:if(value.size()<2)throw std::runtime_error("Effect vec2 value is short");FloatUniform(location,UniformKind::Float2,2,std::min<int>(size,value.size()/2),value.data(),glUniform2fv);break;
+                case GL_FLOAT_VEC3:if(value.size()<3)throw std::runtime_error("Effect vec3 value is short");FloatUniform(location,UniformKind::Float3,3,std::min<int>(size,value.size()/3),value.data(),glUniform3fv);break;
+                case GL_FLOAT_VEC4:if(value.size()<4)throw std::runtime_error("Effect vec4 value is short");FloatUniform(location,UniformKind::Float4,4,std::min<int>(size,value.size()/4),value.data(),glUniform4fv);break;
+                case GL_INT:case GL_BOOL:IntUniform(location,static_cast<int>(value[0]));break;
                 default:throw std::runtime_error("Unsupported effect numeric uniform: "+key);
             }
         }
-        for(const auto& [name,value]:matrices){auto key=prefix+name;auto found=uniforms.find(key);if(found==uniforms.end()||value.empty())continue;if(found->second.first!=GL_FLOAT_MAT4)throw std::runtime_error("Unsupported effect matrix layout");glUniformMatrix4fv(Location(key),std::min<int>(found->second.second,value.size()),GL_FALSE,value[0].m[0]);}
+        for(const auto& [name,value]:matrices){auto key=prefix+name;auto found=uniforms.find(key);if(found==uniforms.end()||value.empty())continue;if(found->second.first!=GL_FLOAT_MAT4)throw std::runtime_error("Unsupported effect matrix layout");const auto location=Location(key);const int count=std::min<int>(found->second.second,value.size());Upload(location,UniformKind::Matrix4,count,value[0].m[0],sizeof(float)*16*count,[&](){glUniformMatrix4fv(location,count,GL_FALSE,value[0].m[0]);});}
         unsigned unit=0;
         for(const auto& binding:bindings){
             IDirect3DBaseTexture9* texture=device->PeekTexture(binding.slot);
             if(!binding.parameter.empty()){auto found=textures.find(binding.parameter);texture=found==textures.end()?nullptr:found->second;
                 if(!texture){if(!black){if(FAILED(device->CreateTexture(1,1,1,0,D3DFMT_A8R8G8B8,D3DPOOL_MANAGED,&black,nullptr)))throw std::runtime_error("Cannot create null sampler");D3DLOCKED_RECT rect;black->LockRect(0,&rect,nullptr,0);*static_cast<DWORD*>(rect.pBits)=0xff000000;black->UnlockRect(0);}texture=black;}}
             if(!device->BindTextureUnit(unit,texture,binding.slot,binding.states.data())){glActiveTexture(GL_TEXTURE0);return false;}
-            glUniform1i(Location(binding.uniform),unit++);
+            IntUniform(Location(binding.uniform),unit++);
         }
         glActiveTexture(GL_TEXTURE0);
         return true;
     }
+    void ApplyAlphaTest(DWORD enabled,DWORD comparison,DWORD reference)override{
+        // D3D's alpha test follows the custom pixel shader. Parameter positions
+        // belong to this linked program, not to the current draw. GetProgram()
+        // clears Location's cache whenever the program is recreated.
+        // Keep uploading the values after user uniforms, including unusual
+        // sidecars whose parameters overlap these reserved names.
+        const GLint test=Location("ph3AlphaTest");
+        const GLint function=Location("ph3AlphaFunc");
+        const GLint threshold=Location("ph3AlphaRef");
+        if(test>=0)IntUniform(test,int(enabled));
+        if(function>=0)IntUniform(function,int(comparison));
+        if(threshold>=0){const float value=float(reference)/255.0f;Upload(threshold,UniformKind::Float1,1,&value,sizeof value,[&](){glUniform1f(threshold,value);});}
+    }
 private:
+    using UniformKind=directx::portable::UniformValueCache::Kind;
+    directx::portable::UniformValueCache uniformValues;
+    template<class Submit> void Upload(GLint location,UniformKind kind,std::size_t count,
+                                       const void* bytes,std::size_t length,Submit submit){
+#ifdef PH3_LEGACY_EFFECT_UNIFORMS
+        submit();
+#else
+        uniformValues.Apply(location,kind,count,bytes,length,submit);
+#endif
+    }
+    void IntUniform(GLint location,int value){
+        Upload(location,UniformKind::Int1,1,&value,sizeof value,[&](){glUniform1i(location,value);});
+    }
+    template<class Function> void FloatUniform(GLint location,UniformKind kind,int width,
+                                               int count,const float* values,Function function){
+        Upload(location,kind,count,values,sizeof(float)*width*count,[&](){function(location,count,values);});
+    }
     GLuint program=0;
     std::map<std::string,GLint> locations;
     GLint Location(const std::string& name){auto it=locations.find(name);if(it!=locations.end())return it->second;return locations.emplace(name,glGetUniformLocation(program,name.c_str())).first->second;}

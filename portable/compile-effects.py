@@ -15,8 +15,22 @@ import struct
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
-WORKSPACE = ROOT.parents[2]
-TOOLS = WORKSPACE / "toolchains/ph3-shaders"
+
+
+def _first_existing(candidates: list[Path], marker: str) -> Path:
+    return next((path for path in candidates if (path / marker).is_file()), candidates[0])
+
+
+EAGLER_ROOT = _first_existing([ROOT.parents[2], ROOT.parents[1]], "toolchains/ph3-shaders/origin.json")
+TOOLS = EAGLER_ROOT / "toolchains/ph3-shaders"
+
+
+def _default_game_root() -> Path:
+    candidates = [
+        ROOT.parents[1] / "games/th_hsob_ver1.12/dnh",
+        EAGLER_ROOT / "fangame/games/th_hsob_ver1.12/dnh",
+    ]
+    return next((path for path in candidates if (path / "script/th_hsob/Main.dnh").is_file()), candidates[0])
 
 
 def run(arguments: list[object]) -> str:
@@ -210,7 +224,7 @@ bool ph3_alpha_pass(float a) {
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--game-root", type=Path, default=ROOT.parents[1] / "games/th_hsob_ver1.12/dnh")
+    parser.add_argument("--game-root", type=Path, default=_default_game_root())
     parser.add_argument("--out", type=Path, default=ROOT / "build/effects")
     args = parser.parse_args()
     glslang = TOOLS / "glslang/bin/glslang.exe"

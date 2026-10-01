@@ -1064,7 +1064,11 @@ void DxScriptObjectManager::AddRenderObject(gstd::ref_count_ptr<DxScriptObjectBa
 	int tPri = (int)(pri * (objRender_.size() - 1) + 0.5);
 	if (tPri > objRender_.size() - 1)
 		tPri = objRender_.size() - 1;
+#if defined(__EMSCRIPTEN__) && !defined(PH3_LEGACY_RENDER_NODE_POOL)
+	renderNodes_.Append(objRender_[tPri], obj);
+#else
 	objRender_[tPri].push_back(obj);
+#endif
 }
 void DxScriptObjectManager::WorkObject()
 {
@@ -1105,7 +1109,7 @@ void DxScriptObjectManager::RenderObject()
 		for (itr = objRender_[iPri].begin(); itr != objRender_[iPri].end(); itr++) {
 			(*itr)->Render();
 		}
-		objRender_[iPri].clear();
+		ClearRenderBucket(iPri);
 
 		if (shader != NULL) {
 			shader->End();
@@ -1127,8 +1131,16 @@ void DxScriptObjectManager::PrepareRenderObject()
 void DxScriptObjectManager::ClearRenderObject()
 {
 	for (int iPri = 0; iPri < objRender_.size(); iPri++) {
-		objRender_[iPri].clear();
+		ClearRenderBucket(iPri);
 	}
+}
+void DxScriptObjectManager::ClearRenderBucket(int index)
+{
+#if defined(__EMSCRIPTEN__) && !defined(PH3_LEGACY_RENDER_NODE_POOL)
+	renderNodes_.Clear(objRender_[index]);
+#else
+	objRender_[index].clear();
+#endif
 }
 void DxScriptObjectManager::SetShader(gstd::ref_count_ptr<Shader> shader, double min, double max)
 {

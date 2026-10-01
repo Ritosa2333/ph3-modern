@@ -1000,6 +1000,12 @@ void ElfreinaMesh::Render()
 	if(data_ == NULL)return;
 
 	ElfreinaMeshData* data = (ElfreinaMeshData*)data_.GetPointer();
+#ifdef __EMSCRIPTEN__
+	if(!data->bLoad_){
+		FileManager::GetBase()->WaitForThreadLoadComplete();
+		if(!data->bLoad_)throw gstd::wexception(L"Elfreina mesh did not finish cooperative loading");
+	}
+#endif
 	for(int iMesh = 0 ; iMesh<data->mesh_.size(); iMesh++)
 	{
 		ElfreinaMeshData::Mesh* mesh = data->mesh_[iMesh].GetPointer();
@@ -1015,15 +1021,25 @@ void ElfreinaMesh::Render()
 void ElfreinaMesh::Render(std::wstring nameAnime, int time)
 {
 	if(data_ == NULL)return;
+	ElfreinaMeshData* data = (ElfreinaMeshData*)data_.GetPointer();
+#ifdef __EMSCRIPTEN__
+	// Animation lookup also reads the mesh data, so the Web load must finish
+	// before creating matrices, not after the lookup has already failed.
+	if(!data->bLoad_){
+		FileManager::GetBase()->WaitForThreadLoadComplete();
+		if(!data->bLoad_)throw gstd::wexception(L"Elfreina mesh did not finish cooperative loading");
+	}
+#endif
 
 	gstd::ref_count_ptr<Matrices> matrix = CreateAnimationMatrix(nameAnime, time);
 	if(matrix == NULL)return;
 
-	ElfreinaMeshData* data = (ElfreinaMeshData*)data_.GetPointer();
+#ifndef __EMSCRIPTEN__
 	while(!data->bLoad_)
 	{
 		::Sleep(1);
 	}
+#endif
 
 	for(int iMesh = 0 ; iMesh<data->mesh_.size(); iMesh++)
 	{

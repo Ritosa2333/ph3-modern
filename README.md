@@ -1,32 +1,31 @@
-# ph3-open-web
+# ph3-modern — WIP
 
-Browser port of the original Touhou Danmakufu ph3 gameplay source. The pinned
-gameplay authority is `5c92f28e17b6ef3721a3ac4caa9de3af3164b51e`.
-Woo commit `900aa3ebeb329187e8c2852b8ad41caa5200ca9e` supplies the
-verified DAT/zlib mechanism. The tested candidate19 Web platform overlay is
-recorded in [portable/candidate19-merge-report.json](portable/candidate19-merge-report.json).
+Work-in-progress modernization / browser port of Touhou Danmakufu ph3.
+The original parser, script VM and game engine are retained; this is not a
+replacement interpreter written only for Hollow Song of Birds (HSoB).
 
-Build and validation commands are in [portable/README.md](portable/README.md);
-the current acceptance evidence is in [PORTING_HANDOFF.md](PORTING_HANDOFF.md).
+**Not a stable release or an all-games compatibility guarantee.** HSoB is the
+current integration and regression target. Its browser shell, resource
+preparation and save paths are still title-specific. Other ph3 games may need
+their own entry/package adapter; ph3sx / other dialect extensions and arbitrary
+DirectX effects are not promised. Replay divergences, mobile performance and
+full-campaign validation remain unfinished.
 
-## Original upstream notice
+Build notes: [portable/README.md](portable/README.md).
+Next agent: **[AGENT_HANDOFF.md](AGENT_HANDOFF.md)**.
+Historical import evidence: [PORTING_HANDOFF.md](PORTING_HANDOFF.md).
 
-# Touhou Danmakufu ph3
+## Upstream and license
 
-This is a read-only repo of the Danmakufu ph3 source code. Originally released
-here: https://touhougc.web.fc2.com/products/th_dnh_ph3.html.
+Based on [james7132/Danmakufu-ph3](https://github.com/james7132/Danmakufu-ph3),
+gameplay baseline `5c92f28e17b6ef3721a3ac4caa9de3af3164b51e`.
+Woo `900aa3ebeb329187e8c2852b8ad41caa5200ca9e` supplies the DAT/zlib mechanism;
+import decisions are in [portable/candidate19-merge-report.json](portable/candidate19-merge-report.json).
 
-## Contributions
+Original code is distributed under [NYSL](LICENSE); bundled components retain
+their own notices. This fork is maintained separately from the read-only
+upstream and is not an official Danmakufu release. No warranty is provided.
 
-This is a read-only repo. All pull requests changing functionality of the code
-will be rejected. Alterations to documentation (i.e. this README) are OK.
-
-## License
-
-This code is licensed under the NYSL (Niru nari Yaku nari Suki ni shiro License'). 
-Main translated points:
-
- * "No warranty" disclaimer is explicitly included.
- * Modified version of the software MUST be distributed under the responsibility 
-   of the distributer.
- * Official version is written in Japanese.
+HSoB game data, Microsoft fonts, local build outputs and private deployment
+credentials are not supplied. Legacy sample files/executables inherited from
+upstream are not builds of this WIP browser runtime.

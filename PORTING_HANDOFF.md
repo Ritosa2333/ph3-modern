@@ -1,5 +1,8 @@
 # ph3-open-web handoff
 
+> Historical import / replay investigation record. For the merged ph3-modern
+> WIP and current next steps, start with [AGENT_HANDOFF.md](AGENT_HANDOFF.md).
+
 ## Source authority and import
 
 - Worktree branch: `portable-web-open`, based on original ph3 commit

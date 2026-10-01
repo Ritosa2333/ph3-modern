@@ -196,7 +196,7 @@ void StgStageScriptObjectManager::RenderObject(int priMin, int priMax)
 		{
 			if(!bClearZBufferFor2DCoordinate)
 			{
-				DxScriptMeshObject* objMesh = dynamic_cast<DxScriptMeshObject*>((*itr).GetPointer());
+				DxScriptMeshObject* objMesh = QueryRenderMesh((*itr).GetPointer());
 				if(objMesh != NULL)
 				{
 					gstd::ref_count_ptr<DxMesh>& mesh = objMesh->GetMesh();
@@ -209,7 +209,7 @@ void StgStageScriptObjectManager::RenderObject(int priMin, int priMax)
 			}
 			(*itr)->Render();
 		}
-		objRender_[iPri].clear();
+		ClearRenderBucket(iPri);
 
 		if(iPri == priCamera)
 		{

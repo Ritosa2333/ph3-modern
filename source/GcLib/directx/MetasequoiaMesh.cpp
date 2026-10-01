@@ -468,10 +468,18 @@ void MetasequoiaMesh::Render()
 	
 	MetasequoiaMeshData* data = (MetasequoiaMeshData*)data_.GetPointer();
 
+#ifdef __EMSCRIPTEN__
+	if(!data->bLoad_){
+		FileManager::GetBase()->WaitForThreadLoadComplete();
+		if(!data->bLoad_)throw gstd::wexception(
+			L"Metasequoia mesh did not finish cooperative loading: " + GetPath());
+	}
+#else
 	while(!data->bLoad_)
 	{
 		::Sleep(1);
 	}
+#endif
 
 	for(int iObj = 0 ; iObj<data->obj_.size(); iObj++)
 	{

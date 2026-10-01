@@ -1,212 +1,208 @@
-const canvas = document.querySelector('#canvas');
-const start = document.querySelector('#start');
-const status = document.querySelector('#status');
-const progress = document.querySelector('#progress');
-const log = document.querySelector('#log');
-const fullscreen = document.querySelector('#fullscreen');
-const diagnostics = {phase: 'idle', errors: [], messages: [], loadedBytes: 0, loadedFiles: 0};
-window.ph3Diagnostics = diagnostics;
-setInterval(() => {
-  const output=document.getElementById('performance'), p=diagnostics.performance;
-  if (!output || !p || document.hidden) return;
-  output.hidden=false;
-  output.textContent=`画面更新 ${p.displayFps.toFixed(1)} FPS · 逻辑 ${p.logicHz.toFixed(1)} Hz · 主线程帧耗时 P95 ${p.frameMsP95.toFixed(1)} ms / 最大 ${p.frameMsMax.toFixed(1)} ms`;
-}, 1000);
-let runtime;
-let ready = false;
-let running = false;
-let syncPending = false;
-let logDirty = false;
-const logDetails = log.closest('details');
-function flushLog() {
-  if (!logDirty || !logDetails?.open) return;
-  log.textContent = diagnostics.messages.slice(-180).join('\n');
-  log.scrollTop = log.scrollHeight;
-  logDirty = false;
+// Platform shell for the eagler-touhou/1 contract. Danmakufu owns gameplay;
+// this file owns only Host protocol, managed bytes, persistence and input IO.
+import createWoo from './ph3-open.mjs';
+import {ensureFontAlias,installResources,mountManagedData,normalizeOptions,touchSnapshot,isSupersededRuntimeError} from './eagler-host.mjs';
+
+const protocol='eagler-touhou/1',game='hsob';
+const RUNTIME_EPOCH_QUERY_PARAMETER='runtimeEpoch';
+const query=new URLSearchParams(location.search),managed=query.get('managedData')==='1';
+const epoch=Number(query.get(RUNTIME_EPOCH_QUERY_PARAMETER)),validEpoch=Number.isSafeInteger(epoch)&&epoch>0;
+const canvas=document.querySelector('#canvas'),start=document.querySelector('#start'),errorBox=document.querySelector('#error');
+document.documentElement.dataset.standalone=managed?'0':'1';
+const diagnostics=window.ph3Diagnostics={phase:'idle',errors:[],messages:[],loadedBytes:0,loadedFiles:0,observeStage:true,observePerformance:true};
+const emit=(event,fields={})=>{if(managed&&validEpoch)parent.postMessage({protocol,game,epoch,event,...fields},location.origin);};
+const log=text=>{const value=String(text);diagnostics.messages.push(value);if(diagnostics.messages.length>1000)diagnostics.messages.shift();};
+let Module=null,configured=false,launched=false,ready=false,firstFrame=false,reportedError=false;
+let options=normalizeOptions(),musicMode='ogg',syncTail=Promise.resolve(),healthTimer=null;
+const saveRoot='/savehsob';
+
+function fail(reason){
+ const message=reason?.stack||reason?.message||String(reason);diagnostics.errors.push(message);diagnostics.phase='error';errorBox.textContent=message;
+ if(!reportedError){reportedError=true;emit('error',{message,error:message});}console.error(reason);
 }
-logDetails?.addEventListener('toggle', flushLog);
-setInterval(flushLog, 200);
-
-function message(text) {
-  const value = String(text);
-  diagnostics.messages.push(value);
-  if (diagnostics.messages.length > 800) diagnostics.messages.shift();
-  // Asset churn during shooting must not force DOM layout for a closed log.
-  logDirty = true;
+function exists(path){return !!Module?.FS?.analyzePath(path).exists;}
+function sync(populate=false){
+ const next=syncTail.then(()=>new Promise((resolve,reject)=>Module.FS.syncfs(populate,error=>error?reject(error):resolve())));
+ syncTail=next.catch(()=>{});return next;
+}
+function seedDirectory(source,destination){
+ if(!exists(source))return;Module.FS.mkdirTree(destination);
+ for(const name of Module.FS.readdir(source)){
+  if(name==='.'||name==='..')continue;const from=source+'/'+name,to=destination+'/'+name,s=Module.FS.stat(from);
+  if(Module.FS.isDir(s.mode))seedDirectory(from,to);else if(!exists(to))Module.FS.writeFile(to,Module.FS.readFile(from));
+ }
+}
+function moveAside(path,label){
+ if(!exists(path))return;const backup='/initial-hsob-'+label;try{if(exists(backup))return;}catch{}
+ Module.FS.rename(path,backup);
+}
+async function prepareStorage(seedOriginal=false){
+ Module.FS.mkdirTree(saveRoot);Module.FS.mount(Module.IDBFS,{autoPersist:true},saveRoot);await sync(true);
+ Module.FS.mkdirTree(saveRoot+'/replay');
+ const data='/game/script/th_hsob/data',replay='/game/script/th_hsob/replay',config='/game/config.dat';
+ if(seedOriginal){seedDirectory(data,saveRoot);seedDirectory(replay,saveRoot+'/replay');if(exists(config)&&!exists(saveRoot+'/config.dat'))Module.FS.writeFile(saveRoot+'/config.dat',Module.FS.readFile(config));}
+ moveAside(data,'data');moveAside(replay,'replay');moveAside(config,'config.dat');
+ Module.FS.mkdirTree('/game/script/th_hsob');Module.FS.symlink(saveRoot,data);Module.FS.symlink(saveRoot+'/replay',replay);Module.FS.symlink(saveRoot+'/config.dat',config);
+ if(seedOriginal)await sync(false);
 }
 
-function fail(error) {
-  const text = error?.stack || error?.message || String(error);
-  diagnostics.errors.push(text);
-  diagnostics.phase = 'error';
-  status.textContent = '运行失败：' + (error?.message || String(error));
-  message(text);
-  console.error(error);
-  start.disabled = true;
+function relativeSave(value){
+ if(typeof value!=='string'||value.length<1||value.length>220)throw Error('Invalid save path');
+ let path=value.replaceAll('\\','/').replace(/^\/+/, '');
+ if(path.toLowerCase().startsWith('savehsob/'))path=path.slice('savehsob/'.length);
+ if(/^config\.dat$/i.test(path)||/^Package_common_[A-Za-z0-9_-]+\.dat$/i.test(path)||/^replay\/Main_replay(?:\d{2}|ud[a-z0-9]{4})\.dat$/i.test(path))return path;
+ throw Error('Invalid HSoB save path: '+path);
 }
-
-window.addEventListener('error', event => fail(event.error || event.message));
-window.addEventListener('unhandledrejection', event => fail(event.reason));
-canvas.addEventListener('contextmenu', event => event.preventDefault());
-canvas.addEventListener('pointerdown', () => canvas.focus());
-canvas.addEventListener('webglcontextlost', event => {
-  event.preventDefault();
-  fail(new Error('图形上下文丢失。请刷新页面重新启动；此预览尚不支持上下文恢复。'));
-});
-window.addEventListener('keydown', event => {
-  if (running && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space', 'Tab'].includes(event.code))
-    event.preventDefault();
-});
-
-async function syncStorage(populate = false) {
-  if (!runtime || syncPending) return;
-  syncPending = true;
-  try {
-    await new Promise((resolve, reject) => runtime.FS.syncfs(populate, error => error ? reject(error) : resolve()));
-  } finally {
-    syncPending = false;
+function listFiles(){
+ const files=[];
+ for(const dir of ['', '/replay']){
+  const root=saveRoot+dir;if(!exists(root))continue;
+  for(const name of Module.FS.readdir(root)){
+   if(name==='.'||name==='..')continue;const path=(dir+'/'+name).replace(/^\//,'');
+   try{relativeSave(path);}catch{continue;}const full=saveRoot+'/'+path,s=Module.FS.stat(full);
+   if(Module.FS.isFile(s.mode))files.push({path,size:s.size});
   }
+ }
+ return files;
 }
 
-async function install(file, totalBytes) {
-  for (let attempt = 0; attempt < 3; ++attempt) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), file.bytes > 32 * 1048576 ? 120000 : 20000);
-    let reader, offset = 0;
-    try {
-      const response = await fetch(file.url, {cache: 'no-store', signal: controller.signal});
-      if (!response.ok) throw new Error(`资源读取失败：${file.path} (${response.status})`);
-      const bytes = new Uint8Array(file.bytes);
-      reader = response.body.getReader();
-      while (true) {
-        const {done, value} = await reader.read();
-        if (done) break;
-        if (offset + value.length > bytes.length) throw new Error(`资源大小在读取时发生变化：${file.path}`);
-        bytes.set(value, offset);
-        offset += value.length;
-        diagnostics.loadedBytes += value.length;
-        progress.value = diagnostics.loadedBytes / totalBytes;
-        if (diagnostics.phase === 'loading')
-          status.textContent = `正在读取本地资源：${(diagnostics.loadedBytes / 1048576).toFixed(1)} / ${(totalBytes / 1048576).toFixed(1)} MB`;
-      }
-      if (offset !== file.bytes) throw new Error(`资源不完整：${file.path}`);
-      runtime.FS.mkdirTree(file.path.slice(0, file.path.lastIndexOf('/')) || '/');
-      runtime.FS.writeFile(file.path, bytes, {canOwn: true});
-      ++diagnostics.loadedFiles;
-      return;
-    } catch (error) {
-      diagnostics.loadedBytes -= offset;
-      if (reader) await reader.cancel().catch(() => {});
-      const transient = error instanceof TypeError || error?.name === 'AbortError';
-      if (!transient || attempt === 2 || diagnostics.phase === 'error')
-        throw new Error(`资源加载失败：${file.path} — ${error.message}`, {cause: error});
-      diagnostics.resourceRetries = (diagnostics.resourceRetries || 0) + 1;
-      message(`本地连接中断，重试 ${attempt + 1}/2：${file.path}`);
-      await new Promise(resolve => setTimeout(resolve, 300 * (attempt + 1)));
-    } finally {
-      clearTimeout(timeout);
-    }
+const DIK=Object.freeze({Escape:0x01,Enter:0x1c,ControlLeft:0x1d,ControlRight:0x9d,KeyR:0x13,ShiftLeft:0x2a,ShiftRight:0x36,KeyZ:0x2c,KeyX:0x2d,ArrowUp:0xc8,ArrowDown:0xd0,ArrowLeft:0xcb,ArrowRight:0xcd,Home:0xc7,Tab:0x0f,Backspace:0x0e});
+function runtimeKeyboardCode(message){
+ const code=String(message.code||'');if(code&&code!=='Unidentified')return code;
+ const key=String(message.key||'').toLowerCase(),location=Number(message.location)||0;
+ const byKey={z:'KeyZ',x:'KeyX',r:'KeyR',shift:location===2?'ShiftRight':'ShiftLeft',control:location===2?'ControlRight':'ControlLeft',escape:'Escape',esc:'Escape',arrowup:'ArrowUp',arrowdown:'ArrowDown',arrowleft:'ArrowLeft',arrowright:'ArrowRight',home:'Home',enter:'Enter',tab:'Tab',backspace:'Backspace'};
+ return byKey[key]||'';
+}
+const keyboard=new Map();
+function ccall(name,args=[],types=[]){return Module.ccall(name,null,types,args);}
+function applyKey(dik){ccall('hsob_input_key',[dik,keyboard.get(dik)?1:0],['number','number']);}
+function setSource(source,dik,down){if(down)source.set(dik,true);else source.delete(dik);applyKey(dik);}
+function clearSource(source){const keys=[...source.keys()];source.clear();for(const key of keys)applyKey(key);}
+let touchBaselineReady=false;
+function applyTouchConfig(){
+ const modes={touch:0,'touch-unlimited':1,joystick:2,'joystick-free':3};
+ const focusMode=options.touchFocusMode==='two-finger'?2:options.touchFocusMode==='toggle-button'?1:0;
+ ccall('hsob_touch_config',[options.touchEnabled?1:0,modes[options.touchMovementMode]??0,options.touchSensitivity/100,focusMode,options.doubleTapBombEnabled?1:0],['number','number','number','number','number']);
+}
+function cancelTouches(){
+ ccall('hsob_touch_cancel');
+}
+function applyTouchControls(message){
+ const state=touchSnapshot(options,message);
+ applyTouchConfig();
+ const fn=touchBaselineReady?'hsob_touch_controls':'hsob_touch_controls_baseline';
+ ccall(fn,[state.fire?1:0,state.focus?1:0,state.bomb,state.escape,state.x,state.y],['number','number','number','number','number','number']);
+ touchBaselineReady=true;
+}
+function directTouch(message){
+ if(!options.touchEnabled)return;
+ const type=message.type??message.action,id=Number(message.id),x=Number(message.x),y=Number(message.y);
+ if(!Number.isSafeInteger(id)||!Number.isFinite(x)||!Number.isFinite(y))return;
+ const typeId=type==='down'?0:type==='move'?1:(type==='up'||type==='cancel')?2:-1;if(typeId<0)return;
+ const rect=canvas.getBoundingClientRect();if(rect.width<=0||rect.height<=0)return;
+ const clientX=x*innerWidth,clientY=y*innerHeight;
+ const normalizedX=(clientX-rect.left)/rect.width,normalizedY=(clientY-rect.top)/rect.height;
+ ccall('hsob_touch_pointer',[typeId,id,normalizedX,normalizedY,performance.now()],['number','number','number','number','number']);
+}
+
+async function installLocalManifest(){
+ const localManifestUrl=new URL(['local','manifest.json'].join('-'),location.origin+'/');
+ const response=await fetch(localManifestUrl,{cache:'no-store'});if(!response.ok)throw Error('本地资源清单不可用');
+ const manifest=await response.json(),total=manifest.files.reduce((sum,file)=>sum+file.bytes,0);let cursor=0;
+ const install=async file=>{
+  for(let attempt=0;attempt<3;++attempt){
+   const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),file.bytes>32*1048576?120000:20000);
+   try{
+    const res=await fetch(file.url,{cache:'no-store',signal:controller.signal});if(!res.ok)throw Error('HTTP '+res.status);
+    const bytes=new Uint8Array(await res.arrayBuffer());if(bytes.length!==file.bytes)throw Error('资源大小不一致');
+    Module.FS.mkdirTree(file.path.slice(0,file.path.lastIndexOf('/'))||'/');Module.FS.writeFile(file.path,bytes,{canOwn:true});diagnostics.loadedBytes+=bytes.length;diagnostics.loadedFiles++;return;
+   }catch(reason){if(attempt===2)throw Error('资源读取失败：'+file.path+' — '+reason,{cause:reason});await new Promise(resolve=>setTimeout(resolve,300*(attempt+1)));}
+   finally{clearTimeout(timeout);}
   }
+ };
+ await Promise.all(Array.from({length:4},async()=>{while(cursor<manifest.files.length)await install(manifest.files[cursor++]);}));
+ if(diagnostics.loadedBytes!==total)throw Error('本地资源加载不完整');
 }
 
-function exists(path) { return runtime.FS.analyzePath(path).exists; }
-
-function seedDirectory(source, destination) {
-  const fs = runtime.FS;
-  fs.mkdirTree(destination);
-  for (const name of fs.readdir(source)) {
-    if (name === '.' || name === '..') continue;
-    const from = source + '/' + name, to = destination + '/' + name;
-    if (fs.isDir(fs.stat(from).mode)) seedDirectory(from, to);
-    else if (!exists(to)) fs.writeFile(to, fs.readFile(from));
-  }
+async function installConfiguredResources(message){
+ for(const group of [message.sharedResources,message.runtimeResources,message.resources])if(group)await installResources(Module,group,{emit});
+}
+async function configure(message){
+ if(launched)throw Error('Cannot configure a running game');
+ if(!['ogg','none'].includes(message.music))throw Error('HSoB supports OGG or no music');
+ options=normalizeOptions(message.options);musicMode=message.music;applyTouchConfig();
+ ccall('hsob_set_ogg_decode_mode',[options.oggDecodeMode==='full'?1:0],['number']);
+ await installConfiguredResources(message);configured=true;return {};
+}
+function launch(){
+ if(launched)return;if(managed&&!configured)throw Error('Runtime must be configured before launch');
+ if(exists('/msgothic.ttc'))ensureFontAlias(Module);else if(!exists('/game/msgothic.ttc'))throw Error('Japanese font is unavailable');
+ if(musicMode==='none'&&exists('/game/script/th_hsob/music/music.dat'))Module.FS.unlink('/game/script/th_hsob/music/music.dat');
+ Module.FS.chdir('/game');diagnostics.observeStage=true;diagnostics.observePerformance=true;diagnostics.phase='running';touchBaselineReady=false;ccall('hsob_touch_begin_session');
+ launched=true;firstFrame=false;reportedError=false;canvas.focus({preventScroll:true});Module.callMain([]);
+ emit('runtime-info',{renderer:'SDL3 / WebGL2 / Danmakufu ph3',architecture:'eagler-touhou/1',version:'HSoB 1.12 / ph3-open-web'});
+ start.disabled=true;start.textContent='游戏运行中';start.style.display=managed?'none':'';
+}
+async function command(message){
+ switch(message.command){
+ case 'configure':return configure(message);
+ case 'resources':if(launched)throw Error('Runtime resources cannot change after launch');await installResources(Module,message.resources,{emit});return {};
+ case 'keyboard':{const dik=DIK[runtimeKeyboardCode(message)];if(dik!==undefined)setSource(keyboard,dik,!!message.down);return {};}
+ case 'keyboard-clear':clearSource(keyboard);return {};
+ case 'touch-controls':applyTouchControls(message);return {};
+ case 'touch-cancel':cancelTouches();return {};
+ case 'direct-touch':directTouch(message);return {};
+ case 'launch':launch();return {};
+ case 'sync':await sync(false);return {};
+ case 'list':return {files:listFiles()};
+ case 'read':{const path=relativeSave(message.path);return {bytes:Array.from(Module.FS.readFile(saveRoot+'/'+path))};}
+ case 'write':{if(!Array.isArray(message.bytes)||message.bytes.length>16*1024*1024||message.bytes.some(byte=>!Number.isInteger(byte)||byte<0||byte>255))throw Error('Invalid save bytes');const path=relativeSave(message.path),full=saveRoot+'/'+path;Module.FS.mkdirTree(full.slice(0,full.lastIndexOf('/')));Module.FS.writeFile(full,new Uint8Array(message.bytes));await sync(false);return {};}
+ case 'remove':{const path=relativeSave(message.path);Module.FS.unlink(saveRoot+'/'+path);await sync(false);return {};}
+ default:throw Error('Unsupported runtime command: '+message.command);
+ }
 }
 
-async function prepareStorage() {
-  const fs = runtime.FS;
-  fs.mkdirTree('/save');
-  fs.mount(runtime.IDBFS, {autoPersist: true}, '/save');
-  await syncStorage(true);
-  // Persist only save/replay/configuration data, not hundreds of MB of assets.
-  // The native owner still opens its original paths via these filesystem links.
-  for (const name of ['data', 'replay']) {
-    const nativePath = '/game/script/th_hsob/' + name;
-    fs.mkdirTree(nativePath);
-    seedDirectory(nativePath, '/save/' + name);
-    fs.rename(nativePath, '/initial-' + name);
-    fs.symlink('/save/' + name, nativePath);
-  }
-  if (exists('/game/config.dat')) {
-    if (!exists('/save/config.dat')) fs.writeFile('/save/config.dat', fs.readFile('/game/config.dat'));
-    fs.unlink('/game/config.dat');
-    fs.symlink('/save/config.dat', '/game/config.dat');
-  }
-  await syncStorage();
-}
-
-async function prepare() {
-  diagnostics.phase = 'loading';
-  start.disabled = true;
-  progress.hidden = false;
-  status.textContent = '正在加载完整 Woo 引擎…';
-  const {default: createWoo} = await import('./ph3-open.mjs');
-  runtime = await createWoo({
-    canvas,
-    noInitialRun: true,
-    print: text => { message(text); console.log('[Woo]', text); },
-    printErr: text => { message(text); console.error('[Woo]', text); },
-    onAbort: reason => fail(new Error('Wasm 中止：' + reason)),
-  });
-  window.ph3Runtime = runtime;
-  const response = await fetch('/local-manifest.json', {cache: 'no-store'});
-  if (!response.ok) throw new Error('本地资源清单不可用。请使用 portable/serve-local.py 启动。');
-  const manifest = await response.json();
-  const totalBytes = manifest.files.reduce((sum, file) => sum + file.bytes, 0);
-  let cursor = 0;
-  await Promise.all(Array.from({length: 4}, async () => {
-    while (cursor < manifest.files.length && diagnostics.phase === 'loading')
-      await install(manifest.files[cursor++], totalBytes);
-  }));
-  if (diagnostics.phase === 'error') throw new Error('资源加载已停止，请刷新后重试。');
-  await prepareStorage();
-  runtime.FS.chdir('/game');
-  ready = true;
-  diagnostics.phase = 'ready';
-  start.textContent = '开始游戏';
-  start.disabled = false;
-  progress.hidden = true;
-  status.textContent = '资源已就绪。点击开始游戏以启用声音。';
-}
-
-function launch() {
-  // This synchronous second click keeps browser user activation for SDL audio.
-  diagnostics.phase = 'starting';
-  start.disabled = true;
-  canvas.focus();
-  runtime.callMain([]);
-  if (diagnostics.phase === 'error') return;
-  running = true;
-  diagnostics.phase = 'running';
-  diagnostics.startedAt = performance.now();
-  start.textContent = '游戏运行中';
-  fullscreen.disabled = false;
-  status.textContent = '游戏运行中。点击画面后使用键盘操作。';
-}
-
-start.addEventListener('click', async () => {
-  try {
-    if (ready) launch();
-    else await prepare();
-  } catch (error) { fail(error); }
+let queue=Promise.resolve();
+window.addEventListener('message',event=>{const m=event.data;if(!managed||!validEpoch||event.source!==parent||event.origin!==location.origin||m?.protocol!==protocol||m.game!==game||m.epoch!==epoch||typeof m.command!=='string')return;
+ queue=queue.then(async()=>{if(await initialized===false)return;try{const result=await command(m);if(typeof m.request==='string')parent.postMessage({protocol,game,epoch,request:m.request,ok:true,...result},location.origin);}catch(reason){if(typeof m.request==='string')parent.postMessage({protocol,game,epoch,request:m.request,ok:false,error:String(reason)},location.origin);else fail(reason);}}).catch(fail);
 });
 
-fullscreen.addEventListener('click', async () => {
-  try {
-    await document.querySelector('.screen').requestFullscreen();
-    canvas.focus();
-  } catch (error) { message('无法进入全屏：' + error.message); }
-});
-document.addEventListener('visibilitychange', () => {
-  if (document.hidden && ready) syncStorage().catch(error => message('存档同步失败：' + error.message));
-});
-window.addEventListener('pagehide', () => { if (ready) syncStorage().catch(() => {}); });
+function audioNode(){return Module?.SDL3?.audio_playback?.scriptProcessorNode;}
+const detachedAudioNodes=new WeakSet();
+function suspendAudio(){const node=audioNode();if(node&&!detachedAudioNodes.has(node))try{node.disconnect();detachedAudioNodes.add(node);}catch{}}
+async function resumeAudio(){const context=Module?.SDL3?.audioContext;if(context&&context.state!=='running')try{await context.resume();}catch{}const node=audioNode();if(node&&detachedAudioNodes.has(node)&&context)try{node.connect(context.destination);detachedAudioNodes.delete(node);}catch{}}
+document.addEventListener('visibilitychange',()=>{if(!Module)return;clearSource(keyboard);cancelTouches();if(document.hidden){suspendAudio();if(ready)queue=queue.then(()=>sync(false)).catch(fail);}else void resumeAudio();});
+window.addEventListener('blur',()=>{if(Module){clearSource(keyboard);cancelTouches();}});
+window.addEventListener('pagehide',()=>{if(Module&&ready)void sync(false).catch(console.error);});
+for(const event of ['pointerdown','keydown'])window.addEventListener(event,()=>void resumeAudio(),{capture:true});
+canvas.addEventListener('contextmenu',event=>event.preventDefault());
+canvas.addEventListener('pointerdown',()=>canvas.focus({preventScroll:true}));
+canvas.addEventListener('webglcontextlost',event=>{event.preventDefault();fail('图形环境已失效，请退出后重新开始。');});
+
+function startHealth(){
+ if(healthTimer!==null)return;let lastPresented=Number(diagnostics.presentedFrames||0),lastTime=performance.now();
+ healthTimer=setInterval(()=>{
+  if(!launched)return;const now=performance.now(),presented=Number(diagnostics.presentedFrames||0),delta=presented-lastPresented,elapsed=now-lastTime;
+  if(!firstFrame&&presented>0){firstFrame=true;emit('first-frame');}
+  const perf=diagnostics.performance||{};emit('frame-health',{fps:Number(perf.displayFps)||(elapsed>0?delta*1000/elapsed:0),logicHz:Number(perf.logicHz)||0,frameMs:Number(perf.frameMsP95)||0,maxGapMs:Number(perf.frameMsMax)||0});
+  emit('audio-health',{backend:'SDL3/WebAudio',activeVoices:Number(diagnostics.audioVoices)||0,peak:Number(diagnostics.audioPeak)||0,samples:Number(diagnostics.audioSamples)||0,robust:true});
+  if(diagnostics.phase==='error'&&!reportedError)fail(diagnostics.errors.at(-1)||'Runtime error');lastPresented=presented;lastTime=now;
+ },1000);
+}
+
+async function createRuntime(){
+ let audioContext;try{audioContext=parent.__touhouAudioContext;}catch{}
+ Module=await createWoo({canvas,noInitialRun:true,...(audioContext?{SDL3:{audioContext}}:{}),print:text=>{log(text);console.log('[HSoB]',text);},printErr:text=>{log(text);console.error('[HSoB]',text);},onAbort:reason=>fail(new Error('Wasm aborted: '+reason))});
+ window.ph3Runtime=Module;window.FS=Module.FS;return Module;
+}
+async function prepareManaged(){
+ await createRuntime();Module.FS.mkdirTree(saveRoot);Module.FS.mount(Module.IDBFS,{autoPersist:true},saveRoot);await sync(true);
+ await mountManagedData(Module,{game,parentWindow:parent,query,emit});Module.FS.mkdirTree(saveRoot+'/replay');
+ const data='/game/script/th_hsob/data',replay='/game/script/th_hsob/replay';Module.FS.mkdirTree('/game/script/th_hsob');Module.FS.symlink(saveRoot,data);Module.FS.symlink(saveRoot+'/replay',replay);Module.FS.symlink(saveRoot+'/config.dat','/game/config.dat');
+ ready=true;diagnostics.phase='ready';startHealth();emit('ready');
+}
+async function prepareStandalone(){
+ if(ready)return;diagnostics.phase='loading';start.disabled=true;start.textContent='正在加载';if(!Module)await createRuntime();await installLocalManifest();await prepareStorage(true);Module.FS.chdir('/game');ready=true;configured=true;musicMode='ogg';diagnostics.phase='ready';start.textContent='开始游戏';start.disabled=false;startHealth();
+}
+start.addEventListener('click',()=>{queue=queue.then(async()=>{if(!ready)await prepareStandalone();else launch();}).catch(fail);});
+const initialized=(managed?prepareManaged():createRuntime().then(()=>true)).then(()=>true).catch(reason=>{if(isSupersededRuntimeError(reason)){console.debug('Runtime navigation superseded');return false;}fail(reason);throw reason;});

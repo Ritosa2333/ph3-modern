@@ -231,6 +231,7 @@ public:
     virtual HRESULT OnResetDevice()=0;
     virtual UINT GetProgram(const char* vertexSource)=0;
     virtual bool ApplyUniforms(IDirect3DDevice9* device)=0;
+    virtual void ApplyAlphaTest(DWORD enabled,DWORD comparison,DWORD reference)=0;
     virtual const std::vector<D3DXMATRIX>* WorldMatrices() const {return nullptr;}
     static ID3DXEffect* Active(){return active_;}
     static void SetActive(ID3DXEffect* effect){active_=effect;}

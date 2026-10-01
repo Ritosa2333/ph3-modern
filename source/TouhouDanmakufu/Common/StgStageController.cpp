@@ -3,7 +3,7 @@
 #ifdef __EMSCRIPTEN__
 #include <filesystem>
 #include <fstream>
-#if defined(PH3_PERF_SCAN)
+#if defined(PH3_PERF_SCAN) || !defined(PH3_LEGACY_STAGE_SCRIPT_CACHE)
 #include <emscripten/emscripten.h>
 #endif
 
@@ -13,6 +13,16 @@ void PrecompileStageScripts(StgStageController* stageController, const std::wstr
 	namespace fs = std::filesystem;
 	fs::path stageRoot = fs::path(mainScriptPath).parent_path() / ("stage" + std::to_string(stageIndex));
 	if (!fs::exists(stageRoot)) return;
+
+#ifndef PH3_LEGACY_STAGE_SCRIPT_CACHE
+	auto cache = stageController->GetSystemController()->GetScriptEngineCache();
+	const auto retired = cache->RetireBrowserStagePrewarm();
+	EM_ASM({
+		const d=globalThis.ph3Diagnostics;if(d&&d.observeStage)
+			d.stageScriptCache=({stage:$0,retiredEntries:$1,retiredSourceBytes:$2,
+				activeClientsProtected:true,currentStagePrewarmRetained:true});
+	},stageIndex,double(retired.entries),double(retired.sourceBytes));
+#endif
 
 #if defined(PH3_PERF_SCAN)
 	const double begin = emscripten_get_now();
@@ -32,6 +42,9 @@ void PrecompileStageScripts(StgStageController* stageController, const std::wstr
 			gstd::ref_count_ptr<StgStageScript> script = new StgStageScript(stageController);
 			script->SetSourceFromFile(entry.path().wstring());
 			script->Compile();
+#ifndef PH3_LEGACY_STAGE_SCRIPT_CACHE
+			cache->RememberBrowserStagePrewarm(entry.path().wstring());
+#endif
 #if defined(PH3_PERF_SCAN)
 			++compiled;
 #endif

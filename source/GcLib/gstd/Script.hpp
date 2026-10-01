@@ -20,6 +20,23 @@
 #ifndef __SCRIPT_H__
 #define __SCRIPT_H__
 #include "ScriptReal.hpp"
+#include <cassert>
+#include <utility>
+#ifdef __EMSCRIPTEN__
+#include "BoundedAllocationCache.hpp"
+#endif
+#if defined(__EMSCRIPTEN__) && !defined(PH3_LEGACY_SCRIPT_SCALARS)
+#define PH3_SCRIPT_INLINE_SCALARS 1
+#endif
+#if defined(PH3_SCRIPT_INLINE_SCALARS) && !defined(PH3_LEGACY_SCRIPT_LITERALS)
+#define PH3_SCRIPT_LITERAL_POOL 1
+#endif
+#if defined(PH3_SCRIPT_INLINE_SCALARS) && !defined(PH3_LEGACY_SCRIPT_ARITHMETIC)
+#define PH3_SCRIPT_FAST_ARITHMETIC 1
+#endif
+#if defined(PH3_SCRIPT_LITERAL_POOL) && !defined(PH3_LEGACY_SCRIPT_CODE_LAYOUT)
+#define PH3_SCRIPT_COMPACT_CODE 1
+#endif
 
 #pragma warning(disable : 4786) //STL Warning抑止
 #pragma warning(disable : 4018) //signed と unsigned の数値を比較
@@ -43,6 +60,11 @@ std::wstring to_wide(std::string const& s);
 
 template <typename T>
 class lightweight_vector {
+private:
+	// clear() is also used for VM unwinding and must not release its values.
+	// Remember only that hidden prefix, rather than rescanning every spare slot
+	// each time an environment with a mostly empty stack is recycled.
+	unsigned retained_length_ = 0;
 public:
 	unsigned length;
 	unsigned capacity;
@@ -70,10 +92,27 @@ public:
 
 	void push_back(T const& value)
 	{
-		if (length == capacity)
+		if (length == capacity) {
+			// The argument may be an element of this vector. Expansion destroys
+			// the old storage, so preserve that element before reallocating.
+			T saved(value);
 			expand();
+			at[length++] = std::move(saved);
+			return;
+		}
 		at[length] = value;
 		++length;
+	}
+
+	void push_back(T&& item)
+	{
+		if (length == capacity) {
+			T saved(std::move(item));
+			expand();
+			at[length++] = std::move(saved);
+			return;
+		}
+		at[length++] = std::move(item);
 	}
 
 	void pop_back()
@@ -86,12 +125,32 @@ public:
 
 	void clear()
 	{
+		if (retained_length_ < length) retained_length_ = length;
 		length = 0;
+	}
+
+	// For dead VM environments only. clear() intentionally keeps its original
+	// stack-unwind semantics; a recycled environment must release *all* retained
+	// references, including slots hidden by clear(), without reallocating small
+	// stacks/variable arrays on every function call.
+	void reset_for_reuse(unsigned maximum_capacity)
+	{
+		if (capacity > maximum_capacity) { release(); return; }
+#ifdef PH3_LEGACY_STACK_RESET
+		const unsigned populated = capacity;
+#else
+		const unsigned populated = length > retained_length_ ? length : retained_length_;
+		assert(populated <= capacity);
+#endif
+		for (unsigned i = 0; i < populated; ++i) at[i] = T();
+		length = 0;
+		retained_length_ = 0;
 	}
 
 	void release()
 	{
 		length = 0;
+		retained_length_ = 0;
 		if (at != NULL) {
 			delete[] at;
 			at = NULL;
@@ -145,10 +204,12 @@ lightweight_vector<T>::lightweight_vector(lightweight_vector const& source)
 template <typename T>
 lightweight_vector<T>& lightweight_vector<T>::operator=(lightweight_vector<T> const& source)
 {
+	if (this == &source) return *this;
 	if (at != NULL)
 		delete[] at;
 	length = source.length;
 	capacity = source.capacity;
+	retained_length_ = 0; // Assignment copies only the source's active prefix.
 	if (source.capacity > 0) {
 		at = new T[source.capacity];
 		for (int i = length - 1; i >= 0; --i)
@@ -170,10 +231,12 @@ void lightweight_vector<T>::expand()
 		capacity *= 2;
 		T* n = new T[capacity];
 		for (int i = length - 1; i >= 0; --i)
-			n[i] = at[i];
+			n[i] = std::move_if_noexcept(at[i]);
 		delete[] at;
 		at = n;
 	}
+	// Only active elements were moved; delete[] released any hidden prefix.
+	retained_length_ = 0;
 }
 
 template <typename T>
@@ -181,22 +244,24 @@ void lightweight_vector<T>::erase(T* pos)
 {
 	--length;
 	for (T* i = pos; i < at + length; ++i) {
-		*i = *(i + 1);
+		*i = std::move_if_noexcept(*(i + 1));
 	}
+	at[length] = T();
 }
 
 template <typename T>
 void lightweight_vector<T>::insert(T* pos, T const& value)
 {
+	T saved(value);
 	if (length == capacity) {
 		unsigned pos_index = pos - at;
 		expand();
 		pos = at + pos_index;
 	}
 	for (T* i = at + length; i > pos; --i) {
-		*i = *(i - 1);
+		*i = std::move_if_noexcept(*(i - 1));
 	}
-	*pos = value;
+	*pos = std::move(saved);
 	++length;
 }
 
@@ -249,6 +314,11 @@ public:
 
 	value(type_data* t, gstd::script_real v)
 	{
+#ifdef PH3_SCRIPT_INLINE_SCALARS
+		if(t && t->get_kind()==type_data::tk_real){
+			data=NULL;scalar_type_=t;scalar_.real_value=v;return;
+		}
+#endif
 		data = new body();
 		data->ref_count = 1;
 		data->type = t;
@@ -257,6 +327,11 @@ public:
 
 	value(type_data* t, wchar_t v)
 	{
+#ifdef PH3_SCRIPT_INLINE_SCALARS
+		if(t && t->get_kind()==type_data::tk_char){
+			data=NULL;scalar_type_=t;scalar_.char_value=v;return;
+		}
+#endif
 		data = new body();
 		data->ref_count = 1;
 		data->type = t;
@@ -265,6 +340,11 @@ public:
 
 	value(type_data* t, bool v)
 	{
+#ifdef PH3_SCRIPT_INLINE_SCALARS
+		if(t && t->get_kind()==type_data::tk_boolean){
+			data=NULL;scalar_type_=t;scalar_.boolean_value=v;return;
+		}
+#endif
 		data = new body();
 		data->ref_count = 1;
 		data->type = t;
@@ -276,9 +356,39 @@ public:
 	value(value const& source)
 	{
 		data = source.data;
+#ifdef PH3_SCRIPT_INLINE_SCALARS
+		scalar_type_=source.scalar_type_;scalar_=source.scalar_;
+#endif
 		if (data != NULL)
 			++(data->ref_count);
 	}
+#if defined(__EMSCRIPTEN__) && !defined(PH3_LEGACY_SCRIPT_MOVES)
+	value(value&& source) noexcept : data(source.data) {
+#ifdef PH3_SCRIPT_INLINE_SCALARS
+		scalar_type_=source.scalar_type_;scalar_=source.scalar_;source.scalar_type_=NULL;
+#endif
+		source.data = NULL;
+	}
+	value& operator=(value&& source) noexcept
+	{
+		if(this == &source)return *this;
+		// source can be an element of this array. Take ownership before
+		// release() destroys the array and its source slot.
+		body* incoming = source.data;
+#ifdef PH3_SCRIPT_INLINE_SCALARS
+		type_data* incoming_type=source.scalar_type_;
+		const auto incoming_scalar=source.scalar_;
+		source.scalar_type_=NULL;
+#endif
+		source.data = NULL;
+		release();
+		data = incoming;
+#ifdef PH3_SCRIPT_INLINE_SCALARS
+		scalar_type_=incoming_type;scalar_=incoming_scalar;
+#endif
+		return *this;
+	}
+#endif
 
 	~value()
 	{
@@ -287,21 +397,45 @@ public:
 
 	value& operator=(value const& source)
 	{
-		if (source.data != NULL) {
-			++(source.data->ref_count);
+		body* incoming = source.data;
+#ifdef PH3_SCRIPT_INLINE_SCALARS
+		// source may be a scalar element of the array being replaced.
+		type_data* incoming_type=source.scalar_type_;
+		const auto incoming_scalar=source.scalar_;
+#endif
+		if (incoming != NULL) {
+			++(incoming->ref_count);
 		}
 		release();
-		data = source.data;
+		data = incoming;
+#ifdef PH3_SCRIPT_INLINE_SCALARS
+		scalar_type_=incoming_type;scalar_=incoming_scalar;
+#endif
 		return *this;
+	}
+	void swap(value& other) noexcept {
+		std::swap(data, other.data);
+#ifdef PH3_SCRIPT_INLINE_SCALARS
+		std::swap(scalar_type_,other.scalar_type_);std::swap(scalar_,other.scalar_);
+#endif
 	}
 
 	bool has_data() const
 	{
+#ifdef PH3_SCRIPT_INLINE_SCALARS
+		return data != NULL || scalar_type_ != NULL;
+#else
 		return data != NULL;
+#endif
 	}
 
 	void set(type_data* t, gstd::script_real v)
 	{
+#ifdef PH3_SCRIPT_INLINE_SCALARS
+		if(t && t->get_kind()==type_data::tk_real){
+			release();data=NULL;scalar_type_=t;scalar_.real_value=v;return;
+		}
+#endif
 		unique();
 		data->type = t;
 		data->real_value = v;
@@ -309,6 +443,11 @@ public:
 
 	void set(type_data* t, bool v)
 	{
+#ifdef PH3_SCRIPT_INLINE_SCALARS
+		if(t && t->get_kind()==type_data::tk_boolean){
+			release();data=NULL;scalar_type_=t;scalar_.boolean_value=v;return;
+		}
+#endif
 		unique();
 		data->type = t;
 		data->boolean_value = v;
@@ -328,6 +467,21 @@ public:
 
 	void unique() const
 	{
+#ifdef PH3_SCRIPT_INLINE_SCALARS
+		if(scalar_type_ != NULL){
+			// index_writable shares a handle to an array element. Materialize
+			// before returning that handle; ordinary scalar copies remain
+			// allocation-free, writable references keep the original semantics.
+			body* boxed=new body();boxed->ref_count=1;boxed->type=scalar_type_;
+			switch(scalar_type_->get_kind()){
+			case type_data::tk_real:boxed->real_value=scalar_.real_value;break;
+			case type_data::tk_char:boxed->char_value=scalar_.char_value;break;
+			case type_data::tk_boolean:boxed->boolean_value=scalar_.boolean_value;break;
+			default:assert(false);
+			}
+			data=boxed;scalar_type_=NULL;return;
+		}
+#endif
 		if (data == NULL) {
 			data = new body();
 			data->ref_count = 1;
@@ -342,6 +496,24 @@ public:
 	void overwrite(value const& source); //危険！外から呼ぶな
 
 private:
+	gstd::script_real read_real() const {
+#ifdef PH3_SCRIPT_INLINE_SCALARS
+		if(scalar_type_ != NULL)return scalar_.real_value;
+#endif
+		return data->real_value;
+	}
+	wchar_t read_char() const {
+#ifdef PH3_SCRIPT_INLINE_SCALARS
+		if(scalar_type_ != NULL)return scalar_.char_value;
+#endif
+		return data->char_value;
+	}
+	bool read_boolean() const {
+#ifdef PH3_SCRIPT_INLINE_SCALARS
+		if(scalar_type_ != NULL)return scalar_.boolean_value;
+#endif
+		return data->boolean_value;
+	}
 	inline void release()
 	{
 		if (data != NULL) {
@@ -352,6 +524,15 @@ private:
 		}
 	}
 	struct body {
+#if defined(__EMSCRIPTEN__) && !defined(PH3_LEGACY_SCRIPT_ALLOCATOR)
+		static void* operator new(std::size_t bytes) {
+			assert(bytes == sizeof(body));
+			return BoundedAllocationCache<sizeof(body), 4096>::Allocate();
+		}
+		static void operator delete(void* memory) noexcept {
+			BoundedAllocationCache<sizeof(body), 4096>::Release(memory);
+		}
+#endif
 		int ref_count;
 		type_data* type;
 		lightweight_vector<value> array_value;
@@ -364,6 +545,18 @@ private:
 	};
 
 	mutable body* data;
+#ifdef PH3_SCRIPT_INLINE_SCALARS
+	// Keep exact binary64 bits and original type identity, without NaN boxing
+	// or narrowing. Arrays and writable element handles still use a body.
+	union ScalarBits {
+		gstd::script_real real_value;
+		wchar_t char_value;
+		bool boolean_value;
+		ScalarBits():real_value(0){}
+	};
+	mutable type_data* scalar_type_=NULL;
+	mutable ScalarBits scalar_;
+#endif
 };
 
 class script_engine;
@@ -516,6 +709,10 @@ private:
 		pc_push_variable_writable,
 		pc_swap,
 		pc_yield
+#ifdef PH3_SCRIPT_FAST_ARITHMETIC
+		, pc_real_add, pc_real_subtract, pc_real_multiply, pc_real_divide,
+		pc_real_negative, pc_real_compare
+#endif
 	};
 
 	struct block;
@@ -523,9 +720,31 @@ private:
 	struct code {
 		command_kind command;
 		int line; //ソースコード上の行
+#ifndef PH3_SCRIPT_COMPACT_CODE
+#ifdef PH3_SCRIPT_LITERAL_POOL
+		const value* data=nullptr;
+#else
 		value data; //pc_push_valueでpushするデータ
+#endif
+#if defined(__EMSCRIPTEN__) && !defined(PH3_LEGACY_SCRIPT_JUMPS)
+		// A compiled block is immutable. Branch targets depend on bytecode,
+		// never on a script instance, argument values, RNG, or game frame.
+		int cached_jump = -1;
+#endif
+#endif
 
 		union {
+#ifdef PH3_SCRIPT_COMPACT_CODE
+			// An opcode uses either a literal, lexical slot, call target, or
+			// branch target. These operands are never live simultaneously.
+			// Keep line/opcode intact; do not narrow values, pointers or indices.
+#if defined(__EMSCRIPTEN__) && !defined(PH3_LEGACY_SCRIPT_JUMPS)
+			int cached_jump = -1;
+			const value* data;
+#else
+			const value* data = nullptr;
+#endif
+#endif
 			struct
 			{
 				int level; //assign/push_variableの変数の環境位置
@@ -560,6 +779,9 @@ private:
 		{
 		}
 
+#ifdef PH3_SCRIPT_FAST_ARITHMETIC
+		code(int the_line, command_kind the_command, block* the_sub, int the_arguments);
+#else
 		code(int the_line, command_kind the_command, block* the_sub, int the_arguments)
 			: line(the_line)
 			, command(the_command)
@@ -567,6 +789,7 @@ private:
 			, arguments(the_arguments)
 		{
 		}
+#endif
 
 		code(int the_line, command_kind the_command, int the_ip)
 			: line(the_line)
@@ -575,13 +798,33 @@ private:
 		{
 		}
 
+#ifdef PH3_SCRIPT_LITERAL_POOL
+		code(int the_line, command_kind the_command, const value* the_data)
+#else
 		code(int the_line, command_kind the_command, value const& the_data)
+#endif
 			: line(the_line)
 			, command(the_command)
 			, data(the_data)
 		{
 		}
+		const value& literal() const {
+#ifdef PH3_SCRIPT_LITERAL_POOL
+			assert(data!=nullptr);return *data;
+#else
+			return data;
+#endif
+		}
 	};
+#ifdef PH3_SCRIPT_COMPACT_CODE
+	static_assert(sizeof(void*)!=4 || sizeof(code)==16,
+		"Web32 tagged bytecode operands must fit in 16 bytes");
+#elif defined(PH3_SCRIPT_LITERAL_POOL)
+	// A wide scalar cell must not enlarge EVERY bytecode instruction. Only
+	// pc_push_value owns an entry in the engine's address-stable literal pool.
+	static_assert(sizeof(void*)!=4 || sizeof(code)<=24,
+		"Web32 bytecode should stay compact after inline scalar storage");
+#endif
 
 	enum block_kind {
 		bk_normal,
@@ -624,6 +867,19 @@ private:
 #endif
 	block* main_block;
 	std::map<std::string, block*> events;
+#ifdef PH3_SCRIPT_LITERAL_POOL
+	std::deque<value> literals_;
+#endif
+	code make_literal(int line,const value& literal) {
+#ifdef PH3_SCRIPT_LITERAL_POOL
+		// The engine outlives its machines. deque preserves element addresses
+		// while parsing further blocks; bytecode copies never own these pointers.
+		literals_.push_back(literal);
+		return code(line,pc_push_value,&literals_.back());
+#else
+		return code(line,pc_push_value,literal);
+#endif
+	}
 
 	block* new_block(int level, block_kind kind)
 	{
