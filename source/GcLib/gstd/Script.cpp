@@ -139,9 +139,6 @@ value::value(type_data* t, std::wstring v)
 void value::append(type_data* t, value const& x)
 {
 	unique();
-#ifdef PH3_SCRIPT_STRING_CACHE
-	data->string_cache.reset();
-#endif
 	data->type = t;
 	data->array_value.push_back(x);
 }
@@ -149,9 +146,6 @@ void value::append(type_data* t, value const& x)
 void value::concatenate(value const& x)
 {
 	unique();
-#ifdef PH3_SCRIPT_STRING_CACHE
-	data->string_cache.reset();
-#endif
 	unsigned l = data->array_value.length;
 	unsigned r = x.data->array_value.length;
 	unsigned t = l + r;
@@ -260,22 +254,10 @@ std::wstring value::as_string() const
 
 		case type_data::tk_array: {
 			if (data->type->get_element()->get_kind() == type_data::tk_char) {
-#ifdef PH3_SCRIPT_STRING_CACHE
-				if(data->string_cache)return *data->string_cache;
-				bool cacheable=data->string_cacheable&&data->array_value.size()<=512;
-#endif
 				std::wstring result;
 				for (unsigned i = 0; i < data->array_value.size(); ++i){
 					result += data->array_value[i].as_char();
-#ifdef PH3_SCRIPT_STRING_CACHE
-					// A boxed element may already have a writable alias through
-					// another array. Never cache such a parent, even after COW.
-					if(data->array_value[i].data!=NULL)cacheable=false;
-#endif
 				}
-#ifdef PH3_SCRIPT_STRING_CACHE
-				if(cacheable)data->string_cache=std::make_shared<const std::wstring>(result);
-#endif
 				return result;
 			} else {
 				std::wstring result = L"[";
@@ -305,9 +287,6 @@ value const& value::index_as_array(unsigned i) const
 {
 	assert(data != NULL && data->type->get_kind() == type_data::tk_array);
 	assert(i < data->array_value.length);
-#ifdef PH3_SCRIPT_STRING_CACHE
-	data->string_cacheable=false;data->string_cache.reset();
-#endif
 	return data->array_value[i];
 }
 
@@ -315,9 +294,6 @@ value& value::index_as_array(unsigned i)
 {
 	assert(data != NULL && data->type->get_kind() == type_data::tk_array);
 	assert(i < data->array_value.length);
-#ifdef PH3_SCRIPT_STRING_CACHE
-	data->string_cacheable=false;data->string_cache.reset();
-#endif
 	return data->array_value[i];
 }
 

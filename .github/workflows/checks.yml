@@ -1,0 +1,52 @@
+name: Checks
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  regressions:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            source
+            portable
+            tools
+            tests
+            docs
+            archive
+            .github
+            DirectX9c
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: '6.0.6'
+      - run: npm ci --ignore-scripts
+      - run: python -m pip install -r requirements-dev.txt
+      - run: npm run check
+      - run: npm run build
+      - run: npm run build:js
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: validation-${{ matrix.os }}
+          path: |
+            build/check/
+            build/web*/build.json
+            build/web*-objects/compile-report.json

@@ -28,9 +28,6 @@
 #if defined(__EMSCRIPTEN__) && !defined(PH3_LEGACY_SCRIPT_SCALARS)
 #define PH3_SCRIPT_INLINE_SCALARS 1
 #endif
-#if defined(PH3_SCRIPT_INLINE_SCALARS) && defined(PH3_ENABLE_SCRIPT_STRINGS) && !defined(PH3_LEGACY_SCRIPT_STRINGS)
-#define PH3_SCRIPT_STRING_CACHE 1
-#endif
 #if defined(PH3_SCRIPT_INLINE_SCALARS) && !defined(PH3_LEGACY_SCRIPT_LITERALS)
 #define PH3_SCRIPT_LITERAL_POOL 1
 #endif
@@ -53,7 +50,6 @@
 #include <list>
 #ifdef __EMSCRIPTEN__
 #include <deque>
-#include <memory>
 #endif
 #include <map>
 #include <string>
@@ -576,12 +572,6 @@ private:
 			wchar_t char_value;
 			bool boolean_value;
 		};
-#ifdef PH3_SCRIPT_STRING_CACHE
-		// Cache only unexposed short character arrays. Public element access
-		// permanently disables caching because a writable handle can outlive it.
-		std::shared_ptr<const std::wstring> string_cache;
-		bool string_cacheable=true;
-#endif
 	};
 
 	mutable body* data;

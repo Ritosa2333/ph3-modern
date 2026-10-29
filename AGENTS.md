@@ -1,24 +1,12 @@
-# ph3-modern agent entry
+# 开发入口
 
-Read [AGENT_HANDOFF.md](AGENT_HANDOFF.md) first. This is a WIP source checkpoint,
-not a stable all-games engine or a claim that mobile Boss slowdown is solved.
+先读 [README.md](README.md)，再按[开发文档](docs/README.md)选择本次任务的主指南。修改源码前阅读[架构](docs/ARCHITECTURE.md)；实现、调试和验收使用[验证指南](docs/VALIDATION.md)。
 
-Inspect `git status --short`, the branch and remotes before editing. Preserve
-unrelated work, old evidence and upstream history. Do not reset/clean, apply
-old stashes, upload game data/fonts/credentials, or deploy without authorization.
+- 检查分支、远端、工作区状态和相关差异。当前源码在本仓库维护，历史记录按其日期和构建查询。
+- 原解析器、VM 与游戏系统定义脚本行为。性能修改使用相同输入对照类型、状态、RNG、结束点和图像。
+- 跨作品平台能力对齐 eagler-touhou 的共用接口。HSoB 资源、预热和菜单配置在作品适配边界维护。
+- 工具链与浏览器配置使用 `tools/lib/project.mjs`，本地资源配置使用 `tools/project.py`。更新命令时一并更新调用方和指南。
+- 自动回归使用 `npm run check`。源码改动运行对应构建，渲染改动运行浏览器检查和固定基准对照。
+- 当前指南放在 `docs/`，来源和日期记录放在 `archive/`。新建或移动文档运行 `npm run docs:index` 和 `npm run docs:check`。
 
-The original ph3 parser/VM and gameplay are the authority. HSoB is the current
-browser adapter/test target, not a license to specialize language semantics,
-skip bullets, alter RNG/input/collisions or weaken validation for a green test.
-
-Run `node portable/check-wip.mjs` for resource-free regression gates. Browser
-and full-campaign checks are separate and require private fixtures. Preserve
-negative and incomplete results. Verifier/accelerated playback timing is not
-ordinary runtime or physical-phone performance.
-
-In the original Eagler workspace, read the relevant primary playbook under
-`eagler-touhou/docs/playbooks/` before source changes. See the handoff for code
-anchors, exact reproduction commands, historical build paths and dependencies.
-
-Keep the handoff current after a completed unit of work. GitHub source upload
-is not permission to update the Launcher, test site, production or game assets.
+协作与提交入口见 [CONTRIBUTING.md](CONTRIBUTING.md)。

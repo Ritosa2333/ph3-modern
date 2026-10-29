@@ -1,7 +1,6 @@
 #include "DxCompat.hpp"
 #include "TriangleTopology.hpp"
 #include "StateTable.hpp"
-#include "VertexStream.hpp"
 #include "ScreenVertex.hpp"
 #include "FixedModulate.hpp"
 #include "DrawTransforms.hpp"
@@ -244,8 +243,6 @@ struct DeviceState {
     FixedBatchKey batchKey{};
     std::vector<Vertex> batchVertices;
     bool batchActive=false;
-    static constexpr std::size_t StreamVertices=32768;
-    VertexStream<StreamVertices> vertexStream;
     // Only this backend changes GL raster state. Clear invalidates the cache
     // because it forces write masks. No GL queries are needed in the hot path.
     bool rasterValid=false;
@@ -347,23 +344,8 @@ struct DeviceState {
             vertexBindingValid=true;
 #endif
         }
-#if !defined(PH3_ENABLE_VERTEX_STREAM) || defined(PH3_LEGACY_VERTEX_UPLOAD)
-        // Exact per-draw storage avoids the severe mobile driver cost of
-        // repeatedly sub-updating a large backing VBO. The optional stream
-        // keeps its old allocation plan for explicit, device-tested builds.
-        // Vertex data, primitive order and all render state are unchanged.
         glBufferData(GL_ARRAY_BUFFER,vertices.size()*sizeof(Vertex),vertices.data(),GL_STREAM_DRAW);
         glDrawArrays(primitive,0,static_cast<GLsizei>(vertices.size()));
-#else
-        const auto reservation=vertexStream.Reserve(vertices.size());
-        if(reservation.direct){
-            glBufferData(GL_ARRAY_BUFFER,vertices.size()*sizeof(Vertex),vertices.data(),GL_STREAM_DRAW);
-        }else{
-            if(reservation.orphan)glBufferData(GL_ARRAY_BUFFER,StreamVertices*sizeof(Vertex),nullptr,GL_STREAM_DRAW);
-            glBufferSubData(GL_ARRAY_BUFFER,reservation.first*sizeof(Vertex),vertices.size()*sizeof(Vertex),vertices.data());
-        }
-        glDrawArrays(primitive,static_cast<GLint>(reservation.first),static_cast<GLsizei>(vertices.size()));
-#endif
         ++actualDraws;
     }
     void FlushBatch(){
@@ -506,7 +488,7 @@ SDL_Window* IDirect3DDevice9::GetWindow()const{return state->window;}
 HRESULT IDirect3DDevice9::GetDeviceCaps(D3DCAPS9* caps){if(!caps)return InvalidCall;*caps={};GLint size=0;glGetIntegerv(GL_MAX_TEXTURE_SIZE,&size);caps->MaxTextureWidth=caps->MaxTextureHeight=size;caps->VertexShaderVersion=D3DVS_VERSION(3,0);caps->PixelShaderVersion=D3DPS_VERSION(3,0);return S_OK;}
 HRESULT IDirect3DDevice9::TestCooperativeLevel(){return SDL_GL_GetCurrentContext()==state->context?S_OK:static_cast<HRESULT>(D3DERR_DEVICELOST);}
 HRESULT IDirect3DDevice9::Reset(D3DPRESENT_PARAMETERS* params){if(!params||params->BackBufferWidth!=state->back->storage->width||params->BackBufferHeight!=state->back->storage->height)return InvalidCall;return TestCooperativeLevel();}
-void IDirect3DDevice9::BeginBrowserFrame(){state->draws=state->actualDraws=state->verticesDrawn=state->modulateSubmissions=0;state->vertexStream.BeginFrame();state->targetBindingValid=state->viewportBindingValid=state->vertexBindingValid=false;state->boundProgram=0;}
+void IDirect3DDevice9::BeginBrowserFrame(){state->draws=state->actualDraws=state->verticesDrawn=state->modulateSubmissions=0;state->targetBindingValid=state->viewportBindingValid=state->vertexBindingValid=false;state->boundProgram=0;}
 HRESULT IDirect3DDevice9::BeginScene(){if(state->inScene)return InvalidCall;state->inScene=true;return S_OK;}
 HRESULT IDirect3DDevice9::EndScene(){if(!state->inScene)return InvalidCall;state->FlushBatch();state->inScene=false;return S_OK;}
 HRESULT IDirect3DDevice9::Present(const RECT*,const RECT*,HWND,const RGNDATA*){

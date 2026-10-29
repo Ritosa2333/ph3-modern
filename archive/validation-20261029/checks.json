@@ -1,0 +1,392 @@
+{
+  "scope": "Web builds, resource-free regression matrix, WebGL2 and fixed-input game comparisons",
+  "builds": {
+    "web-wasm-exceptions": {
+      "project": "ph3-modern",
+      "variant": "standard",
+      "exceptionMode": "wasm",
+      "gameplayAuthority": "5c92f28e17b6ef3721a3ac4caa9de3af3164b51e",
+      "datSource": "900aa3ebeb329187e8c2852b8ad41caa5200ca9e",
+      "toolchain": "emcc (Emscripten gcc/clang-like replacement + linker emulating GNU ld) 6.0.6-git (ce75e06884093bcefb86a6b8fd56a5d62a4cc245)\r\nCopyright (C) 2026 the Emscripten authors (see AUTHORS.txt)\r\nThis is free and open source software under the MIT license.\r\nThere is NO warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.",
+      "outputs": {
+        "ph3-open.mjs": {
+          "bytes": 357326,
+          "sha256": "f404a86f8ffbd05cb6fe4680ba9728f7b75bd07696869a613db7f872da9e6aa8"
+        },
+        "ph3-open.wasm": {
+          "bytes": 3752310,
+          "sha256": "f6113ce3f98c74c6d50533632338a5372794c77226f0c34762aead1c941ab25d"
+        },
+        "hsob.html": {
+          "bytes": 1356,
+          "sha256": "ac9048b8107a1f492495a1bc5c79a2fa00e8dc22d448a5c49173f85baf097e30"
+        },
+        "shell.mjs": {
+          "bytes": 16501,
+          "sha256": "a97a2358a55053f25aae134cdd9308bf8453f0d910d7bf32cca6c7e83810645a"
+        },
+        "eagler-host.mjs": {
+          "bytes": 7000,
+          "sha256": "350731b43393fed00b686b0d259994edee38a2a671bfe6e56d71844ff60630bc"
+        }
+      },
+      "compiled": 55,
+      "total": 55,
+      "failures": [],
+      "changedDuringBuild": []
+    },
+    "web-verify-wasm-exceptions": {
+      "project": "ph3-modern",
+      "variant": "verify",
+      "exceptionMode": "wasm",
+      "gameplayAuthority": "5c92f28e17b6ef3721a3ac4caa9de3af3164b51e",
+      "datSource": "900aa3ebeb329187e8c2852b8ad41caa5200ca9e",
+      "toolchain": "emcc (Emscripten gcc/clang-like replacement + linker emulating GNU ld) 6.0.6-git (ce75e06884093bcefb86a6b8fd56a5d62a4cc245)\r\nCopyright (C) 2026 the Emscripten authors (see AUTHORS.txt)\r\nThis is free and open source software under the MIT license.\r\nThere is NO warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.",
+      "outputs": {
+        "ph3-open.mjs": {
+          "bytes": 359964,
+          "sha256": "d740ae86bb44bb4a2632e62a50d4b4b03559043ceb8a21c16efa1c5f2484d666"
+        },
+        "ph3-open.wasm": {
+          "bytes": 3795866,
+          "sha256": "c109dbbc22879ea83e375574d5123ede7bfff81e439db153bd631533a8076223"
+        },
+        "hsob.html": {
+          "bytes": 1356,
+          "sha256": "ac9048b8107a1f492495a1bc5c79a2fa00e8dc22d448a5c49173f85baf097e30"
+        },
+        "shell.mjs": {
+          "bytes": 16501,
+          "sha256": "a97a2358a55053f25aae134cdd9308bf8453f0d910d7bf32cca6c7e83810645a"
+        },
+        "eagler-host.mjs": {
+          "bytes": 7000,
+          "sha256": "350731b43393fed00b686b0d259994edee38a2a671bfe6e56d71844ff60630bc"
+        }
+      },
+      "compiled": 55,
+      "total": 55,
+      "failures": [],
+      "changedDuringBuild": []
+    },
+    "web": {
+      "project": "ph3-modern",
+      "variant": "standard",
+      "exceptionMode": "js",
+      "gameplayAuthority": "5c92f28e17b6ef3721a3ac4caa9de3af3164b51e",
+      "datSource": "900aa3ebeb329187e8c2852b8ad41caa5200ca9e",
+      "toolchain": "emcc (Emscripten gcc/clang-like replacement + linker emulating GNU ld) 6.0.6-git (ce75e06884093bcefb86a6b8fd56a5d62a4cc245)\r\nCopyright (C) 2026 the Emscripten authors (see AUTHORS.txt)\r\nThis is free and open source software under the MIT license.\r\nThere is NO warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.",
+      "outputs": {
+        "ph3-open.mjs": {
+          "bytes": 374752,
+          "sha256": "45498348de6eb6ad2e8ddb0fe54718c8e136c28395e55376a7f7fa390cad473c"
+        },
+        "ph3-open.wasm": {
+          "bytes": 4177093,
+          "sha256": "58a725ccdf4b66520d02679762b14a3d1e29fc74874c75a0c553f1cf69449f2b"
+        },
+        "hsob.html": {
+          "bytes": 1356,
+          "sha256": "ac9048b8107a1f492495a1bc5c79a2fa00e8dc22d448a5c49173f85baf097e30"
+        },
+        "shell.mjs": {
+          "bytes": 16501,
+          "sha256": "a97a2358a55053f25aae134cdd9308bf8453f0d910d7bf32cca6c7e83810645a"
+        },
+        "eagler-host.mjs": {
+          "bytes": 7000,
+          "sha256": "350731b43393fed00b686b0d259994edee38a2a671bfe6e56d71844ff60630bc"
+        }
+      },
+      "compiled": 55,
+      "total": 55,
+      "failures": [],
+      "changedDuringBuild": []
+    }
+  },
+  "gameComparisons": [
+    {
+      "ticks": 29577,
+      "traceComplete": [
+        true,
+        true
+      ],
+      "firstTraceDifference": null,
+      "sameFixture": true,
+      "passed": true,
+      "ignoredFpsRectangle": [
+        980,
+        790,
+        1080,
+        815
+      ],
+      "candidateStageEnds": [
+        {
+          "kind": "end",
+          "stage": 1,
+          "ticks": 14486,
+          "frame": 14485,
+          "score": "32756990",
+          "expectedFrame": 14485,
+          "expectedScore": "32756990",
+          "recordedFrameMatches": true,
+          "recordedScoreMatches": true
+        },
+        {
+          "kind": "end",
+          "stage": 2,
+          "ticks": 15091,
+          "frame": 15090,
+          "score": "147368070",
+          "expectedFrame": 15090,
+          "expectedScore": "147368070",
+          "recordedFrameMatches": true,
+          "recordedScoreMatches": true
+        }
+      ],
+      "traceSha256": [
+        "24d1a50ce6955e8821bfe46f4ef51a352c3d8574e9bc46f3641c62a5a2950c4f",
+        "24d1a50ce6955e8821bfe46f4ef51a352c3d8574e9bc46f3641c62a5a2950c4f"
+      ],
+      "testedWasmSha256": "c109dbbc22879ea83e375574d5123ede7bfff81e439db153bd631533a8076223",
+      "captures": [
+        {
+          "width": 1100,
+          "height": 825,
+          "fullChangedPixels": 429,
+          "acceptedChangedPixels": 0,
+          "acceptedPixelsMatch": true
+        },
+        {
+          "width": 1100,
+          "height": 825,
+          "fullChangedPixels": 429,
+          "acceptedChangedPixels": 0,
+          "acceptedPixelsMatch": true
+        },
+        {
+          "width": 1100,
+          "height": 825,
+          "fullChangedPixels": 429,
+          "acceptedChangedPixels": 0,
+          "acceptedPixelsMatch": true
+        },
+        {
+          "width": 1100,
+          "height": 825,
+          "fullChangedPixels": 429,
+          "acceptedChangedPixels": 0,
+          "acceptedPixelsMatch": true
+        },
+        {
+          "width": 1100,
+          "height": 825,
+          "fullChangedPixels": 431,
+          "acceptedChangedPixels": 0,
+          "acceptedPixelsMatch": true
+        },
+        {
+          "width": 1100,
+          "height": 825,
+          "fullChangedPixels": 429,
+          "acceptedChangedPixels": 0,
+          "acceptedPixelsMatch": true
+        }
+      ]
+    },
+    {
+      "ticks": 15099,
+      "traceComplete": [
+        true,
+        true
+      ],
+      "firstTraceDifference": null,
+      "sameFixture": true,
+      "passed": true,
+      "ignoredFpsRectangle": [
+        980,
+        790,
+        1080,
+        815
+      ],
+      "candidateStageEnds": [
+        {
+          "kind": "end",
+          "stage": 6,
+          "ticks": 15099,
+          "frame": 15098,
+          "score": "3352752270",
+          "expectedFrame": 34829,
+          "expectedScore": "4256112150",
+          "recordedFrameMatches": false,
+          "recordedScoreMatches": false
+        }
+      ],
+      "traceSha256": [
+        "79cfb090eb6b1f81f7d7700fb6b1a1f9562a9b88d0fccd65c2704aed01469ea4",
+        "79cfb090eb6b1f81f7d7700fb6b1a1f9562a9b88d0fccd65c2704aed01469ea4"
+      ],
+      "testedWasmSha256": "c109dbbc22879ea83e375574d5123ede7bfff81e439db153bd631533a8076223",
+      "captures": [
+        {
+          "width": 1100,
+          "height": 825,
+          "fullChangedPixels": 70,
+          "acceptedChangedPixels": 0,
+          "acceptedPixelsMatch": true
+        },
+        {
+          "width": 1100,
+          "height": 825,
+          "fullChangedPixels": 70,
+          "acceptedChangedPixels": 0,
+          "acceptedPixelsMatch": true
+        },
+        {
+          "width": 1100,
+          "height": 825,
+          "fullChangedPixels": 70,
+          "acceptedChangedPixels": 0,
+          "acceptedPixelsMatch": true
+        },
+        {
+          "width": 1100,
+          "height": 825,
+          "fullChangedPixels": 70,
+          "acceptedChangedPixels": 0,
+          "acceptedPixelsMatch": true
+        },
+        {
+          "width": 1100,
+          "height": 825,
+          "fullChangedPixels": 71,
+          "acceptedChangedPixels": 0,
+          "acceptedPixelsMatch": true
+        }
+      ]
+    }
+  ],
+  "webgl": {
+    "passed": true,
+    "cases": 288,
+    "comparedBytes": 2359296,
+    "renderer": "ANGLE (Intel, Intel(R) UHD Graphics (0x0000A78B) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+    "scope": "WebGL2 shader equality including alpha-test depth writes; not phone performance",
+    "sourceSha256": {
+      "device": "aaa15464410b4eb73f01a033fd844b8f3aab367b36aa7f3ea063b15548262470",
+      "fixed": "76286b9bb95474b027d0c01bdbb83fa7e0412ae3238d1064a510b880df7d379e"
+    }
+  },
+  "core": {
+    "passed": true,
+    "sourceSnapshotSha256": "7b129125de4195500d3edef62254be87324147e0b3c9a8955a2a9c08bf8accd2",
+    "changedDuringRun": [],
+    "node": "v24.13.0",
+    "platform": "win32",
+    "vmOutputsIdentical": true,
+    "gates": [
+      {
+        "name": "vm-wasm",
+        "passed": true,
+        "elapsedMs": 10034,
+        "outputSha256": "08bd35fc6326ee1d09bb33b08861eae6ac0566091f9e5fe1bc46fc50c6408214"
+      },
+      {
+        "name": "vm-legacy-wasm",
+        "passed": true,
+        "elapsedMs": 9471,
+        "outputSha256": "08bd35fc6326ee1d09bb33b08861eae6ac0566091f9e5fe1bc46fc50c6408214"
+      },
+      {
+        "name": "vm-js",
+        "passed": true,
+        "elapsedMs": 15056,
+        "outputSha256": "08bd35fc6326ee1d09bb33b08861eae6ac0566091f9e5fe1bc46fc50c6408214"
+      },
+      {
+        "name": "vm-legacy-js",
+        "passed": true,
+        "elapsedMs": 9942,
+        "outputSha256": "08bd35fc6326ee1d09bb33b08861eae6ac0566091f9e5fe1bc46fc50c6408214"
+      },
+      {
+        "name": "vm-old-code-layout",
+        "passed": true,
+        "elapsedMs": 10155,
+        "outputSha256": "08bd35fc6326ee1d09bb33b08861eae6ac0566091f9e5fe1bc46fc50c6408214"
+      },
+      {
+        "name": "vm-asan",
+        "passed": true,
+        "elapsedMs": 19581,
+        "outputSha256": "08bd35fc6326ee1d09bb33b08861eae6ac0566091f9e5fe1bc46fc50c6408214"
+      },
+      {
+        "name": "vm-simd-asan",
+        "passed": true,
+        "elapsedMs": 14875,
+        "outputSha256": "08bd35fc6326ee1d09bb33b08861eae6ac0566091f9e5fe1bc46fc50c6408214"
+      },
+      {
+        "name": "platform-wasm",
+        "passed": true,
+        "elapsedMs": 2917
+      },
+      {
+        "name": "platform-js",
+        "passed": true,
+        "elapsedMs": 2992
+      },
+      {
+        "name": "platform-asan",
+        "passed": true,
+        "elapsedMs": 9133
+      },
+      {
+        "name": "containers-wasm",
+        "passed": true,
+        "elapsedMs": 1601
+      },
+      {
+        "name": "containers-js",
+        "passed": true,
+        "elapsedMs": 1361
+      },
+      {
+        "name": "render-node-pool",
+        "passed": true,
+        "elapsedMs": 2693
+      },
+      {
+        "name": "documentation-links",
+        "passed": true,
+        "elapsedMs": 69
+      },
+      {
+        "name": "project-configuration",
+        "passed": true,
+        "elapsedMs": 180
+      },
+      {
+        "name": "profile-recorder",
+        "passed": true,
+        "elapsedMs": 57
+      },
+      {
+        "name": "campaign-summary",
+        "passed": true,
+        "elapsedMs": 233
+      },
+      {
+        "name": "gl-memory-observer",
+        "passed": true,
+        "elapsedMs": 61
+      },
+      {
+        "name": "capture-mask",
+        "passed": true,
+        "elapsedMs": 1421
+      }
+    ]
+  }
+}

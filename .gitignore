@@ -2,3 +2,10 @@
 /*.log
 **/__pycache__/
 *.pyc
+/node_modules/
+/.venv/
+/.env
+/.env.*
+/.local/
+/.cache/
+*.vcxproj.user

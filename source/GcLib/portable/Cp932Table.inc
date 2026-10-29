@@ -1,4 +1,4 @@
-// Generated Windows CP932 numeric mapping; run portable/generate-cp932.py.
+// Generated Windows CP932 numeric mapping; run tools/generate-cp932.py.
 struct Cp932Pair { std::uint16_t source, destination; };
 constexpr Cp932Pair Cp932Decode[] = {
   {0x0000,0x0000},{0x0001,0x0001},{0x0002,0x0002},{0x0003,0x0003},{0x0004,0x0004},{0x0005,0x0005},{0x0006,0x0006},{0x0007,0x0007},

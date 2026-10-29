@@ -1,0 +1,25 @@
+{
+  "name": "ph3-modern",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "build": "node tools/build-web.mjs --exceptions=wasm",
+    "build:verify": "node tools/build-web.mjs --variant=verify --exceptions=wasm",
+    "build:js": "node tools/build-web.mjs --exceptions=js",
+    "test": "node tools/check.mjs",
+    "test:browser": "node tests/test-fixed-modulate-gpu.mjs",
+    "check": "npm run docs:check && npm test",
+    "dev": "python tools/serve-local.py --runtime build/web-wasm-exceptions",
+    "effects": "python tools/compile-effects.py",
+    "benchmark:vm": "node tools/benchmark-script-vm.mjs",
+    "profile": "node tools/run-campaign-local.mjs",
+    "docs:check": "node tools/docs.mjs",
+    "docs:index": "node tools/docs.mjs --write-index"
+  },
+  "devDependencies": {
+    "puppeteer-core": "25.16.0"
+  }
+}

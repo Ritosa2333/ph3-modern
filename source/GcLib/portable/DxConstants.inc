@@ -1,5 +1,5 @@
 // Generated numeric D3D9 interface values; do not edit by hand.
-// Reproduce with: python portable/generate-dx-constants.py
+// Reproduce with: python tools/generate-dx-constants.py
 // d3d9.h sha256: 4fd5b2e4340046f31cfb5cc0c3f276074a205b8daf0a76583e4f3819a5f4deaf
 // d3d9types.h sha256: 93b347196f38565688dd7fe775cfd04549b4a50e79ccf7884d3dad24f0102146
 // d3d9caps.h sha256: c2d0e534dccaa47eb211dc491a668ab1823dea087cc5bbdc05e1d11ad46efa8f

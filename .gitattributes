@@ -1,0 +1,9 @@
+*.md text eol=lf
+*.mjs text eol=lf
+*.py text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.wasm binary
+*.png binary
+*.ttc binary
