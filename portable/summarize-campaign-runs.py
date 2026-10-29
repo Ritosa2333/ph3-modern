@@ -27,11 +27,28 @@ def values(samples, owner, field):
 
 def summarize(samples):
     result = {'samples': len(samples), 'observedCpuThrottleRates': sorted({sample.get('cpuThrottle', 1) for sample in samples})}
-    for field in ['frameMsP95', 'frameMsMax', 'callbackMsP95', 'callbackMsMax',
+    for field in ['frameMsP95', 'frameMsMax', 'callbackMsP95', 'callbackMsP99', 'callbackMsMax',
                   'queuedLoadMsMax', 'logicHz', 'displayFps']:
         data = values(samples, 'performance', field)
         if data:
             result[field] = {'median': statistics.median(data), 'min': min(data), 'max': max(data)}
+    # A browser timer may retain the same completed window more than once.
+    # Weight actual callback/refresh counts, never averages of window rates.
+    measured = {sample['performance']['sequence']: sample['performance'] for sample in samples
+                if sample.get('performance', {}).get('timingVersion') == 3}
+    if measured:
+        sequences = sorted(measured)
+        callbacks = sum(p['callbackCount'] for p in measured.values())
+        slow = sum(p['callbackOverBudget'] for p in measured.values())
+        presents = sum(p['presentIntervalCount'] for p in measured.values())
+        missed = sum(p['missedRefreshCount'] for p in measured.values())
+        duration = sum(p['windowMs'] for p in measured.values())
+        result['deadline60Hz'] = {'windows': len(measured), 'callbackCount': callbacks,
+            'callbackOverBudget': slow, 'cpuWithinBudgetPercent': 100 * (1 - slow / callbacks) if callbacks else None,
+            'presentIntervalCount': presents, 'missedRefreshCount': missed,
+            'deliveredRefreshPercent': 100 * presents / (presents + missed) if presents + missed else None,
+            'logicHz': sum(p['logicHz'] * p['windowMs'] for p in measured.values()) / duration if duration else None,
+            'missingWindows': sequences[-1] - sequences[0] + 1 - len(sequences)}
     for field in ['drawCalls', 'actualDrawCalls', 'drawVertices', 'wasmBytes', 'jsUsedBytes']:
         data = [sample[field] for sample in samples if isinstance(sample.get(field), (int, float))]
         if data:
@@ -68,20 +85,26 @@ for path in args.runs:
              'failure': report.get('failure'), 'fixtureSha256': report['fixtureSha256'],
              'variant': build.get('variant'), 'builtAt': build.get('builtAt'),
              'exceptionMode': build.get('exceptionMode'), 'renderer': report.get('renderer'),
+             'browserVersion': report.get('browserVersion'),
              'managed': report.get('managed'), 'cpuProfiling': report.get('cpuProfiling'),
+             'vmInstructionProfiling': report.get('vmInstructionProfiling'),
              'throttle': report.get('throttle'), 'glMemoryObserver': report.get('glMemoryObserver'),
+             'cpuAffinity': report.get('cpuAffinity'),
              'throttleFromFrame': report.get('throttleFromFrame', 0), 'throttleAppliedAt': report.get('throttleAppliedAt'),
              'fast': report.get('fast', 0), 'trace': report.get('trace', False),
              'sampling': sampling,
              'timingSchemaVersions': timing_versions,
              'timingComparable': (not report.get('fast') and not report.get('trace')
                                   and not report.get('cpuProfiling')
+                                  and not report.get('vmInstructionProfiling')
                                   and not report.get('errors') and not report.get('failure')
                                   and build.get('variant') == 'standard'
                                   and not report.get('glMemoryObserver') and not report.get('requestedCaptures')
                                   and sampling_complete and len(timing_versions) == 1),
              'lastStage': samples[-1].get('stage') if samples else None,
              'allSamples': summarize(samples), 'windows': {}}
+    if entry['allSamples'].get('deadline60Hz', {}).get('missingWindows', 0):
+        entry['timingComparable'] = False
     for stage, lo, hi, label in windows:
         selected = [sample for sample in samples if sample.get('stage') and sample['stage']['index'] == stage
                     and lo <= sample['stage']['frame'] < hi]
@@ -93,8 +116,10 @@ args.out.write_text(json.dumps(result, indent=2) + '\n', encoding='utf8')
 for run in result['runs']:
     print(run['directory'], run['outcome'], 'timingComparable:', run['timingComparable'])
     for label, window in run['windows'].items():
-        print(' ', label, 'n=', window['samples'], 'callback P95 median=', window.get('frameMsP95', {}).get('median'),
+        print(' ', label, 'n=', window['samples'], 'presented callback P95 median=', window.get('frameMsP95', {}).get('median'),
               'draw median=', window.get('actualDrawCalls', {}).get('median'))
+        if 'deadline60Hz' in window:
+            print('   ', window['deadline60Hz'])
     print('  logical GPU texture bytes:', run['allSamples'].get('graphicsMemory', {}).get('textureBytes'))
     print('  Wasm bytes:', run['allSamples'].get('wasmBytes'))
 print('Evidence:', args.out)

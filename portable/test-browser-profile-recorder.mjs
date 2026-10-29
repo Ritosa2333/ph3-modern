@@ -44,4 +44,28 @@ function fixture(capacity=32){
   assert.deepEqual(Array.from(overflow.rows,r=>r.sampleIndex),[7,8,9,10]);
   f.recorder.stop();
 }
+{
+  let now=0,intervals=0;
+  const d={messages:[],stage:{index:1,frame:10},performance:{timingVersion:3,windowHook:true,sequence:1}};
+  const context={ph3Diagnostics:d,ph3Runtime:{},performance:{now:()=>now},
+    setInterval(){++intervals;},clearInterval(){}};
+  vm.runInNewContext(`(${installBrowserProfileRecorder})()`,context);
+  const recorder=context.__ph3ProfileRecorder;
+  assert.equal(intervals,0);assert.equal(recorder.drain().rows.length,0);
+  for(let sequence=2;sequence<=20;++sequence){
+    now+=1040;d.performance.sequence=sequence;
+    recorder.recordPerformanceWindow();
+  }
+  const saved=recorder.drain();
+  assert.equal(saved.method,'runtime-window-v1');
+  assert.deepEqual(Array.from(saved.rows,r=>r.performance.sequence),Array.from({length:19},(_,i)=>i+2));
+  recorder.stop();now+=5000;recorder.recordPerformanceWindow();
+  assert.equal(recorder.drain().rows.length,0);
+  // Fast verifier playback disables timing, but still needs timer-driven
+  // state/error evidence. A stale menu timing object must not disable it.
+  d.observePerformance=false;
+  vm.runInNewContext(`(${installBrowserProfileRecorder})()`,context);
+  assert.equal(intervals,1);
+  assert.equal(context.__ph3ProfileRecorder.drain().method,'browser-timer-v1');
+}
 console.log('PASS browser-side sampling, immutable history, delayed host reads, gap reporting and bounded overflow');

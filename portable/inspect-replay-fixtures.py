@@ -54,11 +54,21 @@ def inspect(path: Path) -> dict:
     stages = []
     for index in indices:
         stage = records(root[f"stage{index}"])
+        common = records(stage['mapCommonData'])
+        stg = records(common.get('Stg', struct.pack('<i', 0)))
+        # HSoB fixture metadata only. Never infer difficulty from score/bullets
+        # or change the recorded common data to create a stronger workload.
+        settings = {}
+        for key in ['Difficult', 'DifficultEx', 'PlayMode']:
+            payload = stg.get(key)
+            if payload and len(payload) == 12 and struct.unpack('<i', payload[:4])[0] == 0:
+                settings[key] = struct.unpack('<d', payload[4:])[0]
         stages.append({
             "stage": index,
             "frameEnd": struct.unpack("<i", stage["frameEnd"])[0],
             "scoreLast": struct.unpack("<q", stage["scoreLast"])[0],
             "startLives": struct.unpack("<d", stage["playerLife"])[0],
+            "hsobSettings": settings,
         })
     return {"fixture": path.name, "sha256": hashlib.sha256(data).hexdigest(), "stages": stages}
 

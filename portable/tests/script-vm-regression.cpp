@@ -8,6 +8,11 @@
 #include <vector>
 #include "../../source/GcLib/gstd/Script.hpp"
 #include "../../source/GcLib/gstd/Logger.hpp"
+#ifdef PH3_VM_OPCODE_PROFILE
+#include <emscripten.h>
+extern "C" void hsob_vm_profile_reset();
+extern "C" void hsob_vm_profile_dump();
+#endif
 
 // This standalone VM executable has no application logger. Sanitized builds
 // retain GstdUtility's conditional logging branches, unlike the optimized
@@ -18,7 +23,7 @@ using namespace gstd;
 static std::string Printable(const std::wstring& text) {
     std::string result;for(wchar_t c:text)result+=c>=32&&c<127?char(c):'?';return result;
 }
-struct Results { std::vector<double> values; int resumes=0; };
+struct Results { std::vector<double> values; int resumes=0; int errorLine=-1; };
 static value Record(script_machine* machine,int argc,const value* args) {
     assert(argc==1);static_cast<Results*>(machine->data)->values.push_back(args[0].as_real());return value();
 }
@@ -84,6 +89,41 @@ static void TestValuesAfterEngineRetirement() {
     std::puts("engine retirement: escaped scalars, strings, nested arrays and cross-engine COW PASS");
 }
 
+static void TestStringViews() {
+    type_data character(type_data::tk_char),stringType(type_data::tk_array,&character);
+    value text(&stringType,std::wstring(L"a\u9b54z"));
+    assert(text.as_string()==L"a\u9b54z");
+    value saved=text;text.unique();
+    const value& view=text;
+    const value& letter=view.index_as_array(1);letter.unique();
+    value handle=letter;
+    assert(text.as_string()==L"a\u9b54z");
+    handle.overwrite(value(&character,L'X'));
+    assert(text.as_string()==L"aXz"&&saved.as_string()==L"a\u9b54z");
+
+    value escaped;
+    {
+        value owner(&stringType,std::wstring(L"q"));
+        owner.index_as_array(0).unique();escaped=owner.index_as_array(0);
+    }
+    value borrowed;borrowed.append(&stringType,escaped);
+    assert(borrowed.as_string()==L"q");
+    escaped.overwrite(value(&character,L'R'));
+    assert(borrowed.as_string()==L"R");
+
+    value empty(&stringType,std::wstring());assert(empty.as_string().empty());
+    value emptySaved=empty;empty.append(&stringType,value(&character,L'A'));
+    assert(empty.as_string()==L"A"&&emptySaved.as_string().empty());
+    value tail(&stringType,std::wstring(L"BC"));assert(tail.as_string()==L"BC");
+    empty.concatenate(tail);assert(empty.as_string()==L"ABC"&&tail.as_string()==L"BC");
+    value whole(&stringType,std::wstring(L"old"));assert(whole.as_string()==L"old");
+    value wholeHandle=whole;wholeHandle.overwrite(tail);
+    assert(whole.as_string()==L"BC"&&wholeHandle.as_string()==L"BC");
+    std::wstring longText(1024,L'W');value longValue(&stringType,longText);
+    assert(longValue.as_string()==longText&&longValue.as_string()==longText);
+    std::puts("short/long strings, COW, escaped const/writable handles, boxed children, append and overwrite PASS");
+}
+
 static Results Run(const char* name,const char* source,const char* event=nullptr,bool expectError=false,bool expectThrow=false) {
     script_type_manager types;
     script_engine engine(&types,std::string(source),sizeof(functions)/sizeof(functions[0]),functions);
@@ -104,14 +144,21 @@ static Results Run(const char* name,const char* source,const char* event=nullptr
             std::fprintf(stderr,"VM failure %s at %d: %s\n",name,machine.get_error_line(),Printable(machine.get_error_message()).c_str());
             std::abort();
         }
+        if(expectError)results.errorLine=machine.get_error_line();
     }
     assert(threw==expectThrow);
     std::printf("%s %d",name,results.resumes);
     for(double value:results.values)std::printf(" %.17g",value);
+    if(expectError)std::printf(" error-line=%d",results.errorLine);
     std::puts("");return results;
 }
 int main() {
+#ifdef PH3_VM_OPCODE_PROFILE
+    EM_ASM({globalThis.ph3Diagnostics={};});
+    hsob_vm_profile_reset();
+#endif
     TestValuesAfterEngineRetirement();
+    TestStringViews();
     {
         type_data real(type_data::tk_real), anotherReal(type_data::tk_real);
         type_data character(type_data::tk_char), boolean(type_data::tk_boolean);
@@ -204,6 +251,39 @@ int main() {
     )");
     assert((identities.values==std::vector<double>{2,1,1}));
     Run("mismatched-real-comparison","let wrong=DifferentReal()==1;",nullptr,true);
+    Run("fused-assignment-type-error","let a=true;\na=1+2;\nRecord(a);",nullptr,true);
+    Run("fused-assignment-identity-error","let a=DifferentReal();\na=a+1;\nRecord(a);",nullptr,true);
+    const auto fused=Run("fused-parent-assignment",R"(
+        let outer=2;
+        function Update(x){outer=outer+x;let computed=outer*2-1;return(computed);}
+        Record(Update(3));Record(outer);Record(Update(-2));Record(outer);
+        let a=[7,8];let saved=a;
+        let n=a[0]+a[0];a[0]=n*2-1;
+        Record(n);Record(a[0]);Record(saved[0]);
+    )");
+    assert((fused.values==std::vector<double>{9,5,5,3,14,27,7}));
+    const auto counters=Run("counter-types",R"(
+        Record(successor(1));Record(predecessor(1));
+        Record(successor('A'));Record(predecessor(true));
+        Record(successor(9007199254740992)-9007199254740992);
+        let a=DifferentReal();a=successor(a);Record(a);a=predecessor(a);Record(a);
+        Record(successor(DifferentReal())==DifferentReal());
+    )");
+    assert((counters.values==std::vector<double>{2,0,66,0,0,2,1,0}));
+    Run("counter-array-error","let a=successor([1,2]);",nullptr,true);
+    const auto builtins=Run("builtin-opcode-fallbacks",R"(
+        Record([11,22][true]);Record([11,22][false]);Record("AB"[false]);
+        Record([[31,32]][0][1]);Record(length([]));Record(length([1,2,3]));
+        Record(![]);Record(![1]);Record(!0);Record(!1);Record(true);Record(false);
+        let a=[[5,6]];let saved=a;let child=a[0];child[1]=17;
+        Record(child[1]);Record(saved[0][1]);
+    )");
+    assert((builtins.values==std::vector<double>{22,11,65,32,0,3,1,0,1,0,1,0,17,6}));
+    Run("builtin-index-fraction","Record([1,2][0.5]);",nullptr,true);
+    Run("builtin-index-negative","Record([1,2][-1]);",nullptr,true);
+    Run("builtin-index-range","Record([1,2][2]);",nullptr,true);
+    Run("builtin-index-type","Record(5[0]);",nullptr,true);
+    Run("builtin-length-type","Record(length(5));",nullptr,true);
     {
         // Force repeated deque growth and bytecode reallocation. Literal
         // addresses must remain valid, including literals in a later block.
@@ -271,6 +351,33 @@ int main() {
         task Worker(base){ascent(i in 0 .. 3){Record(base+i);yield;}}
         Worker(10);Worker(20);loop(8){yield;}
     )");
+    const auto params=Run("mixed-parameter-prologue",R"(
+        function Mix(number,letters,flag,items){
+            Record(number);Record(letters[1]);Record(flag);
+            let copied=items;items[0]=number;Pause();
+            Record(items[0]);Record(copied[0]);return(number+length(letters));
+        }
+        let source=[1,2];Record(Mix(7,"ab",true,source));Record(source[0]);
+        function Missing(value){Record(value);}
+        Record(Missing(42));
+    )");
+    assert(params.resumes==1&&(params.values==std::vector<double>{7,98,1,7,1,9,1,42,0}));
+    const auto recursion=Run("recursive-parameter-prologue",R"(
+        function Fibonacci(n){if(n<2){return(n);}return(Fibonacci(n-1)+Fibonacci(n-2));}
+        Record(Fibonacci(12));
+        task Worker(a,b,c){Record(a);yield;Record(b[0]);yield;Record(c[0]);}
+        Worker(10,[20],"A");loop(8){yield;}
+    )");
+    assert((recursion.values==std::vector<double>{144,10,20,65}));
+    {
+        std::string source="function Wide(";
+        for(int i=0;i<67;++i){if(i)source+=",";source+="p"+std::to_string(i);}
+        source+="){return(p65+p66);}Record(Wide(";
+        for(int i=0;i<67;++i){if(i)source+=",";source+=std::to_string(i);}
+        source+="));";
+        const auto wide=Run("wide-parameter-fallback",source.c_str());
+        assert((wide.values==std::vector<double>{131}));
+    }
     const auto nested=Run("nested-event",R"(
         @Nested {Record(42);}
         @Start {Record(1);NestedCall();Record(2);}
@@ -288,4 +395,10 @@ int main() {
     )",nullptr,false,true);
     assert(unwind.values==std::vector<double>{1});
     std::puts("PASS VM arithmetic, COW, recycled environments, stop/resume, reentrant events, return, termination and unwinding");
+#ifdef PH3_VM_OPCODE_PROFILE
+    hsob_vm_profile_dump();
+    assert(EM_ASM_INT({const p=globalThis.ph3Diagnostics.vmProfile;
+        return p.scalarBoxes>0&&p.bodyRequests>0&&p.environments>0&&p.reusedEnvironments>0&&
+            p.dispatch['push-variable']>0&&p.native.Record>0&&p.nativeOverflow===0?1:0;})==1);
+#endif
 }

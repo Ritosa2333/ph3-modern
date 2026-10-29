@@ -6,6 +6,10 @@
 #include "../portable/Utf16.hpp"
 #endif
 #include "GstdUtility.hpp"
+#ifdef PH3_VM_OPCODE_PROFILE
+#include <emscripten.h>
+#include <cstdint>
+#endif
 
 #include <cassert>
 #include <cctype>
@@ -39,6 +43,52 @@ using ::wcstombs;
 #endif
 
 using namespace gstd;
+
+#ifdef PH3_VM_OPCODE_PROFILE
+namespace {
+struct VmOpcodeProfile {
+    bool active=false;
+    std::uint64_t dispatch[64]{},fused[64]{};
+    std::unordered_map<std::string,std::uint64_t> native;
+    std::uint64_t scalarBoxes=0,bodyRequests=0,environments=0,reusedEnvironments=0,nativeOverflow=0;
+} vmOpcodeProfile;
+void countVmOpcode(unsigned command,bool fused=false){
+    if(vmOpcodeProfile.active&&command<64)++(fused?vmOpcodeProfile.fused:vmOpcodeProfile.dispatch)[command];
+}
+void countVmNative(const std::string& name){
+    if(!vmOpcodeProfile.active)return;
+    auto found=vmOpcodeProfile.native.find(name);
+    if(found!=vmOpcodeProfile.native.end())++found->second;
+    else if(vmOpcodeProfile.native.size()<1024)vmOpcodeProfile.native.emplace(name,1);
+    else ++vmOpcodeProfile.nativeOverflow;
+}
+}
+void gstd::profile_script_scalar_box(){if(vmOpcodeProfile.active)++vmOpcodeProfile.scalarBoxes;}
+void gstd::profile_script_body_request(){if(vmOpcodeProfile.active)++vmOpcodeProfile.bodyRequests;}
+extern "C" EMSCRIPTEN_KEEPALIVE void hsob_vm_profile_reset(){vmOpcodeProfile=VmOpcodeProfile();vmOpcodeProfile.active=true;}
+extern "C" EMSCRIPTEN_KEEPALIVE void hsob_vm_profile_dump(){
+    static const char* names[]={"assign","assign-writable","break-loop","break-routine","call","call-result",
+        "case-begin","case-end","case-if","case-if-not","case-next","compare-e","compare-g","compare-ge",
+        "compare-l","compare-le","compare-ne","dup","dup2","loop-ascent","loop-back","loop-count",
+        "loop-descent","loop-if","pop","push-value","push-variable","push-variable-writable","swap","yield"
+#ifdef PH3_SCRIPT_FAST_ARITHMETIC
+        ,"real-add","real-subtract","real-multiply","real-divide","real-negative","real-predecessor","real-successor","real-compare"
+#endif
+#ifdef PH3_SCRIPT_FAST_BUILTINS
+        ,"index-read","array-length","boolean-not","boolean-true","boolean-false"
+#endif
+    };
+    EM_ASM({globalThis.ph3Diagnostics.vmProfile=({dispatch:{},fused:{},native:{},
+        scalarBoxes:$0,bodyRequests:$1,environments:$2,reusedEnvironments:$3,nativeOverflow:$4});},
+        double(vmOpcodeProfile.scalarBoxes),double(vmOpcodeProfile.bodyRequests),double(vmOpcodeProfile.environments),
+        double(vmOpcodeProfile.reusedEnvironments),double(vmOpcodeProfile.nativeOverflow));
+    for(unsigned i=0;i<sizeof(names)/sizeof(*names);++i)
+        EM_ASM({const p=globalThis.ph3Diagnostics.vmProfile;const n=UTF8ToString($0);p.dispatch[n]=$1;p.fused[n]=$2;},
+            names[i],double(vmOpcodeProfile.dispatch[i]),double(vmOpcodeProfile.fused[i]));
+    for(const auto& [name,count]:vmOpcodeProfile.native)
+        EM_ASM({globalThis.ph3Diagnostics.vmProfile.native[UTF8ToString($0)]=$1;},name.c_str(),double(count));
+}
+#endif
 
 std::string gstd::to_mbcs(std::wstring const& s)
 {
@@ -89,6 +139,9 @@ value::value(type_data* t, std::wstring v)
 void value::append(type_data* t, value const& x)
 {
 	unique();
+#ifdef PH3_SCRIPT_STRING_CACHE
+	data->string_cache.reset();
+#endif
 	data->type = t;
 	data->array_value.push_back(x);
 }
@@ -96,6 +149,9 @@ void value::append(type_data* t, value const& x)
 void value::concatenate(value const& x)
 {
 	unique();
+#ifdef PH3_SCRIPT_STRING_CACHE
+	data->string_cache.reset();
+#endif
 	unsigned l = data->array_value.length;
 	unsigned r = x.data->array_value.length;
 	unsigned t = l + r;
@@ -204,9 +260,22 @@ std::wstring value::as_string() const
 
 		case type_data::tk_array: {
 			if (data->type->get_element()->get_kind() == type_data::tk_char) {
+#ifdef PH3_SCRIPT_STRING_CACHE
+				if(data->string_cache)return *data->string_cache;
+				bool cacheable=data->string_cacheable&&data->array_value.size()<=512;
+#endif
 				std::wstring result;
-				for (unsigned i = 0; i < data->array_value.size(); ++i)
+				for (unsigned i = 0; i < data->array_value.size(); ++i){
 					result += data->array_value[i].as_char();
+#ifdef PH3_SCRIPT_STRING_CACHE
+					// A boxed element may already have a writable alias through
+					// another array. Never cache such a parent, even after COW.
+					if(data->array_value[i].data!=NULL)cacheable=false;
+#endif
+				}
+#ifdef PH3_SCRIPT_STRING_CACHE
+				if(cacheable)data->string_cache=std::make_shared<const std::wstring>(result);
+#endif
 				return result;
 			} else {
 				std::wstring result = L"[";
@@ -236,6 +305,9 @@ value const& value::index_as_array(unsigned i) const
 {
 	assert(data != NULL && data->type->get_kind() == type_data::tk_array);
 	assert(i < data->array_value.length);
+#ifdef PH3_SCRIPT_STRING_CACHE
+	data->string_cacheable=false;data->string_cache.reset();
+#endif
 	return data->array_value[i];
 }
 
@@ -243,6 +315,9 @@ value& value::index_as_array(unsigned i)
 {
 	assert(data != NULL && data->type->get_kind() == type_data::tk_array);
 	assert(i < data->array_value.length);
+#ifdef PH3_SCRIPT_STRING_CACHE
+	data->string_cacheable=false;data->string_cache.reset();
+#endif
 	return data->array_value[i];
 }
 
@@ -1415,7 +1490,7 @@ function const operations[] = {
 	{ "assert", assert_, 2 }
 };
 
-#ifdef PH3_SCRIPT_FAST_ARITHMETIC
+#if defined(PH3_SCRIPT_FAST_ARITHMETIC) || defined(PH3_SCRIPT_FAST_BUILTINS)
 script_engine::code::code(int the_line, command_kind the_command, block* the_sub, int the_arguments)
 	: command(the_command), line(the_line), sub(the_sub), arguments(the_arguments)
 {
@@ -1423,7 +1498,10 @@ script_engine::code::code(int the_line, command_kind the_command, block* the_sub
 	// name. Non-real operands still call the original implementation, including
 	// recursive vector arithmetic, conversions and all original error paths.
 	if(the_command!=pc_call_and_push_result || the_sub==NULL)return;
+#ifdef PH3_SCRIPT_FAST_ARITHMETIC
 	if(the_arguments==1 && the_sub->func==::negative)command=pc_real_negative;
+	else if(the_arguments==1 && the_sub->func==::predecessor)command=pc_real_predecessor;
+	else if(the_arguments==1 && the_sub->func==::successor)command=pc_real_successor;
 	else if(the_arguments==2){
 		if(the_sub->func==::add)command=pc_real_add;
 		else if(the_sub->func==::subtract)command=pc_real_subtract;
@@ -1431,6 +1509,14 @@ script_engine::code::code(int the_line, command_kind the_command, block* the_sub
 		else if(the_sub->func==::divide)command=pc_real_divide;
 		else if(the_sub->func==::compare)command=pc_real_compare;
 	}
+#endif
+#ifdef PH3_SCRIPT_FAST_BUILTINS
+	if(the_arguments==2&&the_sub->func==static_cast<callback>(::index))command=pc_index_read;
+	else if(the_arguments==1&&the_sub->func==::length)command=pc_array_length;
+	else if(the_arguments==1&&the_sub->func==::not_)command=pc_boolean_not;
+	else if(the_arguments==0&&the_sub->func==::true_)command=pc_boolean_true;
+	else if(the_arguments==0&&the_sub->func==::false_)command=pc_boolean_false;
+#endif
 }
 #endif
 
@@ -2545,6 +2631,9 @@ script_machine::~script_machine()
 script_machine::environment* script_machine::new_environment(environment* parent, script_engine::block* b)
 {
 	environment* result = NULL;
+#ifdef PH3_VM_OPCODE_PROFILE
+	if(vmOpcodeProfile.active){++vmOpcodeProfile.environments;if(first_garbage_environment!=NULL)++vmOpcodeProfile.reusedEnvironments;}
+#endif
 
 	if (first_garbage_environment != NULL) {
 		//ごみ回収
@@ -2596,6 +2685,48 @@ void script_machine::dispose_environment(environment* object)
 	*((object->pred != NULL) ? &object->pred->succ : &first_garbage_environment) = object;
 	last_garbage_environment = object;
 }
+#ifdef PH3_SCRIPT_DIRECT_PARAMETERS
+bool script_machine::transfer_arguments(environment* target,stack_t& source,unsigned count)
+{
+	if(count==0)return false;
+	auto* block=target->sub;
+	if(block->direct_parameter_base==-2){
+		block->direct_parameter_base=-1;
+		// The bytecode remains unchanged. Only a bounded, exact, contiguous
+		// assignment prologue is eligible, including loop and task parameters.
+		if(count<=64&&block->codes.length>=count){
+			const auto& first=block->codes.at[0];
+			if(first.command==script_engine::pc_assign&&first.variable<=64-count){
+				bool match=true;
+				for(unsigned i=0;i<count;++i){
+					const auto& code=block->codes.at[i];
+					if(code.command!=script_engine::pc_assign||code.level!=block->level||
+					   code.variable!=first.variable+i){match=false;break;}
+				}
+				if(match){block->direct_parameter_base=first.variable;block->direct_parameter_count=count;}
+			}
+		}
+	}
+	if(block->direct_parameter_base<0||block->direct_parameter_count!=count||
+	   target->variables.length!=0||target->stack.length!=0)return false;
+	assert(source.length>=count);
+	auto& variables=target->variables;
+	const unsigned base=unsigned(block->direct_parameter_base),length=base+count;
+	while(variables.capacity<length)variables.expand();
+	variables.length=length;
+	// Consume the caller in the same right-to-left order as the original
+	// stack transfer. The pure prologue introduces no native calls or yields.
+	for(unsigned i=count;i>0;--i){
+		variables.at[base+i-1]=std::move(source.back());source.pop_back();
+	}
+	target->ip=count;
+	error_line=block->codes.at[count-1].line;
+#ifdef PH3_VM_OPCODE_PROFILE
+	for(unsigned i=0;i<count;++i)countVmOpcode(script_engine::pc_assign,true);
+#endif
+	return true;
+}
+#endif
 
 void script_machine::run()
 {
@@ -2724,6 +2855,9 @@ dispatch_next:
 		}
 	} else {
 		script_engine::code* c = &(current->sub->codes.at[current->ip]);
+#ifdef PH3_VM_OPCODE_PROFILE
+		countVmOpcode(c->command);
+#endif
 		error_line = c->line; //ぉ
 		++(current->ip);
 		const auto skipLoopBack = [current,c]() {
@@ -2736,6 +2870,97 @@ dispatch_next:
 			c->cached_jump=current->ip;
 #endif
 		};
+#if defined(PH3_SCRIPT_FAST_ARITHMETIC) && !defined(PH3_LEGACY_SCRIPT_LOAD_ARITHMETIC)
+		const auto loadedArithmetic = [&](const value& loaded) __attribute__((always_inline)) {
+			// Consume only an adjacent, pure binary numeric instruction. Bytecode,
+			// branch addresses and nonnumeric fallback paths remain unchanged.
+			if(stopped || current->ip>=current->sub->codes.length)return false;
+			const auto* next=&current->sub->codes.at[current->ip];
+#ifndef PH3_LEGACY_SCRIPT_LOAD_GUARDS
+			// Reject an unrelated call before looking up its second argument.
+			// Pure loads still run through the original path on every fallback.
+			const bool loadsSecond = next->command==script_engine::pc_push_value ||
+				next->command==script_engine::pc_push_variable;
+			if(loadsSecond && current->ip+1>=current->sub->codes.length)return false;
+			const auto* operation = loadsSecond ? next+1 : next;
+			if(operation->command<script_engine::pc_real_add ||
+			   operation->command>script_engine::pc_real_compare ||
+			   operation->command==script_engine::pc_real_negative || operation->arguments!=2)return false;
+#endif
+			const value* left=nullptr;
+			const value* right=&loaded;
+			bool paired=false;
+			if((next->command==script_engine::pc_push_value||next->command==script_engine::pc_push_variable)&&
+			   current->ip+1<current->sub->codes.length){
+				left=&loaded;right=nullptr;paired=true;
+				if(next->command==script_engine::pc_push_value)right=&next->literal();
+				else for(environment* e=current;e!=NULL;e=e->parent){
+					if(e->sub->level!=next->level)continue;
+					if(next->variable<e->variables.length&&e->variables.at[next->variable].has_data())
+						right=&e->variables.at[next->variable];
+					break;
+				}
+				if(right==nullptr)return false;
+				next=&current->sub->codes.at[current->ip+1];
+			}else{
+				if(current->stack.length==0)return false;
+				left=&current->stack.back();
+			}
+#ifdef PH3_LEGACY_SCRIPT_LOAD_GUARDS
+			if(next->command<script_engine::pc_real_add || next->command>script_engine::pc_real_compare ||
+			   next->command==script_engine::pc_real_negative || next->arguments!=2)return false;
+#endif
+			gstd::script_real a,b;
+			if(!left->try_real_operand(a)||!right->try_real_operand(b))return false;
+			if(next->command==script_engine::pc_real_compare&&left->get_type()!=right->get_type())return false;
+			gstd::script_real result;
+			switch(next->command){
+			case script_engine::pc_real_add:result=a+b;break;
+			case script_engine::pc_real_subtract:result=a-b;break;
+			case script_engine::pc_real_multiply:result=a*b;break;
+			case script_engine::pc_real_divide:result=a/b;break;
+			case script_engine::pc_real_compare:result=a==b?0:(a<b?-1:1);break;
+			default:return false;
+			}
+			const unsigned resultIp=current->ip+(paired?2:1);
+			if(resultIp<current->sub->codes.length){
+				const auto* sink=&current->sub->codes.at[resultIp];
+				if(sink->command==script_engine::pc_assign){
+					for(environment* e=current;e!=NULL;e=e->parent){
+						if(e->sub->level!=sink->level)continue;
+						auto& vars=e->variables;
+						if(sink->variable<vars.length&&vars.at[sink->variable].has_data()&&
+						   vars.at[sink->variable].get_type()!=engine->get_real_type())break;
+						// Retain assignment type identity and source-line semantics.
+						// A type change still reaches the original error path below.
+						error_line=sink->line;current->ip=resultIp+1;
+#ifdef PH3_VM_OPCODE_PROFILE
+						if(paired)countVmOpcode(current->sub->codes.at[resultIp-2].command,true);
+						countVmOpcode(next->command,true);countVmOpcode(sink->command,true);
+#endif
+						if(vars.length<=sink->variable){
+							while(vars.capacity<=sink->variable)vars.expand();
+							vars.length=sink->variable+1;
+						}
+						vars.at[sink->variable].set(engine->get_real_type(),result);
+						if(!paired)current->stack.pop_back();
+						resuming=false;
+						return true;
+					}
+				}
+			}
+			error_line=next->line;
+#ifdef PH3_VM_OPCODE_PROFILE
+			if(paired)countVmOpcode(current->sub->codes.at[current->ip].command,true);
+			countVmOpcode(next->command,true);
+#endif
+			current->ip+=paired?2:1;
+			if(paired)current->stack.push_back(value(engine->get_real_type(),result));
+			else current->stack.back().set(engine->get_real_type(),result);
+			resuming=false;
+			return true;
+		};
+#endif
 
 		switch (c->command) {
 		case script_engine::pc_assign: {
@@ -2815,6 +3040,38 @@ dispatch_next:
 			}
 			break;
 
+#ifdef PH3_SCRIPT_FAST_BUILTINS
+		case script_engine::pc_index_read:
+		case script_engine::pc_array_length:
+		case script_engine::pc_boolean_not:
+		case script_engine::pc_boolean_true:
+		case script_engine::pc_boolean_false: {
+			if(stopped)goto native_call_dispatch;
+			auto& stack=current->stack;
+			assert(stack.length>=c->arguments);
+			value* argv=&stack.at[stack.length-c->arguments];
+			if(c->command==script_engine::pc_index_read){
+				gstd::script_real indexValue;
+				if(!argv[0].has_data()||argv[0].get_type()->get_kind()!=type_data::tk_array||
+				   !argv[1].try_real_operand(indexValue)||!(indexValue>=0)||
+				   !(indexValue<argv[0].length_as_array())||indexValue>2147483647.0||
+				   indexValue!=static_cast<unsigned>(indexValue))goto native_call_dispatch;
+				// Save the child before releasing an owning parent array.
+				argv[0]=static_cast<const value&>(argv[0]).index_as_array(unsigned(indexValue));
+				stack.pop_back();
+			}else if(c->command==script_engine::pc_array_length){
+				if(!argv[0].has_data()||argv[0].get_type()->get_kind()!=type_data::tk_array)
+					goto native_call_dispatch;
+				const auto length=argv[0].length_as_array();
+				argv[0].set(engine->get_real_type(),gstd::script_real(length));
+			}else if(c->command==script_engine::pc_boolean_not){
+				const bool result=!argv[0].as_boolean();argv[0].set(engine->get_boolean_type(),result);
+			}else{
+				stack.push_back(value(engine->get_boolean_type(),c->command==script_engine::pc_boolean_true));
+			}
+			resuming=false;break;
+		}
+#endif
 		case script_engine::pc_call:
 #ifdef PH3_SCRIPT_FAST_ARITHMETIC
 		case script_engine::pc_real_add:
@@ -2822,9 +3079,15 @@ dispatch_next:
 		case script_engine::pc_real_multiply:
 		case script_engine::pc_real_divide:
 		case script_engine::pc_real_negative:
+		case script_engine::pc_real_predecessor:
+		case script_engine::pc_real_successor:
 		case script_engine::pc_real_compare:
 #endif
-		case script_engine::pc_call_and_push_result: {
+		case script_engine::pc_call_and_push_result:
+#ifdef PH3_SCRIPT_FAST_BUILTINS
+		native_call_dispatch:
+#endif
+		{
 			stack_t* current_stack = &current->stack;
 			const bool wantsResult=c->command!=script_engine::pc_call;
 			assert(current_stack->length >= c->arguments);
@@ -2835,13 +3098,12 @@ dispatch_next:
 #ifdef PH3_SCRIPT_FAST_ARITHMETIC
 				const bool arithmetic=c->command>=script_engine::pc_real_add &&
 					c->command<=script_engine::pc_real_compare;
-				if(arithmetic && argv[0].has_data() && argv[0].get_type()->get_kind()==type_data::tk_real &&
-					(c->arguments==1 || (argv[1].has_data() && argv[1].get_type()->get_kind()==type_data::tk_real)) &&
+				gstd::script_real a=0,b=0;
+				if(arithmetic && argv[0].try_real_operand(a) &&
+					(c->arguments==1 || argv[1].try_real_operand(b)) &&
 					// compare requires identical type objects, not just equal kinds.
 					// Arithmetic addition intentionally has no such restriction.
 					(c->command!=script_engine::pc_real_compare || argv[0].get_type()==argv[1].get_type())){
-					const gstd::script_real a=argv[0].as_real();
-					const gstd::script_real b=c->arguments==2?argv[1].as_real():0;
 					gstd::script_real result=0;
 					switch(c->command){
 					case script_engine::pc_real_add:result=a+b;break;
@@ -2849,15 +3111,36 @@ dispatch_next:
 					case script_engine::pc_real_multiply:result=a*b;break;
 					case script_engine::pc_real_divide:result=a/b;break;
 					case script_engine::pc_real_negative:result=-a;break;
+					case script_engine::pc_real_predecessor:result=a-1;break;
+					case script_engine::pc_real_successor:result=a+1;break;
 					// This intentionally preserves ph3's existing NaN comparison,
 					// rather than replacing it with ordinary ordered comparisons.
 					case script_engine::pc_real_compare:result=a==b?0:(a<b?-1:1);break;
 					default:assert(false);
 					}
-					ret.set(engine->get_real_type(),result);
+					// Counter operations preserve the operand's exact type object.
+					// Ordinary arithmetic returns the engine's real type instead.
+					type_data* resultType=(c->command==script_engine::pc_real_predecessor||
+						c->command==script_engine::pc_real_successor)?argv[0].get_type():engine->get_real_type();
+#if !defined(PH3_LEGACY_SCRIPT_ARITHMETIC_RESULT)
+					if(!stopped){
+						// Operands were read before any release. Reuse the first
+						// argument cell directly, preserving boxed alias/COW behavior.
+						argv[0].set(resultType,result);
+						if(c->arguments==2)current_stack->pop_back();
+						resuming=false;
+						break;
+					}
+#endif
+					ret.set(resultType,result);
 				}else
 #endif
-				ret = c->sub->func(this, c->arguments, argv);
+				{
+#ifdef PH3_VM_OPCODE_PROFILE
+					countVmNative(c->sub->name);
+#endif
+					ret = c->sub->func(this, c->arguments, argv);
+				}
 				if (stopped) {
 					--(current->ip);
 				} else {
@@ -2891,6 +3174,9 @@ dispatch_next:
 				++current_thread_index;
 				threads.insert(threads.begin() + current_thread_index, e);
 				//引数の積み替え
+#ifdef PH3_SCRIPT_DIRECT_PARAMETERS
+				if(!transfer_arguments(e,*current_stack,c->arguments))
+#endif
 				for (unsigned i = 0; i < c->arguments; ++i) {
 #if defined(__EMSCRIPTEN__) && !defined(PH3_LEGACY_SCRIPT_MOVES)
 					e->stack.push_back(std::move(current_stack->at[current_stack->length - 1]));
@@ -2906,6 +3192,9 @@ dispatch_next:
 				e->has_result = wantsResult;
 				threads[current_thread_index] = e;
 				//引数の積み替え
+#ifdef PH3_SCRIPT_DIRECT_PARAMETERS
+				if(!transfer_arguments(e,*current_stack,c->arguments))
+#endif
 				for (unsigned i = 0; i < c->arguments; ++i) {
 #if defined(__EMSCRIPTEN__) && !defined(PH3_LEGACY_SCRIPT_MOVES)
 					e->stack.push_back(std::move(current_stack->at[current_stack->length - 1]));
@@ -3059,6 +3348,9 @@ dispatch_next:
 			break;
 
 		case script_engine::pc_push_value:
+#if defined(PH3_SCRIPT_FAST_ARITHMETIC) && !defined(PH3_LEGACY_SCRIPT_LOAD_ARITHMETIC)
+			if(loadedArithmetic(c->literal()))break;
+#endif
 			current->stack.push_back(c->literal());
 			break;
 
@@ -3076,6 +3368,9 @@ dispatch_next:
 						value* var = &(*vars).at[c->variable];
 						if (c->command == script_engine::pc_push_variable_writable)
 							var->unique();
+#if defined(PH3_SCRIPT_FAST_ARITHMETIC) && !defined(PH3_LEGACY_SCRIPT_LOAD_ARITHMETIC)
+						if(c->command==script_engine::pc_push_variable&&loadedArithmetic(*var))break;
+#endif
 						current->stack.push_back(*var);
 					}
 					break;

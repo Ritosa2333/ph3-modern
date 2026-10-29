@@ -18,6 +18,7 @@ namespace directx
 	class DxScript;
 	class DxScriptObjectManager;
 	class DxScriptObjectBase;
+	class DxScriptRenderObject;
 	class DxScriptMeshObject;
 	/**********************************************************
 	//DxScriptObjectBase
@@ -47,6 +48,7 @@ namespace directx
 			virtual void Render() = 0;
 			virtual void SetRenderState() = 0;
 #ifdef __EMSCRIPTEN__
+			virtual DxScriptRenderObject* GetRenderObjectForScript(){return nullptr;}
 			// A render capability, not a script-visible type tag. Derived mesh
 			// objects inherit the positive query even if their script type differs.
 			virtual DxScriptMeshObject* GetMeshObjectForRender(){return nullptr;}
@@ -92,6 +94,9 @@ namespace directx
 			std::wstring nameRelativeBone_;
 		public:
 			DxScriptRenderObject();
+#ifdef __EMSCRIPTEN__
+			virtual DxScriptRenderObject* GetRenderObjectForScript(){return this;}
+#endif
 			virtual void SetX(double x){position_.x = x;}
 			virtual void SetY(double y){position_.y = y;}
 			virtual void SetZ(double z){position_.z = z;}
@@ -119,6 +124,22 @@ namespace directx
 			virtual void Render(){}
 			virtual void SetRenderState(){}
 	};
+
+	inline DxScriptRenderObject* QueryScriptRenderObject(DxScriptObjectBase* object)
+	{
+#if defined(__EMSCRIPTEN__) && !defined(PH3_LEGACY_SCRIPT_OBJECT_CASTS)
+		// The base class owns the capability. Subclasses inherit the exact
+		// adjusted pointer without consulting mutable script-visible type tags.
+		auto* render = object == nullptr ? nullptr : object->GetRenderObjectForScript();
+#ifdef WOO_REPLAY_VERIFY
+		if(render != dynamic_cast<DxScriptRenderObject*>(object))
+			throw std::runtime_error("Script render query differs from RTTI");
+#endif
+		return render;
+#else
+		return dynamic_cast<DxScriptRenderObject*>(object);
+#endif
+	}
 
 	/**********************************************************
 	//DxScriptShaderObject
@@ -521,6 +542,9 @@ namespace directx
 			void RenderObject();
 
 			void PrepareRenderObject();
+#if defined(__EMSCRIPTEN__) && !defined(PH3_LEGACY_RENDER_RANGE)
+			void PrepareRenderObject(int priMin, int priMax);
+#endif
 			void ClearRenderObject();
 			void ClearRenderBucket(int index);
 			std::vector<std::list<gstd::ref_count_ptr<DxScriptObjectBase>::unsync > >* GetRenderObjectListPointer(){return &objRender_;}

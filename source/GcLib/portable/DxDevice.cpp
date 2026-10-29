@@ -249,6 +249,10 @@ struct DeviceState {
     // Only this backend changes GL raster state. Clear invalidates the cache
     // because it forces write masks. No GL queries are needed in the hot path.
     bool rasterValid=false;
+    bool targetBindingValid=false,viewportBindingValid=false,vertexBindingValid=false;
+    GLuint boundFramebuffer=0,boundProgram=0;
+    D3DVIEWPORT9 boundViewport{};
+    GLint boundViewportY=0;
     std::array<DWORD,15> rasterState{};
     bool rasterBack=false;
     bool fixedUniformsValid=false;
@@ -337,8 +341,17 @@ struct DeviceState {
         fixedStageState=nextStage;fixedRenderState=nextRender;fixedUniformsValid=true;
     }
     void SubmitVertices(GLenum primitive,const std::vector<Vertex>& vertices){
-        glBindVertexArray(vao);glBindBuffer(GL_ARRAY_BUFFER,vbo);
-#ifdef PH3_LEGACY_VERTEX_UPLOAD
+        if(!vertexBindingValid){
+            glBindVertexArray(vao);glBindBuffer(GL_ARRAY_BUFFER,vbo);
+#ifndef PH3_LEGACY_GL_BINDINGS
+            vertexBindingValid=true;
+#endif
+        }
+#if !defined(PH3_ENABLE_VERTEX_STREAM) || defined(PH3_LEGACY_VERTEX_UPLOAD)
+        // Exact per-draw storage avoids the severe mobile driver cost of
+        // repeatedly sub-updating a large backing VBO. The optional stream
+        // keeps its old allocation plan for explicit, device-tested builds.
+        // Vertex data, primitive order and all render state are unchanged.
         glBufferData(GL_ARRAY_BUFFER,vertices.size()*sizeof(Vertex),vertices.data(),GL_STREAM_DRAW);
         glDrawArrays(primitive,0,static_cast<GLsizei>(vertices.size()));
 #else
@@ -364,7 +377,13 @@ struct DeviceState {
         Check(target!=nullptr,"No Woo render target");auto& surface=*target->storage;
         {
             if(!surface.framebuffer)glGenFramebuffers(1,&surface.framebuffer);
-            glBindFramebuffer(GL_FRAMEBUFFER,surface.framebuffer);
+            if(!targetBindingValid||boundFramebuffer!=surface.framebuffer){
+                glBindFramebuffer(GL_FRAMEBUFFER,surface.framebuffer);
+                boundFramebuffer=surface.framebuffer;
+#ifndef PH3_LEGACY_GL_BINDINGS
+                targetBindingValid=true;
+#endif
+            }
             const auto attachment=depth?depth->storage:std::shared_ptr<TextureStorage>();
             if(!surface.framebufferConfigured||surface.framebufferDepth!=attachment){
                 glFramebufferTexture2D(GL_FRAMEBUFFER,GL_COLOR_ATTACHMENT0,GL_TEXTURE_2D,surface.texture,0);
@@ -374,8 +393,23 @@ struct DeviceState {
                 surface.framebufferConfigured=true;
             }
         }
-        glViewport(viewport.X,surface.back?surface.height-viewport.Y-viewport.Height:viewport.Y,viewport.Width,viewport.Height);
-        glDepthRangef(viewport.MinZ,viewport.MaxZ);
+        const GLint y=surface.back?surface.height-viewport.Y-viewport.Height:viewport.Y;
+        if(!viewportBindingValid||boundViewport.X!=viewport.X||boundViewportY!=y||
+           boundViewport.Width!=viewport.Width||boundViewport.Height!=viewport.Height)
+            glViewport(viewport.X,y,viewport.Width,viewport.Height);
+        if(!viewportBindingValid||boundViewport.MinZ!=viewport.MinZ||boundViewport.MaxZ!=viewport.MaxZ)
+            glDepthRangef(viewport.MinZ,viewport.MaxZ);
+        boundViewport=viewport;boundViewportY=y;
+#ifndef PH3_LEGACY_GL_BINDINGS
+        viewportBindingValid=true;
+#endif
+    }
+    void UseProgram(GLuint selected){
+#ifdef PH3_LEGACY_GL_BINDINGS
+        glUseProgram(selected);
+#else
+        if(boundProgram!=selected){glUseProgram(selected);boundProgram=selected;}
+#endif
     }
     GLuint SnapshotTarget(){
         Check(target!=nullptr&&!target->storage->depthOnly,"Cannot snapshot an invalid render target");
@@ -422,7 +456,9 @@ IDirect3DDevice9::IDirect3DDevice9(UINT width,UINT height,SDL_Window* existing):
     SDL_GL_SetAttribute(SDL_GL_RED_SIZE,8);SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE,8);SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE,8);SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE,8);
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE,16);SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER,1);
     SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS,0);SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES,0);
-    s.window=existing?existing:SDL_CreateWindow("Hollow Song of Birds - Woo Web",width,height,SDL_WINDOW_OPENGL);
+    // SDL owns CSS-size/device-pixel-size synchronization. Keep the authored
+    // D3D backbuffer dimensions below independent from display pixel density.
+    s.window=existing?existing:SDL_CreateWindow("Hollow Song of Birds - Woo Web",width,height,SDL_WINDOW_OPENGL|SDL_WINDOW_HIGH_PIXEL_DENSITY|SDL_WINDOW_RESIZABLE);
     s.ownWindow=!existing;Check(s.window!=nullptr,SDL_GetError());
     s.context=SDL_GL_CreateContext(s.window);Check(s.context!=nullptr,SDL_GetError());
     Check(SDL_GL_MakeCurrent(s.window,s.context),SDL_GetError());SDL_GL_SetSwapInterval(0);
@@ -470,7 +506,7 @@ SDL_Window* IDirect3DDevice9::GetWindow()const{return state->window;}
 HRESULT IDirect3DDevice9::GetDeviceCaps(D3DCAPS9* caps){if(!caps)return InvalidCall;*caps={};GLint size=0;glGetIntegerv(GL_MAX_TEXTURE_SIZE,&size);caps->MaxTextureWidth=caps->MaxTextureHeight=size;caps->VertexShaderVersion=D3DVS_VERSION(3,0);caps->PixelShaderVersion=D3DPS_VERSION(3,0);return S_OK;}
 HRESULT IDirect3DDevice9::TestCooperativeLevel(){return SDL_GL_GetCurrentContext()==state->context?S_OK:static_cast<HRESULT>(D3DERR_DEVICELOST);}
 HRESULT IDirect3DDevice9::Reset(D3DPRESENT_PARAMETERS* params){if(!params||params->BackBufferWidth!=state->back->storage->width||params->BackBufferHeight!=state->back->storage->height)return InvalidCall;return TestCooperativeLevel();}
-void IDirect3DDevice9::BeginBrowserFrame(){state->draws=state->actualDraws=state->verticesDrawn=state->modulateSubmissions=0;state->vertexStream.BeginFrame();}
+void IDirect3DDevice9::BeginBrowserFrame(){state->draws=state->actualDraws=state->verticesDrawn=state->modulateSubmissions=0;state->vertexStream.BeginFrame();state->targetBindingValid=state->viewportBindingValid=state->vertexBindingValid=false;state->boundProgram=0;}
 HRESULT IDirect3DDevice9::BeginScene(){if(state->inScene)return InvalidCall;state->inScene=true;return S_OK;}
 HRESULT IDirect3DDevice9::EndScene(){if(!state->inScene)return InvalidCall;state->FlushBatch();state->inScene=false;return S_OK;}
 HRESULT IDirect3DDevice9::Present(const RECT*,const RECT*,HWND,const RGNDATA*){
@@ -481,6 +517,7 @@ HRESULT IDirect3DDevice9::Present(const RECT*,const RECT*,HWND,const RGNDATA*){
     glDisable(GL_SCISSOR_TEST);
     glBindFramebuffer(GL_READ_FRAMEBUFFER,back.framebuffer);
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER,0);
+    state->targetBindingValid=false;
     glBlitFramebuffer(0,0,back.width,back.height,0,0,width,height,GL_COLOR_BUFFER_BIT,GL_LINEAR);
 #ifdef PH3_WEB_GL_ERROR_CHECK
     const GLenum error=glGetError();
@@ -537,7 +574,7 @@ HRESULT IDirect3DDevice9::CreateDepthStencilSurface(UINT width,UINT height,D3DFO
     glGenRenderbuffers(1,&data->depthBuffer);glBindRenderbuffer(GL_RENDERBUFFER,data->depthBuffer);glRenderbufferStorage(GL_RENDERBUFFER,format==D3DFMT_D16?GL_DEPTH_COMPONENT16:GL_DEPTH24_STENCIL8,width,height);*output=new IDirect3DSurface9(data);return S_OK;
 }
 HRESULT IDirect3DDevice9::GetRenderTarget(DWORD index,IDirect3DSurface9** surface){if(index||!surface)return InvalidCall;*surface=state->target;if(*surface)(*surface)->AddRef();return S_OK;}
-HRESULT IDirect3DDevice9::SetRenderTarget(DWORD index,IDirect3DSurface9* surface){if(index||!surface||surface->storage->depthOnly)return InvalidCall;AssignReference(state->target,surface);state->viewport={0,0,surface->storage->width,surface->storage->height,0,1};return S_OK;}
+HRESULT IDirect3DDevice9::SetRenderTarget(DWORD index,IDirect3DSurface9* surface){if(index||!surface||surface->storage->depthOnly)return InvalidCall;if(state->target!=surface)state->targetBindingValid=false;AssignReference(state->target,surface);state->viewport={0,0,surface->storage->width,surface->storage->height,0,1};return S_OK;}
 HRESULT IDirect3DDevice9::GetDepthStencilSurface(IDirect3DSurface9** surface){if(!surface)return InvalidCall;*surface=state->depth;if(*surface)(*surface)->AddRef();return S_OK;}
 HRESULT IDirect3DDevice9::SetDepthStencilSurface(IDirect3DSurface9* surface){if(surface&&!surface->storage->depthOnly)return InvalidCall;AssignReference(state->depth,surface);return S_OK;}
 HRESULT IDirect3DDevice9::CreateVertexBuffer(UINT length,DWORD,DWORD,D3DPOOL,IDirect3DVertexBuffer9** buffer,HANDLE*){if(!buffer||!length)return InvalidCall;*buffer=new IDirect3DVertexBuffer9(length);return S_OK;}
@@ -770,7 +807,7 @@ HRESULT Draw(IDirect3DDevice9& device,DWORD type,UINT primitives,const BYTE* byt
     const bool specialized=modulate!=ModulateProgram::Generic;
     GLuint program=effect?effect->GetProgram(VertexSource):
         specialized?s.modulatePrograms[static_cast<unsigned>(modulate)]:s.program;
-    Check(program!=0,"An active effect did not provide a GLES program");glUseProgram(program);
+    Check(program!=0,"An active effect did not provide a GLES program");s.UseProgram(program);
     s.feedbackSnapshotReady=false;
     bool uniformsReady=true;
     if(effect){

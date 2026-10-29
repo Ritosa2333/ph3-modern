@@ -1530,7 +1530,7 @@ gstd::value StgStageScript::Func_CreateShotOA1(gstd::script_machine* machine, in
 	StgStageController* stageController = script->stageController_;
 
 	int tId = (int)argv[0].as_real();
-	DxScriptRenderObject* tObj = dynamic_cast<DxScriptRenderObject*>(script->GetObjectPointer(tId));
+	DxScriptRenderObject* tObj = QueryScriptRenderObject(script->GetObjectPointer(tId));
 	if(tObj == NULL)
 		return value(machine->get_engine()->get_real_type(),(gstd::script_real)ID_INVALID);
 
@@ -1643,7 +1643,7 @@ gstd::value StgStageScript::Func_CreateShotOB1(gstd::script_machine* machine, in
 	StgStageController* stageController = script->stageController_;
 
 	int tId = (int)argv[0].as_real();
-	DxScriptRenderObject* tObj = dynamic_cast<DxScriptRenderObject*>(script->GetObjectPointer(tId));
+	DxScriptRenderObject* tObj = QueryScriptRenderObject(script->GetObjectPointer(tId));
 	if(tObj == NULL)
 		return value(machine->get_engine()->get_real_type(),(gstd::script_real)ID_INVALID);
 
@@ -2337,7 +2337,7 @@ gstd::value StgStageScript::Func_ObjMove_SetX(gstd::script_machine* machine, int
 	double pos = argv[1].as_real();
 	obj->SetPositionX(pos);
 
-	DxScriptRenderObject* objR = dynamic_cast<DxScriptRenderObject*>(script->GetObjectPointer(id));
+	DxScriptRenderObject* objR = QueryScriptRenderObject(script->GetObjectPointer(id));
 	if(objR == NULL)return value();
 	objR->SetX(pos);
 
@@ -2353,7 +2353,7 @@ gstd::value StgStageScript::Func_ObjMove_SetY(gstd::script_machine* machine, int
 	double pos = argv[1].as_real();
 	obj->SetPositionY(pos);
 
-	DxScriptRenderObject* objR = dynamic_cast<DxScriptRenderObject*>(script->GetObjectPointer(id));
+	DxScriptRenderObject* objR = QueryScriptRenderObject(script->GetObjectPointer(id));
 	if(objR == NULL)return value();
 	objR->SetY(pos);
 
@@ -2371,7 +2371,7 @@ gstd::value StgStageScript::Func_ObjMove_SetPosition(gstd::script_machine* machi
 	obj->SetPositionX(posX);
 	obj->SetPositionY(posY);
 
-	DxScriptRenderObject* objR = dynamic_cast<DxScriptRenderObject*>(script->GetObjectPointer(id));
+	DxScriptRenderObject* objR = QueryScriptRenderObject(script->GetObjectPointer(id));
 	if(objR == NULL)return value();
 	objR->SetX(posX);
 	objR->SetY(posY);

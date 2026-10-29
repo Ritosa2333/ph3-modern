@@ -2,14 +2,17 @@
 // run is NOT full-campaign/golden acceptance. Original game files stay read-only.
 import {createRequire} from 'node:module';
 import {appendFile, mkdir, readFile, writeFile} from 'node:fs/promises';
+import {existsSync} from 'node:fs';
 import {resolve, dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createHash} from 'node:crypto';
+import {spawnSync} from 'node:child_process';
 import {installGLMemoryObserver} from './observe-gl-memory.mjs';
 import {installBrowserProfileRecorder} from './browser-profile-recorder.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const launcher = resolve(process.env.HSOB_LAUNCHER || resolve(root, '../eagler-touhou-hsob'));
+const launcherCandidates=[resolve(root,'../eagler-touhou-hsob'),resolve(root,'../../eagler-touhou')];
+const launcher = resolve(process.env.HSOB_LAUNCHER || launcherCandidates.find(p=>existsSync(resolve(p,'node_modules/puppeteer-core'))) || launcherCandidates[0]);
 const require = createRequire(resolve(launcher, 'package.json'));
 const puppeteer = require('puppeteer-core');
 const flags = new Map(process.argv.slice(2).map(arg => {
@@ -22,7 +25,11 @@ const untilFrame = Number(flags.get('until-frame') || 0);
 const throttle = Number(flags.get('throttle') || 1);
 const throttleFromFrame = Number(flags.get('throttle-from-frame') || 0);
 const cpuFromFrame = Number(flags.get('cpu-from-frame') || 0);
+const vmFromFrame = Number(flags.get('vm-from-frame') || 0);
 const fast = Number(flags.get('fast') || 0);
+const affinity = Number(flags.get('affinity') || 0);
+if(!Number.isInteger(affinity)||affinity<0||affinity>0xffffff||(affinity&&process.platform!=='win32'))
+  throw Error('CPU affinity expects a Windows logical-processor mask up to 0xffffff');
 const traceStages = Number(flags.get('trace-stages') || 1);
 const captureFrames = String(flags.get('capture-frames') || '').split(',').filter(Boolean).map(value => {
   const parts=value.split(':').map(Number);
@@ -33,6 +40,7 @@ if (!Number.isInteger(stage) || stage < 1 || stage > 6 ||
     !Number.isInteger(untilFrame) || untilFrame < 0 ||
     !Number.isInteger(throttleFromFrame) || throttleFromFrame < 0 ||
     !Number.isInteger(cpuFromFrame) || cpuFromFrame < 0 || (cpuFromFrame > 0 && !flags.has('cpu')) ||
+    !Number.isInteger(vmFromFrame) || vmFromFrame < 0 || (vmFromFrame>0 && !flags.has('vm-opcodes')) ||
     !Number.isFinite(throttle) || throttle < 1 || throttle > 12)
   throw Error('Invalid stage, seconds, frame, or CPU throttle');
 if(!Number.isInteger(fast)||fast<0||fast>32||!Number.isInteger(traceStages)||traceStages<1||traceStages>6||
@@ -48,8 +56,10 @@ const url = String(flags.get('url') || 'http://127.0.0.1:8855/');
 const managed = flags.has('managed');
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const report = {url, stage, seconds, untilFrame, throttle, managed, cpuProfiling: flags.has('cpu'),
+  cpuAffinity:affinity?{mask:affinity,processes:[]}:null,
   samplingMethod:'browser-timer-v1',
   throttleFromFrame, throttleAppliedAt:null, cpuFromFrame, cpuStartedAt:null,
+  vmInstructionProfiling:flags.has('vm-opcodes'),vmFromFrame,vmStartedAt:null,
   fast, trace:flags.has('trace'), traceStages, requestedCaptures:captureFrames, captures:[],
   glMemoryObserver: flags.has('memory'),
   fixtureSha256: createHash('sha256').update(fixtureBytes).digest('hex'),
@@ -59,15 +69,41 @@ await mkdir(out, {recursive: true});
 await writeFile(resolve(out, 'samples.jsonl'), '');
 await writeFile(resolve(out, 'console.jsonl'), '');
 const save = () => writeFile(resolve(out, 'report.json'), JSON.stringify(report, null, 2) + '\n');
-const browser = await puppeteer.launch({
+let browser;
+const browserOptions={
   executablePath: process.env.HSOB_CHROME || 'C:/Program Files/Google/Chrome/Application/chrome.exe',
   headless: !flags.has('headed'),
   args: ['--no-proxy-server', '--autoplay-policy=no-user-gesture-required', '--enable-precise-memory-info'],
-});
+};
 let page, runtime, cdp, profileActive = false, drainEvidence=async()=>{}, throttleApplied=false;
 let samplesActive=false,drainSamples=async()=>null;
+const setBrowserAffinity=()=>{
+  if(!affinity)return;
+  // Only this probe's isolated Chrome process tree. Never alter another
+  // browser or background task to manufacture an idle-machine benchmark.
+  const rootPid=browser.process().pid;
+  const script=`$ph3Nodes=Get-CimInstance Win32_Process -Filter "Name = 'chrome.exe'";
+    $ph3Branch=@{${rootPid}=$true};
+    do { $ph3Count=$ph3Branch.Count; foreach($ph3Node in $ph3Nodes) {
+      if($ph3Branch.ContainsKey([int]$ph3Node.ParentProcessId)) { $ph3Branch[[int]$ph3Node.ProcessId]=$true }
+    }} while($ph3Branch.Count -ne $ph3Count);
+    $ph3Result=@();foreach($ph3Id in $ph3Branch.Keys){
+      $ph3Process=[System.Diagnostics.Process]::GetProcessById($ph3Id);
+      $ph3Process.ProcessorAffinity=[IntPtr]${affinity};
+      $ph3Result+=@{pid=$ph3Id;mask=$ph3Process.ProcessorAffinity.ToInt64()}
+    };ConvertTo-Json -InputObject $ph3Result -Compress`;
+  const result=spawnSync('powershell.exe',['-NoProfile','-NonInteractive','-Command',script],
+    {encoding:'utf8',windowsHide:true,timeout:20000});
+  if(result.error||result.status!==0)throw Error(result.error?.message||result.stderr||'CPU affinity setup failed');
+  report.cpuAffinity.processes=JSON.parse(result.stdout.trim());
+  if(!report.cpuAffinity.processes.length||report.cpuAffinity.processes.some(p=>p.mask!==affinity))
+    throw Error('CPU affinity was not applied to every owned browser process');
+};
 try {
+  browser=await puppeteer.launch(browserOptions);
+  report.browserVersion=await browser.version();
   page = await browser.newPage();
+  setBrowserAffinity();
   await page.setViewport({width: 1100, height: 1000});
   await page.setBypassServiceWorker(true);
   if (flags.has('memory')) await page.evaluateOnNewDocument(installGLMemoryObserver);
@@ -90,11 +126,27 @@ try {
   if (managed) {
     await page.waitForFunction(() => window.__eaglerBoot?.done, {timeout: 60000});
     await page.evaluate(() => {
-      document.querySelector('#firstUseNoticeDialog')?.close();
       const card = document.querySelector('[data-game="hsob"]');
       card.click(); if (!card.classList.contains('selected')) card.click();
       document.querySelector('#launch').click();
     });
+    // Older pages can open the asynchronous first-use notice after boot.done
+    // or in response to launch. Its close-button handler acknowledges it.
+    await page.waitForFunction(() => document.querySelector('#firstUseNoticeDialog')?.open ||
+      !document.querySelector('#gameDataImportWindow')?.hidden, {timeout: 30000});
+    report.managedUi=await page.evaluate(()=>Object.fromEntries(
+      ['firstUseNoticeDialog','firstUseNoticeClose','gameDataImportWindow'].map(id=>{
+        const e=document.getElementById(id),r=e?.getBoundingClientRect();
+        return[id,e?{open:e.open,hidden:e.hidden,display:getComputedStyle(e).display,width:r.width,height:r.height}:null];
+      })));
+    if(await page.evaluate(()=>Boolean(document.querySelector('#firstUseNoticeDialog')?.open) &&
+      Boolean(document.querySelector('#gameDataImportWindow')?.hidden))){
+      // Avoid scrollIntoView on this sliding native dialog: the pending
+      // launch can replace it while Puppeteer computes its clickable point.
+      await page.evaluate(()=>document.querySelector('#firstUseNoticeClose').click());
+      await page.waitForFunction(()=>!document.querySelector('#firstUseNoticeDialog')?.open);
+      // The pending launch resumes after acknowledgement and opens import.
+    }
     await page.waitForFunction(() => !document.querySelector('#gameDataImportWindow').hidden, {timeout: 30000});
     const zip = resolve(String(flags.get('offline-zip') ||
       resolve(root, '../../dist/offline-packages/hsob-1.12-ja-20260930.zip')));
@@ -116,6 +168,9 @@ try {
   if((flags.has('trace')||captureFrames.length)&&report.build.variant!=='verify')throw Error('Trace/capture requires a verifier build');
   if(fast&&!['verify','boundary'].includes(report.build.variant))throw Error('Fast replay requires a diagnostic build');
   if(fast||flags.has('trace')||captureFrames.length)report.scope='diagnostic original-menu replay; not performance data';
+  const vmInstrumented=report.build.flags?.some(f=>f==='-DPH3_VM_OPCODE_PROFILE=1');
+  if(vmInstrumented!==flags.has('vm-opcodes'))throw Error('VM opcode probe flag must match the instrumented build');
+  if(vmInstrumented)report.scope='VM instruction/native-call attribution, not ordinary performance';
   if(flags.has('trace'))await writeFile(resolve(out,'trace.jsonl'),'');
   await runtime.evaluate(config=>{
     ph3Runtime.wooTraceEnabled=config.trace;
@@ -147,6 +202,7 @@ try {
   }, {bytes:Array.from(fixtureBytes),diagnostic:!!(fast||flags.has('trace')||captureFrames.length)});
   if (!managed) await page.click('#start');
   await runtime.waitForFunction(() => ph3Diagnostics.messages.some(s => s.includes('title00b3.png')), {timeout: 180000});
+  setBrowserAffinity();
   const press = async (key, settle = 500) => {
     await runtime.focus('#canvas');
     await page.keyboard.down(key); await sleep(120); await page.keyboard.up(key); await sleep(settle);
@@ -183,6 +239,10 @@ try {
     (ph3Diagnostics.stage?.replay && ph3Diagnostics.stage.index === index), {timeout: 120000}, stage);
   if (await runtime.evaluate(() => ph3Diagnostics.phase === 'error')) throw Error('Replay entry failed');
   report.start = await checkpoint('02-playing');
+  if(vmInstrumented&&vmFromFrame===0){
+    await runtime.evaluate(()=>ph3Runtime._hsob_vm_profile_reset());
+    report.vmStartedAt={stage:report.start.stage?.index,frame:report.start.stage?.frame};
+  }
   report.renderer = await runtime.evaluate(() => {
     const gl = document.querySelector('#canvas').getContext('webgl2');
     const ext = gl.getExtension('WEBGL_debug_renderer_info');
@@ -205,6 +265,7 @@ try {
   drainSamples=async()=>{
     const {rows,...sampling}=await runtime.evaluate(()=>globalThis.__ph3ProfileRecorder.drain());
     report.sampling=sampling;
+    report.samplingMethod=sampling.method||report.samplingMethod;
     if(rows.length){
       await appendFile(resolve(out,'samples.jsonl'),rows.map(row=>JSON.stringify(row)+'\n').join(''));
       report.samples+=rows.length;report.last=rows.at(-1);
@@ -220,6 +281,10 @@ try {
     await sleep(1000);
     if(flags.has('trace')||captureFrames.length)await drainEvidence();
     const state=await drainSamples();
+    if(vmInstrumented&&!report.vmStartedAt&&state.stage?.index===stage&&state.stage.frame>=vmFromFrame){
+      await runtime.evaluate(()=>ph3Runtime._hsob_vm_profile_reset());
+      report.vmStartedAt={stage,frame:state.stage.frame};await save();
+    }
     if(flags.has('cpu')&&!profileActive&&state.stage?.index===stage&&state.stage.frame>=cpuFromFrame){
       await cdp.send('Profiler.start');profileActive=true;
       report.cpuStartedAt={stage:state.stage.index,frame:state.stage.frame,time:state.time};
@@ -252,9 +317,15 @@ try {
   }
   if (report.outcome === 'running') report.outcome = 'time-window-complete';
   report.elapsedSeconds = (Date.now() - began) / 1000;
+  if(vmInstrumented){
+    if(!report.vmStartedAt)throw Error('VM instruction profile start frame was not reached');
+    await runtime.evaluate(()=>ph3Runtime._hsob_vm_profile_dump());
+    report.vmProfile=await runtime.evaluate(()=>ph3Diagnostics.vmProfile);
+  }
   report.end = await checkpoint('03-end');
 } catch (error) {
-  report.failure = String(error); if (report.outcome !== 'browser-crash') report.outcome = 'failed';
+  report.failure = String(error); report.failureStack=error.stack;
+  if (report.outcome !== 'browser-crash') report.outcome = 'failed';
   try {await page.screenshot({path: resolve(out, 'failure.png')});} catch {}
 } finally {
   if(samplesActive)try{
@@ -266,7 +337,7 @@ try {
     await writeFile(resolve(out, 'cpu.cpuprofile'), JSON.stringify(profile));
   } catch (error) {report.profileError = String(error);}
   else if(flags.has('cpu')) report.profileError='Requested CPU profile start frame was not reached';
-  await save(); await browser.close();
+  await save(); if(browser)await browser.close();
 }
 console.log(JSON.stringify({out, outcome: report.outcome, failure: report.failure, samples: report.samples}));
 if (report.failure || report.errors.length || report.last?.errors?.length ||

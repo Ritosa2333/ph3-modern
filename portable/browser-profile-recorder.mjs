@@ -7,6 +7,9 @@ export function installBrowserProfileRecorder({intervalMs=1000,capacity=512,cpuT
      !Number.isFinite(cpuThrottle)||cpuThrottle<1||cpuThrottle>12)
     throw Error('Invalid browser profile recorder configuration');
   globalThis.__ph3ProfileRecorder?.stop();
+  const windowDriven=globalThis.ph3Diagnostics.performance?.windowHook===true &&
+    globalThis.ph3Diagnostics.observePerformance!==false;
+  const method=windowDriven?'runtime-window-v1':'browser-timer-v1';
   const rows=[];
   let produced=0,dropped=0,previousTime=null,maxIntervalMs=0,stopped=false;
   const record=()=>{
@@ -26,14 +29,17 @@ export function installBrowserProfileRecorder({intervalMs=1000,capacity=512,cpuT
     if(rows.length===capacity){rows.shift();++dropped;}
     rows.push(row);
   };
-  const timer=setInterval(record,intervalMs);
+  // Runtime windows and a timer drift independently. Capture each completed
+  // window at publication so a timer cannot miss a window or duplicate it.
+  const timer=windowDriven?null:setInterval(record,intervalMs);
   globalThis.__ph3ProfileRecorder={
+    recordPerformanceWindow(){if(windowDriven)record();},
     setCpuThrottle(rate){
       if(!Number.isFinite(rate)||rate<1||rate>12)throw Error('Invalid CPU throttle');
       cpuThrottle=rate;
     },
-    drain(){return {rows:rows.splice(0),produced,dropped,maxIntervalMs,intervalMs,capacity};},
-    stop(){if(!stopped){stopped=true;clearInterval(timer);}},
+    drain(){return {rows:rows.splice(0),produced,dropped,maxIntervalMs,intervalMs,capacity,method};},
+    stop(){if(!stopped){stopped=true;if(timer!==null)clearInterval(timer);}},
   };
-  record();
+  if(!windowDriven)record();
 }

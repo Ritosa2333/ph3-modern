@@ -1128,6 +1128,23 @@ void DxScriptObjectManager::PrepareRenderObject()
 		AddRenderObject(obj);
 	}
 }
+#if defined(__EMSCRIPTEN__) && !defined(PH3_LEGACY_RENDER_RANGE)
+void DxScriptObjectManager::PrepareRenderObject(int priMin, int priMax)
+{
+	// RenderToTexture draws only this inclusive priority range, then clears
+	// every bucket. Avoid owning/allocating queue nodes for the other ranges.
+	// The active list already keeps every object alive throughout preparation.
+	for(const auto& owner:listActiveObject_){
+		auto* obj=owner.GetPointer();
+		if(obj==NULL||obj->IsDeleted()||!obj->IsVisible())continue;
+		int priority=int(obj->priRender_*(objRender_.size()-1)+0.5);
+		if(priority>objRender_.size()-1)priority=objRender_.size()-1;
+		// Preserve the original handling of invalid negative indices too.
+		if(priority>=0&&(priority<priMin||priority>priMax))continue;
+		AddRenderObject(owner);
+	}
+}
+#endif
 void DxScriptObjectManager::ClearRenderObject()
 {
 	for (int iPri = 0; iPri < objRender_.size(); iPri++) {
@@ -2066,7 +2083,7 @@ gstd::value DxScript::Func_SetShader(gstd::script_machine* machine, int argc, gs
 {
 	DxScript* script = (DxScript*)machine->data;
 	int id = (int)argv[0].as_real();
-	DxScriptRenderObject* obj = dynamic_cast<DxScriptRenderObject*>(script->GetObjectPointer(id));
+	DxScriptRenderObject* obj = QueryScriptRenderObject(script->GetObjectPointer(id));
 	if (obj == NULL)
 		return value();
 
@@ -2082,7 +2099,7 @@ gstd::value DxScript::Func_SetShaderI(gstd::script_machine* machine, int argc, g
 {
 	DxScript* script = (DxScript*)machine->data;
 	int id = (int)argv[0].as_real();
-	DxScriptRenderObject* obj = dynamic_cast<DxScriptRenderObject*>(script->GetObjectPointer(id));
+	DxScriptRenderObject* obj = QueryScriptRenderObject(script->GetObjectPointer(id));
 	if (obj == NULL)
 		return value();
 
@@ -2380,11 +2397,11 @@ gstd::value DxScript::Func_GetObjectDistance(gstd::script_machine* machine, int 
 	int id1 = (int)argv[0].as_real();
 	int id2 = (int)argv[1].as_real();
 
-	DxScriptRenderObject* obj1 = dynamic_cast<DxScriptRenderObject*>(script->GetObjectPointer(id1));
+	DxScriptRenderObject* obj1 = QueryScriptRenderObject(script->GetObjectPointer(id1));
 	if (obj1 == NULL)
 		return value(machine->get_engine()->get_real_type(), (gstd::script_real)-1);
 
-	DxScriptRenderObject* obj2 = dynamic_cast<DxScriptRenderObject*>(script->GetObjectPointer(id2));
+	DxScriptRenderObject* obj2 = QueryScriptRenderObject(script->GetObjectPointer(id2));
 	if (obj2 == NULL)
 		return value(machine->get_engine()->get_real_type(), (gstd::script_real)-1);
 
@@ -2400,7 +2417,7 @@ gstd::value DxScript::Func_GetObject2dPosition(gstd::script_machine* machine, in
 	DxScript* script = (DxScript*)machine->data;
 	int id = (int)argv[0].as_real();
 
-	DxScriptRenderObject* obj = dynamic_cast<DxScriptRenderObject*>(script->GetObjectPointer(id));
+	DxScriptRenderObject* obj = QueryScriptRenderObject(script->GetObjectPointer(id));
 	if (obj == NULL)
 		script->RaiseError(L"error invalid object");
 
@@ -2616,7 +2633,7 @@ value DxScript::Func_ObjRender_SetX(script_machine* machine, int argc, value con
 {
 	DxScript* script = (DxScript*)machine->data;
 	int id = (int)argv[0].as_real();
-	DxScriptRenderObject* obj = dynamic_cast<DxScriptRenderObject*>(script->GetObjectPointer(id));
+	DxScriptRenderObject* obj = QueryScriptRenderObject(script->GetObjectPointer(id));
 	if (obj == NULL)
 		return value();
 	obj->SetX(argv[1].as_real());
@@ -2626,7 +2643,7 @@ value DxScript::Func_ObjRender_SetY(script_machine* machine, int argc, value con
 {
 	DxScript* script = (DxScript*)machine->data;
 	int id = (int)argv[0].as_real();
-	DxScriptRenderObject* obj = dynamic_cast<DxScriptRenderObject*>(script->GetObjectPointer(id));
+	DxScriptRenderObject* obj = QueryScriptRenderObject(script->GetObjectPointer(id));
 	if (obj == NULL)
 		return value();
 	obj->SetY(argv[1].as_real());
@@ -2636,7 +2653,7 @@ value DxScript::Func_ObjRender_SetZ(script_machine* machine, int argc, value con
 {
 	DxScript* script = (DxScript*)machine->data;
 	int id = (int)argv[0].as_real();
-	DxScriptRenderObject* obj = dynamic_cast<DxScriptRenderObject*>(script->GetObjectPointer(id));
+	DxScriptRenderObject* obj = QueryScriptRenderObject(script->GetObjectPointer(id));
 	if (obj == NULL)
 		return value();
 	obj->SetZ(argv[1].as_real());
@@ -2646,7 +2663,7 @@ value DxScript::Func_ObjRender_SetPosition(script_machine* machine, int argc, va
 {
 	DxScript* script = (DxScript*)machine->data;
 	int id = (int)argv[0].as_real();
-	DxScriptRenderObject* obj = dynamic_cast<DxScriptRenderObject*>(script->GetObjectPointer(id));
+	DxScriptRenderObject* obj = QueryScriptRenderObject(script->GetObjectPointer(id));
 	if (obj == NULL)
 		return value();
 	obj->SetX(argv[1].as_real());
@@ -2658,7 +2675,7 @@ value DxScript::Func_ObjRender_SetAngleX(script_machine* machine, int argc, valu
 {
 	DxScript* script = (DxScript*)machine->data;
 	int id = (int)argv[0].as_real();
-	DxScriptRenderObject* obj = dynamic_cast<DxScriptRenderObject*>(script->GetObjectPointer(id));
+	DxScriptRenderObject* obj = QueryScriptRenderObject(script->GetObjectPointer(id));
 	if (obj == NULL)
 		return value();
 	obj->SetAngleX(argv[1].as_real());
@@ -2668,7 +2685,7 @@ value DxScript::Func_ObjRender_SetAngleY(script_machine* machine, int argc, valu
 {
 	DxScript* script = (DxScript*)machine->data;
 	int id = (int)argv[0].as_real();
-	DxScriptRenderObject* obj = dynamic_cast<DxScriptRenderObject*>(script->GetObjectPointer(id));
+	DxScriptRenderObject* obj = QueryScriptRenderObject(script->GetObjectPointer(id));
 	if (obj == NULL)
 		return value();
 	obj->SetAngleY(argv[1].as_real());
@@ -2678,7 +2695,7 @@ value DxScript::Func_ObjRender_SetAngleZ(script_machine* machine, int argc, valu
 {
 	DxScript* script = (DxScript*)machine->data;
 	int id = (int)argv[0].as_real();
-	DxScriptRenderObject* obj = dynamic_cast<DxScriptRenderObject*>(script->GetObjectPointer(id));
+	DxScriptRenderObject* obj = QueryScriptRenderObject(script->GetObjectPointer(id));
 	if (obj == NULL)
 		return value();
 	obj->SetAngleZ(argv[1].as_real());
@@ -2688,7 +2705,7 @@ value DxScript::Func_ObjRender_SetAngleXYZ(script_machine* machine, int argc, va
 {
 	DxScript* script = (DxScript*)machine->data;
 	int id = (int)argv[0].as_real();
-	DxScriptRenderObject* obj = dynamic_cast<DxScriptRenderObject*>(script->GetObjectPointer(id));
+	DxScriptRenderObject* obj = QueryScriptRenderObject(script->GetObjectPointer(id));
 	if (obj == NULL)
 		return value();
 	obj->SetAngleX(argv[1].as_real());
@@ -2700,7 +2717,7 @@ value DxScript::Func_ObjRender_SetScaleX(script_machine* machine, int argc, valu
 {
 	DxScript* script = (DxScript*)machine->data;
 	int id = (int)argv[0].as_real();
-	DxScriptRenderObject* obj = dynamic_cast<DxScriptRenderObject*>(script->GetObjectPointer(id));
+	DxScriptRenderObject* obj = QueryScriptRenderObject(script->GetObjectPointer(id));
 	if (obj == NULL)
 		return value();
 	obj->SetScaleX(argv[1].as_real());
@@ -2710,7 +2727,7 @@ value DxScript::Func_ObjRender_SetScaleY(script_machine* machine, int argc, valu
 {
 	DxScript* script = (DxScript*)machine->data;
 	int id = (int)argv[0].as_real();
-	DxScriptRenderObject* obj = dynamic_cast<DxScriptRenderObject*>(script->GetObjectPointer(id));
+	DxScriptRenderObject* obj = QueryScriptRenderObject(script->GetObjectPointer(id));
 	if (obj == NULL)
 		return value();
 	obj->SetScaleY(argv[1].as_real());
@@ -2720,7 +2737,7 @@ value DxScript::Func_ObjRender_SetScaleZ(script_machine* machine, int argc, valu
 {
 	DxScript* script = (DxScript*)machine->data;
 	int id = (int)argv[0].as_real();
-	DxScriptRenderObject* obj = dynamic_cast<DxScriptRenderObject*>(script->GetObjectPointer(id));
+	DxScriptRenderObject* obj = QueryScriptRenderObject(script->GetObjectPointer(id));
 	if (obj == NULL)
 		return value();
 	obj->SetScaleZ(argv[1].as_real());
@@ -2730,7 +2747,7 @@ value DxScript::Func_ObjRender_SetScaleXYZ(script_machine* machine, int argc, va
 {
 	DxScript* script = (DxScript*)machine->data;
 	int id = (int)argv[0].as_real();
-	DxScriptRenderObject* obj = dynamic_cast<DxScriptRenderObject*>(script->GetObjectPointer(id));
+	DxScriptRenderObject* obj = QueryScriptRenderObject(script->GetObjectPointer(id));
 	if (obj == NULL)
 		return value();
 	obj->SetScaleX(argv[1].as_real());
@@ -2742,7 +2759,7 @@ value DxScript::Func_ObjRender_SetColor(script_machine* machine, int argc, value
 {
 	DxScript* script = (DxScript*)machine->data;
 	int id = (int)argv[0].as_real();
-	DxScriptRenderObject* obj = dynamic_cast<DxScriptRenderObject*>(script->GetObjectPointer(id));
+	DxScriptRenderObject* obj = QueryScriptRenderObject(script->GetObjectPointer(id));
 	if (obj == NULL)
 		return value();
 	obj->SetColor((int)argv[1].as_real(), (int)argv[2].as_real(), (int)argv[3].as_real());
@@ -2752,7 +2769,7 @@ value DxScript::Func_ObjRender_SetColorHSV(script_machine* machine, int argc, va
 {
 	DxScript* script = (DxScript*)machine->data;
 	int id = (int)argv[0].as_real();
-	DxScriptRenderObject* obj = dynamic_cast<DxScriptRenderObject*>(script->GetObjectPointer(id));
+	DxScriptRenderObject* obj = QueryScriptRenderObject(script->GetObjectPointer(id));
 	if (obj == NULL)
 		return value();
 
@@ -2774,7 +2791,7 @@ value DxScript::Func_ObjRender_SetAlpha(script_machine* machine, int argc, value
 {
 	DxScript* script = (DxScript*)machine->data;
 	int id = (int)argv[0].as_real();
-	DxScriptRenderObject* obj = dynamic_cast<DxScriptRenderObject*>(script->GetObjectPointer(id));
+	DxScriptRenderObject* obj = QueryScriptRenderObject(script->GetObjectPointer(id));
 	if (obj == NULL)
 		return value();
 	obj->SetAlpha((int)argv[1].as_real());
@@ -2784,7 +2801,7 @@ value DxScript::Func_ObjRender_SetBlendType(script_machine* machine, int argc, v
 {
 	DxScript* script = (DxScript*)machine->data;
 	int id = (int)argv[0].as_real();
-	DxScriptRenderObject* obj = dynamic_cast<DxScriptRenderObject*>(script->GetObjectPointer(id));
+	DxScriptRenderObject* obj = QueryScriptRenderObject(script->GetObjectPointer(id));
 	if (obj == NULL)
 		return value();
 	obj->typeBlend_ = (int)argv[1].as_real();
@@ -2795,7 +2812,7 @@ value DxScript::Func_ObjRender_GetX(script_machine* machine, int argc, value con
 	gstd::script_real res = 0;
 	DxScript* script = (DxScript*)machine->data;
 	int id = (int)argv[0].as_real();
-	DxScriptRenderObject* obj = dynamic_cast<DxScriptRenderObject*>(script->GetObjectPointer(id));
+	DxScriptRenderObject* obj = QueryScriptRenderObject(script->GetObjectPointer(id));
 	if (obj != NULL)
 		res = obj->position_.x;
 	return value(machine->get_engine()->get_real_type(), res);
@@ -2805,7 +2822,7 @@ value DxScript::Func_ObjRender_GetY(script_machine* machine, int argc, value con
 	gstd::script_real res = 0;
 	DxScript* script = (DxScript*)machine->data;
 	int id = (int)argv[0].as_real();
-	DxScriptRenderObject* obj = dynamic_cast<DxScriptRenderObject*>(script->GetObjectPointer(id));
+	DxScriptRenderObject* obj = QueryScriptRenderObject(script->GetObjectPointer(id));
 	if (obj != NULL)
 		res = obj->position_.y;
 	return value(machine->get_engine()->get_real_type(), res);
@@ -2815,7 +2832,7 @@ value DxScript::Func_ObjRender_GetZ(script_machine* machine, int argc, value con
 	gstd::script_real res = 0;
 	DxScript* script = (DxScript*)machine->data;
 	int id = (int)argv[0].as_real();
-	DxScriptRenderObject* obj = dynamic_cast<DxScriptRenderObject*>(script->GetObjectPointer(id));
+	DxScriptRenderObject* obj = QueryScriptRenderObject(script->GetObjectPointer(id));
 	if (obj != NULL)
 		res = obj->position_.z;
 	return value(machine->get_engine()->get_real_type(), res);
@@ -2825,7 +2842,7 @@ gstd::value DxScript::Func_ObjRender_GetAngleX(gstd::script_machine* machine, in
 	gstd::script_real res = 0;
 	DxScript* script = (DxScript*)machine->data;
 	int id = (int)argv[0].as_real();
-	DxScriptRenderObject* obj = dynamic_cast<DxScriptRenderObject*>(script->GetObjectPointer(id));
+	DxScriptRenderObject* obj = QueryScriptRenderObject(script->GetObjectPointer(id));
 	if (obj != NULL)
 		res = obj->angle_.x;
 	return value(machine->get_engine()->get_real_type(), res);
@@ -2835,7 +2852,7 @@ gstd::value DxScript::Func_ObjRender_GetAngleY(gstd::script_machine* machine, in
 	gstd::script_real res = 0;
 	DxScript* script = (DxScript*)machine->data;
 	int id = (int)argv[0].as_real();
-	DxScriptRenderObject* obj = dynamic_cast<DxScriptRenderObject*>(script->GetObjectPointer(id));
+	DxScriptRenderObject* obj = QueryScriptRenderObject(script->GetObjectPointer(id));
 	if (obj != NULL)
 		res = obj->angle_.y;
 	return value(machine->get_engine()->get_real_type(), res);
@@ -2845,7 +2862,7 @@ gstd::value DxScript::Func_ObjRender_GetAngleZ(gstd::script_machine* machine, in
 	gstd::script_real res = 0;
 	DxScript* script = (DxScript*)machine->data;
 	int id = (int)argv[0].as_real();
-	DxScriptRenderObject* obj = dynamic_cast<DxScriptRenderObject*>(script->GetObjectPointer(id));
+	DxScriptRenderObject* obj = QueryScriptRenderObject(script->GetObjectPointer(id));
 	if (obj != NULL)
 		res = obj->angle_.z;
 	return value(machine->get_engine()->get_real_type(), res);
@@ -2855,7 +2872,7 @@ gstd::value DxScript::Func_ObjRender_GetScaleX(gstd::script_machine* machine, in
 	gstd::script_real res = 0;
 	DxScript* script = (DxScript*)machine->data;
 	int id = (int)argv[0].as_real();
-	DxScriptRenderObject* obj = dynamic_cast<DxScriptRenderObject*>(script->GetObjectPointer(id));
+	DxScriptRenderObject* obj = QueryScriptRenderObject(script->GetObjectPointer(id));
 	if (obj != NULL)
 		res = obj->scale_.x;
 	return value(machine->get_engine()->get_real_type(), res);
@@ -2865,7 +2882,7 @@ gstd::value DxScript::Func_ObjRender_GetScaleY(gstd::script_machine* machine, in
 	gstd::script_real res = 0;
 	DxScript* script = (DxScript*)machine->data;
 	int id = (int)argv[0].as_real();
-	DxScriptRenderObject* obj = dynamic_cast<DxScriptRenderObject*>(script->GetObjectPointer(id));
+	DxScriptRenderObject* obj = QueryScriptRenderObject(script->GetObjectPointer(id));
 	if (obj != NULL)
 		res = obj->scale_.y;
 	return value(machine->get_engine()->get_real_type(), res);
@@ -2875,7 +2892,7 @@ gstd::value DxScript::Func_ObjRender_GetScaleZ(gstd::script_machine* machine, in
 	gstd::script_real res = 0;
 	DxScript* script = (DxScript*)machine->data;
 	int id = (int)argv[0].as_real();
-	DxScriptRenderObject* obj = dynamic_cast<DxScriptRenderObject*>(script->GetObjectPointer(id));
+	DxScriptRenderObject* obj = QueryScriptRenderObject(script->GetObjectPointer(id));
 	if (obj != NULL)
 		res = obj->scale_.z;
 	return value(machine->get_engine()->get_real_type(), res);
@@ -2885,7 +2902,7 @@ value DxScript::Func_ObjRender_SetZWrite(script_machine* machine, int argc, valu
 {
 	DxScript* script = (DxScript*)machine->data;
 	int id = (int)argv[0].as_real();
-	DxScriptRenderObject* obj = dynamic_cast<DxScriptRenderObject*>(script->GetObjectPointer(id));
+	DxScriptRenderObject* obj = QueryScriptRenderObject(script->GetObjectPointer(id));
 	if (obj == NULL)
 		return value();
 	obj->bZWrite_ = argv[1].as_boolean();
@@ -2895,7 +2912,7 @@ value DxScript::Func_ObjRender_SetZTest(script_machine* machine, int argc, value
 {
 	DxScript* script = (DxScript*)machine->data;
 	int id = (int)argv[0].as_real();
-	DxScriptRenderObject* obj = dynamic_cast<DxScriptRenderObject*>(script->GetObjectPointer(id));
+	DxScriptRenderObject* obj = QueryScriptRenderObject(script->GetObjectPointer(id));
 	if (obj == NULL)
 		return value();
 	obj->bZTest_ = argv[1].as_boolean();
@@ -2905,7 +2922,7 @@ value DxScript::Func_ObjRender_SetFogEnable(script_machine* machine, int argc, v
 {
 	DxScript* script = (DxScript*)machine->data;
 	int id = (int)argv[0].as_real();
-	DxScriptRenderObject* obj = dynamic_cast<DxScriptRenderObject*>(script->GetObjectPointer(id));
+	DxScriptRenderObject* obj = QueryScriptRenderObject(script->GetObjectPointer(id));
 	if (obj == NULL)
 		return value();
 	obj->bFogEnable_ = argv[1].as_boolean();
@@ -2915,7 +2932,7 @@ value DxScript::Func_ObjRender_SetCullingMode(script_machine* machine, int argc,
 {
 	DxScript* script = (DxScript*)machine->data;
 	int id = (int)argv[0].as_real();
-	DxScriptRenderObject* obj = dynamic_cast<DxScriptRenderObject*>(script->GetObjectPointer(id));
+	DxScriptRenderObject* obj = QueryScriptRenderObject(script->GetObjectPointer(id));
 	if (obj == NULL)
 		return value();
 	obj->modeCulling_ = (int)argv[1].as_boolean();
@@ -2925,7 +2942,7 @@ value DxScript::Func_ObjRender_SetRalativeObject(script_machine* machine, int ar
 {
 	DxScript* script = (DxScript*)machine->data;
 	int id = (int)argv[0].as_real();
-	DxScriptRenderObject* obj = dynamic_cast<DxScriptRenderObject*>(script->GetObjectPointer(id));
+	DxScriptRenderObject* obj = QueryScriptRenderObject(script->GetObjectPointer(id));
 	if (obj == NULL)
 		return value();
 
@@ -2957,7 +2974,7 @@ gstd::value DxScript::Func_ObjRender_GetBlendType(gstd::script_machine* machine,
 	int res = 0;
 	DxScript* script = (DxScript*)machine->data;
 	int id = (int)argv[0].as_real();
-	DxScriptRenderObject* obj = dynamic_cast<DxScriptRenderObject*>(script->GetObjectPointer(id));
+	DxScriptRenderObject* obj = QueryScriptRenderObject(script->GetObjectPointer(id));
 	if (obj != NULL)
 		res = obj->GetBlendType();
 	return value(machine->get_engine()->get_real_type(), (gstd::script_real)res);
@@ -2983,7 +3000,7 @@ gstd::value DxScript::Func_ObjShader_SetShaderF(gstd::script_machine* machine, i
 {
 	DxScript* script = (DxScript*)machine->data;
 	int id = (int)argv[0].as_real();
-	DxScriptRenderObject* obj = dynamic_cast<DxScriptRenderObject*>(script->GetObjectPointer(id));
+	DxScriptRenderObject* obj = QueryScriptRenderObject(script->GetObjectPointer(id));
 	if (obj == NULL)
 		return value(machine->get_engine()->get_boolean_type(), false);
 
@@ -3008,12 +3025,12 @@ gstd::value DxScript::Func_ObjShader_SetShaderO(gstd::script_machine* machine, i
 {
 	DxScript* script = (DxScript*)machine->data;
 	int id1 = (int)argv[0].as_real();
-	DxScriptRenderObject* obj1 = dynamic_cast<DxScriptRenderObject*>(script->GetObjectPointer(id1));
+	DxScriptRenderObject* obj1 = QueryScriptRenderObject(script->GetObjectPointer(id1));
 	if (obj1 == NULL)
 		return value(machine->get_engine()->get_boolean_type(), false);
 
 	int id2 = (int)argv[1].as_real();
-	DxScriptRenderObject* obj2 = dynamic_cast<DxScriptRenderObject*>(script->GetObjectPointer(id2));
+	DxScriptRenderObject* obj2 = QueryScriptRenderObject(script->GetObjectPointer(id2));
 	if (obj2 == NULL)
 		return value(machine->get_engine()->get_boolean_type(), false);
 
@@ -3027,7 +3044,7 @@ gstd::value DxScript::Func_ObjShader_ResetShader(gstd::script_machine* machine, 
 {
 	DxScript* script = (DxScript*)machine->data;
 	int id = (int)argv[0].as_real();
-	DxScriptRenderObject* obj = dynamic_cast<DxScriptRenderObject*>(script->GetObjectPointer(id));
+	DxScriptRenderObject* obj = QueryScriptRenderObject(script->GetObjectPointer(id));
 	if (obj == NULL)
 		return value();
 	obj->SetShader(NULL);
@@ -3037,7 +3054,7 @@ gstd::value DxScript::Func_ObjShader_SetTechnique(gstd::script_machine* machine,
 {
 	DxScript* script = (DxScript*)machine->data;
 	int id = (int)argv[0].as_real();
-	DxScriptRenderObject* obj = dynamic_cast<DxScriptRenderObject*>(script->GetObjectPointer(id));
+	DxScriptRenderObject* obj = QueryScriptRenderObject(script->GetObjectPointer(id));
 	if (obj == NULL)
 		return value();
 
@@ -3053,7 +3070,7 @@ gstd::value DxScript::Func_ObjShader_SetMatrix(gstd::script_machine* machine, in
 {
 	DxScript* script = (DxScript*)machine->data;
 	int id = (int)argv[0].as_real();
-	DxScriptRenderObject* obj = dynamic_cast<DxScriptRenderObject*>(script->GetObjectPointer(id));
+	DxScriptRenderObject* obj = QueryScriptRenderObject(script->GetObjectPointer(id));
 	if (obj == NULL)
 		return value();
 
@@ -3086,7 +3103,7 @@ gstd::value DxScript::Func_ObjShader_SetMatrixArray(gstd::script_machine* machin
 {
 	DxScript* script = (DxScript*)machine->data;
 	int id = (int)argv[0].as_real();
-	DxScriptRenderObject* obj = dynamic_cast<DxScriptRenderObject*>(script->GetObjectPointer(id));
+	DxScriptRenderObject* obj = QueryScriptRenderObject(script->GetObjectPointer(id));
 	if (obj == NULL)
 		return value();
 
@@ -3129,7 +3146,7 @@ gstd::value DxScript::Func_ObjShader_SetVector(gstd::script_machine* machine, in
 {
 	DxScript* script = (DxScript*)machine->data;
 	int id = (int)argv[0].as_real();
-	DxScriptRenderObject* obj = dynamic_cast<DxScriptRenderObject*>(script->GetObjectPointer(id));
+	DxScriptRenderObject* obj = QueryScriptRenderObject(script->GetObjectPointer(id));
 	if (obj == NULL)
 		return value();
 
@@ -3150,7 +3167,7 @@ gstd::value DxScript::Func_ObjShader_SetFloat(gstd::script_machine* machine, int
 {
 	DxScript* script = (DxScript*)machine->data;
 	int id = (int)argv[0].as_real();
-	DxScriptRenderObject* obj = dynamic_cast<DxScriptRenderObject*>(script->GetObjectPointer(id));
+	DxScriptRenderObject* obj = QueryScriptRenderObject(script->GetObjectPointer(id));
 	if (obj == NULL)
 		return value();
 
@@ -3167,7 +3184,7 @@ gstd::value DxScript::Func_ObjShader_SetFloatArray(gstd::script_machine* machine
 {
 	DxScript* script = (DxScript*)machine->data;
 	int id = (int)argv[0].as_real();
-	DxScriptRenderObject* obj = dynamic_cast<DxScriptRenderObject*>(script->GetObjectPointer(id));
+	DxScriptRenderObject* obj = QueryScriptRenderObject(script->GetObjectPointer(id));
 	if (obj == NULL)
 		return value();
 
@@ -3195,7 +3212,7 @@ gstd::value DxScript::Func_ObjShader_SetTexture(gstd::script_machine* machine, i
 {
 	DxScript* script = (DxScript*)machine->data;
 	int id = (int)argv[0].as_real();
-	DxScriptRenderObject* obj = dynamic_cast<DxScriptRenderObject*>(script->GetObjectPointer(id));
+	DxScriptRenderObject* obj = QueryScriptRenderObject(script->GetObjectPointer(id));
 	if (obj == NULL)
 		return value();
 

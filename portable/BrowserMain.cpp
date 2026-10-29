@@ -6,6 +6,8 @@
 #include <emscripten.h>
 #include <emscripten/html5.h>
 #include <clocale>
+#include <algorithm>
+#include <cmath>
 #include <vector>
 
 namespace {
@@ -17,6 +19,9 @@ double runtimeFpsStart=-1;
 unsigned runtimeFpsSteps=0,runtimeFpsPresents=0;
 double measureStart=-1;
 unsigned measuredSteps=0,measuredPresents=0;
+unsigned measurementSequence=0;
+double previousMeasuredPresent=-1;
+unsigned measuredPresentIntervals=0,measuredMissedRefreshes=0;
 std::vector<double> frameCosts;
 std::vector<double> callbackCosts;
 double measuredQueuedLoadMax=0;
@@ -55,7 +60,17 @@ void measure(double begin,unsigned steps,bool presented,double queuedLoadMs){
     double now=emscripten_get_now();
     if(measureStart<0)measureStart=begin;
     measuredSteps+=steps;
-    if(presented){++measuredPresents;frameCosts.push_back(now-begin);}
+    if(presented){
+        ++measuredPresents;frameCosts.push_back(now-begin);
+        if(previousMeasuredPresent>=0){
+            ++measuredPresentIntervals;
+            // Count missing 60 Hz refresh slots, with half a slot of jitter
+            // tolerance. This is presentation cadence, separate from CPU cost.
+            measuredMissedRefreshes+=unsigned(std::max(0.0,
+                std::floor((begin-previousMeasuredPresent)*60.0/1000.0+0.5)-1.0));
+        }
+        previousMeasuredPresent=begin;
+    }
     // Required loading can block a browser callback even when it draws nothing.
     callbackCosts.push_back(now-begin);
     measuredQueuedLoadMax=std::max(measuredQueuedLoadMax,queuedLoadMs);
@@ -68,12 +83,21 @@ void measure(double begin,unsigned steps,bool presented,double queuedLoadMs){
     std::sort(callbackCosts.begin(),callbackCosts.end());
     const double callbackP95=callbackCosts.empty()?0:callbackCosts[std::min(callbackCosts.size()-1,std::size_t(callbackCosts.size()*.95))];
     const double callbackMaximum=callbackCosts.empty()?0:callbackCosts.back();
-    EM_ASM({const d=globalThis.ph3Diagnostics;if(d)d.performance=({timingVersion:2,
+    const double callbackP99=callbackCosts.empty()?0:callbackCosts[std::min(callbackCosts.size()-1,std::size_t(callbackCosts.size()*.99))];
+    const unsigned overBudget=unsigned(callbackCosts.end()-std::upper_bound(callbackCosts.begin(),callbackCosts.end(),1000.0/60.0));
+    const unsigned callbacks=unsigned(callbackCosts.size());
+    EM_ASM({const d=globalThis.ph3Diagnostics;if(d)d.performance=({timingVersion:3,
         logicHz:$0,displayFps:$1,frameMsP95:$2,frameMsMax:$3,
-        callbackMsP95:$4,callbackMsMax:$5,queuedLoadMsMax:$6});},
-        logic,display,p95,maximum,callbackP95,callbackMaximum,measuredQueuedLoadMax);
+        callbackMsP95:$4,callbackMsMax:$5,queuedLoadMsMax:$6,
+        sequence:$7,callbackCount:$8,callbackOverBudget:$9,callbackMsP99:$10,
+        presentIntervalCount:$11,missedRefreshCount:$12,windowMs:$13,windowHook:true});
+        globalThis.__ph3ProfileRecorder?.recordPerformanceWindow();},
+        logic,display,p95,maximum,callbackP95,callbackMaximum,measuredQueuedLoadMax,
+        ++measurementSequence,callbacks,overBudget,callbackP99,
+        measuredPresentIntervals,measuredMissedRefreshes,elapsed);
     measureStart=now;measuredSteps=measuredPresents=0;
     frameCosts.clear();callbackCosts.clear();measuredQueuedLoadMax=0;
+    measuredPresentIntervals=measuredMissedRefreshes=0;
 }
 void updateRuntimeFps(double now,unsigned steps,bool presented){
     if(runtimeFpsStart<0)runtimeFpsStart=now;
@@ -247,7 +271,7 @@ bool replayActive(){
 EM_BOOL frame(double now,void*){
     if(failed)return EM_FALSE;
     if(EM_ASM_INT({return globalThis.ph3Diagnostics?.phase==='error'?1:0;}))return EM_FALSE;
-    if(EM_ASM_INT({return document.hidden?1:0;})){previous=-1;accumulated=0;nextStateReport=0;runtimeFpsStart=-1;runtimeFpsSteps=runtimeFpsPresents=0;measureStart=-1;measuredSteps=measuredPresents=0;frameCosts.clear();callbackCosts.clear();measuredQueuedLoadMax=0;return EM_TRUE;}
+    if(EM_ASM_INT({return document.hidden?1:0;})){previous=-1;accumulated=0;nextStateReport=0;runtimeFpsStart=-1;runtimeFpsSteps=runtimeFpsPresents=0;measureStart=-1;measuredSteps=measuredPresents=0;frameCosts.clear();callbackCosts.clear();measuredQueuedLoadMax=0;previousMeasuredPresent=-1;measuredPresentIntervals=measuredMissedRefreshes=0;return EM_TRUE;}
     try {
         const bool observePerformance=EM_ASM_INT({return globalThis.ph3Diagnostics?.observePerformance?1:0;})!=0;
         const double begin=observePerformance?emscripten_get_now():0;

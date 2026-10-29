@@ -28,14 +28,23 @@
 #if defined(__EMSCRIPTEN__) && !defined(PH3_LEGACY_SCRIPT_SCALARS)
 #define PH3_SCRIPT_INLINE_SCALARS 1
 #endif
+#if defined(PH3_SCRIPT_INLINE_SCALARS) && defined(PH3_ENABLE_SCRIPT_STRINGS) && !defined(PH3_LEGACY_SCRIPT_STRINGS)
+#define PH3_SCRIPT_STRING_CACHE 1
+#endif
 #if defined(PH3_SCRIPT_INLINE_SCALARS) && !defined(PH3_LEGACY_SCRIPT_LITERALS)
 #define PH3_SCRIPT_LITERAL_POOL 1
 #endif
 #if defined(PH3_SCRIPT_INLINE_SCALARS) && !defined(PH3_LEGACY_SCRIPT_ARITHMETIC)
 #define PH3_SCRIPT_FAST_ARITHMETIC 1
 #endif
+#if defined(PH3_SCRIPT_INLINE_SCALARS) && !defined(PH3_LEGACY_SCRIPT_BUILTINS)
+#define PH3_SCRIPT_FAST_BUILTINS 1
+#endif
 #if defined(PH3_SCRIPT_LITERAL_POOL) && !defined(PH3_LEGACY_SCRIPT_CODE_LAYOUT)
 #define PH3_SCRIPT_COMPACT_CODE 1
+#endif
+#if defined(__EMSCRIPTEN__) && !defined(PH3_LEGACY_SCRIPT_PARAMETERS)
+#define PH3_SCRIPT_DIRECT_PARAMETERS 1
 #endif
 
 #pragma warning(disable : 4786) //STL Warning抑止
@@ -44,6 +53,7 @@
 #include <list>
 #ifdef __EMSCRIPTEN__
 #include <deque>
+#include <memory>
 #endif
 #include <map>
 #include <string>
@@ -54,6 +64,11 @@
 
 //-------- 汎用
 namespace gstd {
+
+#ifdef PH3_VM_OPCODE_PROFILE
+void profile_script_scalar_box();
+void profile_script_body_request();
+#endif
 
 std::string to_mbcs(std::wstring const& s);
 std::wstring to_wide(std::string const& s);
@@ -457,6 +472,19 @@ public:
 	void concatenate(value const& x);
 
 	gstd::script_real as_real() const;
+#if defined(PH3_SCRIPT_FAST_ARITHMETIC) || defined(PH3_SCRIPT_FAST_BUILTINS)
+	// Numeric VM instructions must not use the coercing/string conversion API.
+	// Keep this small read visible to the dispatch loop, including boxed writable
+	// scalars. Type identity is still checked separately for comparison.
+	bool try_real_operand(gstd::script_real& result) const {
+		if (scalar_type_ != NULL) {
+			if (scalar_type_->get_kind() != type_data::tk_real) return false;
+			result = scalar_.real_value; return true;
+		}
+		if (data == NULL || data->type->get_kind() != type_data::tk_real) return false;
+		result = data->real_value; return true;
+	}
+#endif
 	wchar_t as_char() const;
 	bool as_boolean() const;
 	std::wstring as_string() const;
@@ -469,6 +497,9 @@ public:
 	{
 #ifdef PH3_SCRIPT_INLINE_SCALARS
 		if(scalar_type_ != NULL){
+#ifdef PH3_VM_OPCODE_PROFILE
+			profile_script_scalar_box();
+#endif
 			// index_writable shares a handle to an array element. Materialize
 			// before returning that handle; ordinary scalar copies remain
 			// allocation-free, writable references keep the original semantics.
@@ -526,6 +557,9 @@ private:
 	struct body {
 #if defined(__EMSCRIPTEN__) && !defined(PH3_LEGACY_SCRIPT_ALLOCATOR)
 		static void* operator new(std::size_t bytes) {
+#ifdef PH3_VM_OPCODE_PROFILE
+			profile_script_body_request();
+#endif
 			assert(bytes == sizeof(body));
 			return BoundedAllocationCache<sizeof(body), 4096>::Allocate();
 		}
@@ -542,6 +576,12 @@ private:
 			wchar_t char_value;
 			bool boolean_value;
 		};
+#ifdef PH3_SCRIPT_STRING_CACHE
+		// Cache only unexposed short character arrays. Public element access
+		// permanently disables caching because a writable handle can outlive it.
+		std::shared_ptr<const std::wstring> string_cache;
+		bool string_cacheable=true;
+#endif
 	};
 
 	mutable body* data;
@@ -711,7 +751,10 @@ private:
 		pc_yield
 #ifdef PH3_SCRIPT_FAST_ARITHMETIC
 		, pc_real_add, pc_real_subtract, pc_real_multiply, pc_real_divide,
-		pc_real_negative, pc_real_compare
+		pc_real_negative, pc_real_predecessor, pc_real_successor, pc_real_compare
+#endif
+#ifdef PH3_SCRIPT_FAST_BUILTINS
+		, pc_index_read, pc_array_length, pc_boolean_not, pc_boolean_true, pc_boolean_false
 #endif
 	};
 
@@ -779,7 +822,7 @@ private:
 		{
 		}
 
-#ifdef PH3_SCRIPT_FAST_ARITHMETIC
+#if defined(PH3_SCRIPT_FAST_ARITHMETIC) || defined(PH3_SCRIPT_FAST_BUILTINS)
 		code(int the_line, command_kind the_command, block* the_sub, int the_arguments);
 #else
 		code(int the_line, command_kind the_command, block* the_sub, int the_arguments)
@@ -845,6 +888,11 @@ private:
 		callback func;
 		codes_t codes;
 		block_kind kind;
+#ifdef PH3_SCRIPT_DIRECT_PARAMETERS
+		// -2: unchecked, -1: not a contiguous parameter-assignment prefix.
+		int direct_parameter_base=-2;
+		unsigned direct_parameter_count=0;
+#endif
 
 		block(int the_level, block_kind the_kind)
 			: level(the_level)
@@ -996,6 +1044,9 @@ private:
 	environment* first_garbage_environment;
 	environment* last_garbage_environment;
 	environment* new_environment(environment* parent, script_engine::block* b);
+#ifdef PH3_SCRIPT_DIRECT_PARAMETERS
+	bool transfer_arguments(environment* target,stack_t& source,unsigned count);
+#endif
 	void dispose_environment(environment* object);
 
 	typedef lightweight_vector<environment*> threads_t;

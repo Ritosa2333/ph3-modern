@@ -15,12 +15,14 @@ const gates = [
   ['vm-legacy-js', 'portable/test-script-vm.mjs', '--mode=legacy', '--exceptions=js', '--tag=wip'],
   ['vm-old-code-layout', 'portable/test-script-vm.mjs', '--mode=optimized', '--legacy-code-layout', '--tag=wip'],
   ['vm-asan', 'portable/test-script-vm.mjs', '--mode=optimized', '--asan', '--tag=wip'],
+  ['strings-vm-asan', 'portable/test-script-vm.mjs', '--mode=optimized', '--strings', '--simd', '--asan', '--tag=wip'],
   ['platform-wasm', 'portable/test-platform.mjs', '--exceptions=wasm'],
   ['platform-js', 'portable/test-platform.mjs', '--exceptions=js'],
   ['platform-asan', 'portable/test-platform.mjs', '--exceptions=wasm', '--asan'],
   ['containers-wasm', 'portable/test-script-containers.mjs', '--exceptions=wasm'],
   ['containers-js', 'portable/test-script-containers.mjs', '--exceptions=js'],
   ['profile-recorder', 'portable/test-browser-profile-recorder.mjs'],
+  ['campaign-summary', 'portable/test-campaign-summary.mjs'],
   ['gl-memory-observer', 'portable/test-observe-gl-memory.mjs'],
 ];
 const git = spawnSync('git', ['rev-parse', 'HEAD'], {cwd: root, encoding: 'utf8'});

@@ -314,14 +314,22 @@ void StgSystemController::RenderScriptObject(int priMin, int priMax)
 	if(bValidStage)
 	{
 		objectManagerStage = stageController_->GetMainObjectManager();
+#if defined(__EMSCRIPTEN__) && !defined(PH3_LEGACY_RENDER_RANGE)
+		objectManagerStage->PrepareRenderObject(priMin, priMax);
+#else
 		objectManagerStage->PrepareRenderObject();
+#endif
 		pRenderListStage = objectManagerStage->GetRenderObjectListPointer();
 	}
 
 	if(infoSystem_->IsPackageMode())
 	{
 		objectManagerPackage = packageController_->GetMainObjectManager();
+#if defined(__EMSCRIPTEN__) && !defined(PH3_LEGACY_RENDER_RANGE)
+		objectManagerPackage->PrepareRenderObject(priMin, priMax);
+#else
 		objectManagerPackage->PrepareRenderObject();
+#endif
 		pRenderListPackage = objectManagerPackage->GetRenderObjectListPointer();
 	}
 
