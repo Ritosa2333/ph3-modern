@@ -16,7 +16,7 @@ jobs:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
         with:
           sparse-checkout: |
             source
@@ -27,22 +27,23 @@ jobs:
             archive
             .github
             DirectX9c
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7.1.0
         with:
           node-version: '24'
           cache: npm
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7.1.0
         with:
           python-version: '3.12'
-      - uses: mymindstorm/setup-emsdk@v14
+      - uses: mymindstorm/setup-emsdk@v16
         with:
           version: '6.0.6'
+          actions-cache-folder: '.cache/emsdk'
       - run: npm ci --ignore-scripts
       - run: python -m pip install -r requirements-dev.txt
       - run: npm run check
       - run: npm run build
       - run: npm run build:js
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7.0.2
         if: always()
         with:
           name: validation-${{ matrix.os }}
